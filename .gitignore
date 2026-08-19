@@ -29,6 +29,9 @@ captures/
 *.keystore
 keystore.properties
 
+# 發版資訊小抄。裡面有簽章密碼欄位，絕對不能進版控。
+release-info.txt
+
 # --- 本機產出 ---
 dist/
 *.log
