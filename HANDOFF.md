@@ -50,11 +50,18 @@
 它走完全相同的查詢與入庫路徑，所以在模擬器上仍能完整驗證條碼功能。
 實機上掃描 UI 應該正常，請自行確認一次。
 
-### 尚未建立正式簽章金鑰
+### 發佈前一定要先設好簽章 secret
 
-還沒有 `keystore.properties`，所以 release 會退回 debug 簽章。
-本機建置與 CI 建置的 debug 簽章不同，**兩邊的 APK 不能互相覆蓋安裝**。
-要正式發佈就先產一把 key，並在 GitHub 設四個 secret（見 README 發佈章節）。
+沒有 `keystore.properties` 時，本機 `assembleRelease` 會退回 debug 簽章
+（已驗證：`apksigner verify` 顯示 `CN=Android Debug`）。本機與 CI 的 debug 簽章
+還彼此不同，所以兩邊的 APK 連互相覆蓋都做不到。
+
+CI 已經加了防呆：**推 tag 但沒設 `KEYSTORE_BASE64` 時 workflow 直接失敗**，
+不會產出 debug 簽章的 Release。理由是這個錯誤實質不可逆 ——
+之後補上正式金鑰要更新就得先解除安裝，而本 app 的紀錄全在本地、沒有雲端備份，
+解除安裝就是整份飲食歷史消失。
+
+產金鑰與設 secret 的步驟見 README 發佈章節。
 
 ### Open Food Facts 對台灣商品收錄不完整
 

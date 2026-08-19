@@ -149,9 +149,32 @@ APK 在 `app/build/outputs/apk/debug/app-debug.apk`。
 git tag -a v1.0 -m "第一版" && git push origin v1.0
 ```
 
-要正式簽章就在 repo 設定四個 secret：`KEYSTORE_BASE64`、`STORE_PASSWORD`、
-`KEY_ALIAS`、`KEY_PASSWORD`。沒設的話會退回 debug 簽章，流程照樣跑得完
-（但這樣產出的 APK 和本機建置的簽章不同，兩邊不能互相覆蓋安裝）。
+**版號由 tag 決定**，不必手動改 `build.gradle.kts`：CI 會用
+`-PappVersionName=<去掉 v 的 tag>` 和 `-PappVersionCode=<run number>` 覆蓋。
+手動維護版號遲早會忘記，而症狀是「檔名是新的，裝置卻默默不更新」，很難查。
+
+### 簽章是發佈的前提
+
+repo 必須先設好四個 secret：`KEYSTORE_BASE64`、`STORE_PASSWORD`、
+`KEY_ALIAS`、`KEY_PASSWORD`。**沒設的話推 tag 會直接讓 workflow 失敗**，
+這是刻意的 —— 靜默退回 debug 簽章比失敗糟得多：
+
+> Android 拒絕安裝簽章不同的更新。一旦發出 debug 簽章的版本，
+> 之後補上正式金鑰要更新就必須先解除安裝，
+> 而這個 app 的紀錄全部只在本地、沒有雲端備份，解除安裝等於整份飲食歷史消失。
+
+金鑰產生與 secret 設定可以照 `tools/setup-signing.sh` 一步步跑（如果有保留的話），
+或手動：
+
+```bash
+keytool -genkeypair -keystore release.jks -alias nutrilog \
+        -keyalg RSA -keysize 2048 -validity 10000
+base64 -w 0 release.jks | gh secret set KEYSTORE_BASE64
+gh secret set STORE_PASSWORD; gh secret set KEY_ALIAS; gh secret set KEY_PASSWORD
+```
+
+**`release.jks` 一定要另外備份。** 弄丟它就再也發不出可以覆蓋更新的版本了。
+GitHub secret 是唯讀不回的，不算備份。
 
 ## 技術規格
 

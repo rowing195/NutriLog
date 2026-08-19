@@ -16,6 +16,13 @@ val keystoreProps = Properties().apply {
     if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
 }
 
+// 版號預設值只給本機建置用；CI 發版時會用
+//   -PappVersionName=1.1 -PappVersionCode=<遞增值>
+// 從 tag 覆蓋掉。這樣就不會發生「忘了手動改版號，結果新版被裝置當成同一版」——
+// 那個症狀很難看出來：APK 檔名是新的，安裝卻悄悄沒更新。
+val appVersionName = (findProperty("appVersionName") as String?) ?: "1.0"
+val appVersionCode = (findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 1
+
 android {
     namespace = "com.watson.nutrilog"
     compileSdk = 35
@@ -26,8 +33,8 @@ android {
         // 同時可以只用 adaptive icon（不必準備各密度 PNG）。
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
     }
 
     signingConfigs {
