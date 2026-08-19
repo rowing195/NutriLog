@@ -2,6 +2,7 @@ package com.watson.nutrilog.data.net
 
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -84,32 +85,61 @@ class GeminiClient(private val client: OkHttpClient = SharedHttp.client) {
                 .post(payload.toString().toRequestBody(JSON_MEDIA))
                 .build()
 
-            val call = runCatching { client.newCall(request).execute() }.getOrElse { cause ->
-                // OkHttp 的逾時訊息是英文的 "timeout"，直接丟給使用者等於沒說。
-                // 而且逾時最常見的成因是模型太慢，解法是換模型而不是重試。
-                error(
-                    when (cause) {
-                        is SocketTimeoutException ->
-                            "等太久了，連線逾時。這個模型可能思考時間較長 —— " +
-                                "到設定頁換成 gemini-3.5-flash-lite 之類比較快的模型再試一次"
-                        is IOException -> "連線失敗，請檢查網路"
-                        else -> throw cause
-                    }
-                )
+            val body = sendWithRetry(request)
+            val parsed = json.decodeFromString(GeminiResponse.serializer(), body)
+            val text = parsed.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text
+                ?: error("模型沒有回傳內容")
+            json.decodeFromString(AnalysisResult.serializer(), text).items
+        }
+    }
+
+    /**
+     * 送出請求，暫時性失敗自動重試，回傳成功的 response body。
+     *
+     * 只重試**重試得有意義**的兩種情況：
+     *   - 5xx：Google 那邊忙不過來（503 model overloaded 在新模型剛推出時很常見）
+     *   - 連線層的 IOException／逾時
+     * 4xx 一律不重試 —— key 錯、模型名稱錯、配額不足，重試幾次結果都一樣，
+     * 只是讓使用者多等好幾秒才看到同一則錯誤。
+     *
+     * 退避時間刻意保守（1.5s、3s）：使用者正盯著「辨識中」的轉圈等結果，
+     * 拖太久還不如早點告訴他失敗了。
+     */
+    private suspend fun sendWithRetry(request: Request): String {
+        var lastFailure: String? = null
+        for (attempt in 1..MAX_ATTEMPTS) {
+            if (attempt > 1) delay(RETRY_DELAY_MS shl (attempt - 2))
+
+            val response = try {
+                client.newCall(request).execute()
+            } catch (cause: IOException) {
+                lastFailure = networkMessage(cause)
+                Log.w(TAG, "attempt " + attempt + " 連線失敗", cause)
+                continue
             }
 
-            call.use { response ->
-                val body = response.body?.string().orEmpty()
-                if (!response.isSuccessful) {
-                    Log.w(TAG, "Gemini " + response.code + ": " + body.take(800))
-                    error(explain(response.code, body))
-                }
-                val parsed = json.decodeFromString(GeminiResponse.serializer(), body)
-                val text = parsed.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text
-                    ?: error("模型沒有回傳內容")
-                json.decodeFromString(AnalysisResult.serializer(), text).items
-            }
+            val code = response.code
+            // body 只能讀一次，而且要在 use 區塊裡讀完
+            val body = response.use { it.body?.string().orEmpty() }
+            if (code in 200..299) return body
+
+            Log.w(TAG, "attempt " + attempt + " Gemini " + code + ": " + body.take(800))
+            val message = explain(code, body)
+            if (code !in 500..599) error(message)
+            lastFailure = message
         }
+        error(lastFailure ?: "Gemini 無法回應")
+    }
+
+    /**
+     * OkHttp 的逾時訊息是英文的 "timeout"，直接丟給使用者等於沒說。
+     * 而逾時最常見的成因是模型思考太久，解法是換模型而不是一直重試。
+     */
+    private fun networkMessage(cause: IOException): String = when (cause) {
+        is SocketTimeoutException ->
+            "等太久了，連線逾時。這個模型可能思考時間較長 —— " +
+                "到設定頁換成 gemini-3.5-flash-lite 之類比較快的模型再試一次"
+        else -> "連線失敗，請檢查網路"
     }
 
     /**
@@ -127,7 +157,9 @@ class GeminiClient(private val client: OkHttpClient = SharedHttp.client) {
             401, 403 -> "API key 無效或沒有權限"
             404 -> "找不到這個模型，請到設定頁確認模型名稱"
             429 -> "配額不足。這不一定代表你用太多 —— 也可能是專案還在免費層，或這個模型的額度是 0"
-            in 500..599 -> "Gemini 服務暫時無法回應"
+            in 500..599 ->
+                "Gemini 那邊暫時忙不過來（已自動重試）。剛推出的模型特別容易遇到，" +
+                    "可到設定頁改用 gemini-3.5-flash-lite"
             else -> "Gemini 回應 HTTP " + code
         }
         val detail = runCatching {
@@ -198,6 +230,8 @@ class GeminiClient(private val client: OkHttpClient = SharedHttp.client) {
 
     private companion object {
         const val TAG = "GeminiClient"
+        const val MAX_ATTEMPTS = 3
+        const val RETRY_DELAY_MS = 1500L
         const val BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/"
         val JSON_MEDIA = "application/json".toMediaType()
 
