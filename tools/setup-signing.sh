@@ -339,7 +339,9 @@ write_env keyAlias "$keyAlias"
 write_env keyPassword "$storePassword"
 printf '\n'
 note "keystore.properties and release.jks are both gitignored -- verifying:"
-if git check-ignore -q keystore.properties release.jks; then
+# 一次一個路徑：git check-ignore 的 -q 配上多個路徑會直接 fatal，
+# 於是 if 判定失敗，明明有被忽略卻報成「沒被忽略」。
+if git check-ignore -q keystore.properties && git check-ignore -q release.jks; then
   printf '  %s✓%s both are ignored by git\n' "$GREEN" "$RESET"
 else
   warn "NOT ignored by git -- do not commit until you fix .gitignore!"
