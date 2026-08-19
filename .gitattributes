@@ -4,6 +4,11 @@
 # gradlew 是 shell script，被轉成 CRLF 會在 Linux/macOS/CI 上直接跑不起來
 gradlew text eol=lf
 
+# 同理，這台機器的 core.autocrlf=true，沒有這條規則的話 .sh 會被
+# 簽出成 CRLF，Git Bash 連 shebang 都過不了，錯誤訊息是莫名其妙的
+# $'\r': command not found
+*.sh text eol=lf
+
 # PowerShell 腳本維持 CRLF。PS 5.1 對編碼與行尾比較龜毛，
 # 而這兩支只會在 Windows 上跑（見 tools/ 裡的說明）
 *.ps1 text eol=crlf

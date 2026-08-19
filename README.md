@@ -163,8 +163,37 @@ repo 必須先設好四個 secret：`KEYSTORE_BASE64`、`STORE_PASSWORD`、
 > 之後補上正式金鑰要更新就必須先解除安裝，
 > 而這個 app 的紀錄全部只在本地、沒有雲端備份，解除安裝等於整份飲食歷史消失。
 
-金鑰產生與 secret 設定可以照 `tools/setup-signing.sh` 一步步跑（如果有保留的話），
-或手動：
+### 產生金鑰：tools/setup-signing.sh
+
+[`tools/setup-signing.sh`](tools/setup-signing.sh) 會一步步帶你走完六個階段：
+產生金鑰 → 驗指紋 → 寫本機 `keystore.properties` → 設四個 GitHub secret → 備份提醒。
+密碼你自己輸入（隱藏顯示），透過環境變數傳給 `keytool` 而不是命令列參數
+（命令列參數在 process list 裡是全機器可見的）。
+
+**這是 bash 腳本，要用 Git Bash 跑，cmd 和 PowerShell 都不能直接執行。**
+
+Git Bash 視窗裡（在專案任何位置都可以，腳本會自己找到專案根目錄）：
+
+```bash
+./tools/setup-signing.sh
+```
+
+從 PowerShell 呼叫：
+
+```powershell
+& "C:\Program Files\Git\bin\bash.exe" "C:\code\android app\NutriLog\tools\setup-signing.sh"
+```
+
+從 cmd 呼叫：
+
+```bat
+"C:\Program Files\Git\bin\bash.exe" "C:\code\android app\NutriLog\tools\setup-signing.sh"
+```
+
+後兩者能跑，但主控台的 codepage 通常不是 UTF-8，框線字元可能會歪掉
+（腳本輸出刻意全用 ASCII 英文就是為了這個）。**建議直接開 Git Bash。**
+
+不想跑腳本就手動：
 
 ```bash
 keytool -genkeypair -keystore release.jks -alias nutrilog \

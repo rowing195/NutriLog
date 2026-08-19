@@ -37,6 +37,19 @@ $ui = "C:\code\android app\NutriLog\tools\ui.ps1"
 
 腳本本身**只能用 ASCII**：PS 5.1 把沒有 BOM 的檔案當 ANSI 讀，某些中文位元組序列會直接 parse error。
 
+## tools/setup-signing.sh 是 bash，不是 PowerShell
+
+一次性的簽章金鑰設定精靈（產金鑰 → 設 GitHub secret），**要用 Git Bash 跑**：
+
+```bash
+./tools/setup-signing.sh
+```
+
+它是 bash 而不是 .ps1，因為要處理 `base64` 的二進位管線 —— PS 5.1 會把二進位
+當文字轉換而弄壞內容。`.gitattributes` 有 `*.sh text eol=lf`，
+少了它在 `core.autocrlf=true` 的機器上會被簽出成 CRLF，
+然後 bash 在 shebang 就死，錯誤訊息是看不懂的 `$'\r': command not found`。
+
 ## 查資料有沒有真的落地
 
 Room 預設開 WAL，所以**資料通常在 `-wal` 檔裡，主檔只有 4096 bytes 是正常的**：
