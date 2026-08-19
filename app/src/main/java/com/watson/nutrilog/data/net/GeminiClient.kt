@@ -20,6 +20,8 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.IOException
+import java.net.SocketTimeoutException
 
 /** 模型從照片裡認出來的一項食物。數字全是估算值，一律要讓使用者確認過才入庫。 */
 @Serializable
@@ -71,6 +73,7 @@ class GeminiClient(private val client: OkHttpClient = SharedHttp.client) {
                     // markdown code fence，就得自己剝字串，而且隨時會變。
                     put("responseMimeType", "application/json")
                     put("responseSchema", json.parseToJsonElement(RESPONSE_SCHEMA))
+                    thinkingConfigFor(model)?.let { put("thinkingConfig", it) }
                 }
             }
 
@@ -81,7 +84,21 @@ class GeminiClient(private val client: OkHttpClient = SharedHttp.client) {
                 .post(payload.toString().toRequestBody(JSON_MEDIA))
                 .build()
 
-            client.newCall(request).execute().use { response ->
+            val call = runCatching { client.newCall(request).execute() }.getOrElse { cause ->
+                // OkHttp 的逾時訊息是英文的 "timeout"，直接丟給使用者等於沒說。
+                // 而且逾時最常見的成因是模型太慢，解法是換模型而不是重試。
+                error(
+                    when (cause) {
+                        is SocketTimeoutException ->
+                            "等太久了，連線逾時。這個模型可能思考時間較長 —— " +
+                                "到設定頁換成 gemini-3.5-flash-lite 之類比較快的模型再試一次"
+                        is IOException -> "連線失敗，請檢查網路"
+                        else -> throw cause
+                    }
+                )
+            }
+
+            call.use { response ->
                 val body = response.body?.string().orEmpty()
                 if (!response.isSuccessful) {
                     Log.w(TAG, "Gemini " + response.code + ": " + body.take(800))
@@ -129,6 +146,29 @@ class GeminiClient(private val client: OkHttpClient = SharedHttp.client) {
         }.getOrDefault("")
 
         return if (detail.isBlank()) headline else headline + "\n\n" + detail
+    }
+
+    /**
+     * 把思考程度壓到最低。
+     *
+     * 「看照片認食物」不需要推理，但 Gemini 3.x 預設是 thinking medium，
+     * 延遲會拉到讓請求逾時（實際踩到：3.7-flash 一直斷線）。
+     *
+     * 兩個系列的參數不一樣，**混用會回 400**：
+     *   Gemini 3.x        -> thinkingLevel（minimal 最接近關閉；flash 系列無法完全關）
+     *   Gemini 2.5 Flash  -> thinkingBudget = 0（這一系列才能真的完全關閉）
+     *
+     * 2.5 **Pro** 特別排除：它的 thinkingBudget 下限是 128，不接受 0，
+     * 送 0 會直接被打回 400。認不得的模型也整個不送，讓它用自己的預設 ——
+     * 亂送不支援的欄位一樣是 400。
+     */
+    private fun thinkingConfigFor(model: String): JsonObject? {
+        val id = model.trim().lowercase()
+        return when {
+            id.startsWith("gemini-3") -> buildJsonObject { put("thinkingLevel", "minimal") }
+            id.startsWith("gemini-2.5-flash") -> buildJsonObject { put("thinkingBudget", 0) }
+            else -> null
+        }
     }
 
     @Serializable

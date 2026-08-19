@@ -63,9 +63,14 @@ CI 已經加了防呆：**推 tag 但沒設 `KEYSTORE_BASE64` 時 workflow 直�
 
 產金鑰與設 secret 的步驟見 README 發佈章節。
 
-### GCP 的贈送額度不能用在 Gemini API
+### 429 的真正成因是 API 沒啟用，不是配額
 
 實際踩到：帳號有 9000+ 美元的 GCP 贈送額度，第一次呼叫就回 429。
+**最後解法是到 GCP Console 把 Generative Language API 啟用起來**，
+啟用後就正常了。專案沒啟用該 API 時的拒絕也會以 429 呈現，
+所以「第一次用就 429」要先去 Console 確認 API 有沒有開，再談配額。
+
+順帶一提，贈送額度本來就幫不上忙：
 
 Google 明文把 Gemini API 排除在贈送額度之外 ——
 「Gemini API usage costs are specifically excluded from the $300 Google Cloud
@@ -79,6 +84,26 @@ Gemini API。所以掛著一大筆 GCP 額度的專案**仍然停在 Free tier**
 這也是為什麼 `GeminiClient.explain()` 要把 Google 的 `error.message` 與
 `quotaId` 原文帶到畫面上：只說「已達用量上限」會讓人以為是自己用太多，
 而真正的資訊在 quotaId（例如 GenerateRequestsPerDayPerProjectPerModel-FreeTier）。
+
+### Gemini 3.x 預設開 thinking，會把請求拖到逾時
+
+實際踩到：換成 gemini-3.7-flash 之後一直斷線。3.7-flash 的預設是
+thinking **medium**，而「看照片認食物」根本不需要推理，
+純粹是白等 —— 原本 60 秒的 readTimeout 撐不住。
+
+`GeminiClient.thinkingConfigFor()` 把它壓到最低，但**兩個系列的參數不能混用**：
+
+| 模型 | 參數 | 值 |
+|---|---|---|
+| gemini-3.x | `thinkingLevel` | `minimal`（flash 系列無法完全關閉） |
+| gemini-2.5-flash | `thinkingBudget` | `0`（真的完全關閉） |
+| gemini-2.5-pro | 不送 | 下限是 128，送 0 會回 400 |
+| 其他/認不得 | 不送 | 亂送不支援的欄位一樣是 400 |
+
+模型名稱是使用者可自由編輯的，所以這個判斷必須容錯。
+已用矩陣驗證八種名稱（含大小寫與前後空白）都落在正確分支。
+
+readTimeout 也從 60 秒拉到 120 秒留餘裕。
 
 ### Open Food Facts 對台灣商品收錄不完整
 

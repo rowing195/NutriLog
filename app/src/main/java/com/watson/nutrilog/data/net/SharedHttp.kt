@@ -12,8 +12,10 @@ import java.util.concurrent.TimeUnit
 object SharedHttp {
     val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
-        // 影像辨識要把圖傳上去再等模型回答，比一般 API 久得多
-        .readTimeout(60, TimeUnit.SECONDS)
+        // 影像辨識要把圖傳上去再等模型回答，比一般 API 久得多。
+        // 60 秒不夠：Gemini 3.x 預設開 thinking，實測會逾時。
+        // GeminiClient 已經把 thinking 壓到最低，這裡再留一倍餘裕。
+        .readTimeout(120, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 }
