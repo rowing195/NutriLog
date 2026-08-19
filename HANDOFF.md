@@ -27,6 +27,12 @@
 | 沒設 API key 就拍照 | **不會開相機**，直接顯示提示與「去設定」按鈕 |
 | Gemini 錯誤對應 | 填假 key → Google 回 400 → 畫面顯示「請求被拒絕，API key 可能不正確」，原始 JSON 只進 logcat |
 | 資料落地 | `nutrilog.db-wal` 內含 food_entries / cached_products 與實際資料；DataStore 內含設定 JSON |
+| 月曆歷史 | 12 天測試資料正確落格，空白日、超標紅色、今日外框、未來日壓淡都符合預期 |
+| 月曆連動 | 新增一筆 150 kcal 後，該格由 2180 變 2330 |
+| 月曆點日 | 點 8/3 跳回今日頁並顯示該天；「回到今天」可返回 |
+| 文字辨識 | 範例晶片填入 → 送出 → 走 Gemini（假 key 驗到 400 與錯誤處理）|
+| 文字辨識重試 | 「重試」重跑的是文字查詢，不是照片（retryAnalysis 依 lastSource 分派）|
+| 深色模式 | 卡片與背景有層次，不再是預設紫 |
 
 ## 待驗證（需要使用者提供的東西）
 
@@ -126,6 +132,42 @@ readTimeout 也從 60 秒拉到 120 秒留餘裕。
 另外 OFF 讀取端點限制每個 IP 每分鐘 15 次，這就是 `cached_products` 存在的理由。
 
 ## 踩過的坑
+
+### 只蓋 primary，整個 app 會是紫的
+
+Material3 的預設 baseline 是紫色系。第一版的 `Theme.kt` 只覆蓋了
+`primary`/`secondary`，結果背景、卡片、進度條軌道全是淡紫灰，
+跟綠色主色互相打架 —— 截圖出來一看就知道不對。
+
+修法是把 `surfaceContainer*` 整族、`surfaceVariant`、`outline*`、
+`background`/`surface` 全部指定。**少蓋一個就會有元件固執地維持預設紫。**
+
+### ui.ps1 的 back 不一定只是收鍵盤
+
+`& $ui back` 在鍵盤開著時收鍵盤，鍵盤沒開時會觸發 `BackHandler`，
+把整個編輯畫面關掉、草稿一起丟掉。測試時看起來就像「儲存沒反應」。
+
+**填表單後要按儲存，用 `scroll down` 比 `back` 可靠。**
+
+### 大量測試資料用 sqlite3 灌，不要用 UI
+
+模擬器有 `/system/bin/sqlite3`，可以直接寫進 app 沙箱：
+
+```bash
+adb shell am force-stop com.watson.nutrilog   # Room 開著 WAL，兩邊同時寫會壞
+adb push seed.sql /data/local/tmp/seed.sql
+adb shell "cat /data/local/tmp/seed.sql | run-as com.watson.nutrilog sqlite3 databases/nutrilog.db"
+```
+
+`adb push` 的**本機路徑要用 Windows 格式**（`C:/...`）——
+在 Git Bash 裡設了 `MSYS_NO_PATHCONV=1` 之後，`/c/...` 不會被轉換，
+adb 是 Windows 執行檔，看不懂那個路徑。
+
+### 截圖一定要在 Bash 重導向
+
+`adb exec-out screencap -p > x.png` 在 PowerShell 會被加上 BOM 並改寫位元組，
+產出的檔案不是合法 PNG。和撈 DataStore/DB 是同一個坑。
+
 
 ### 鍵盤蓋住儲存鈕，而且點下去是打在鍵盤上
 

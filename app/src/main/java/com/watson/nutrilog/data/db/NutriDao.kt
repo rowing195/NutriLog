@@ -27,7 +27,14 @@ interface NutriDao {
     @Query("SELECT * FROM food_entries WHERE id = :id")
     suspend fun findEntry(id: Long): FoodEntry?
 
-    // 欄位別名必須和 DayTotal 的建構子參數同名，Room 靠名字對應
+    /**
+     * 某段日期區間的每日合計，月曆用。
+     *
+     * date 存的是 ISO "yyyy-MM-dd"，字串比大小的結果和日期先後一致，
+     * 所以 BETWEEN 直接比字串就對了，不必為了範圍查詢另存 timestamp。
+     *
+     * 欄位別名必須和 DayTotal 的建構子參數同名，Room 靠名字對應。
+     */
     @Query(
         """
         SELECT date,
@@ -37,12 +44,11 @@ interface NutriDao {
                SUM(carbsG)   AS carbsG,
                COUNT(*)      AS itemCount
         FROM food_entries
+        WHERE date BETWEEN :from AND :to
         GROUP BY date
-        ORDER BY date DESC
-        LIMIT :limit
         """
     )
-    fun observeDailyTotals(limit: Int): Flow<List<DayTotal>>
+    fun observeRange(from: String, to: String): Flow<List<DayTotal>>
 
     /** 新增回傳 rowId、更新回傳原 id，呼叫端不必分辨是哪一種 */
     @Upsert

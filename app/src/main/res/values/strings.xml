@@ -20,6 +20,9 @@
     <string name="nutrient_fiber">膳食纖維</string>
     <string name="nutrient_satfat">飽和脂肪</string>
     <string name="unit_kcal">kcal</string>
+    <string name="calories_remaining">還可以吃</string>
+    <string name="calories_over">已超出</string>
+    <string name="calories_consumed">已攝取 %1$s / %2$d kcal</string>
     <string name="unit_gram">g</string>
     <string name="unit_mg">mg</string>
 
@@ -34,6 +37,7 @@
     <string name="add_manual">手動輸入</string>
     <string name="add_photo">拍照辨識</string>
     <string name="add_photo_gallery">從相簿選</string>
+    <string name="add_text">文字輸入辨識</string>
     <string name="add_barcode">掃條碼</string>
     <string name="add_barcode_manual">手動輸入條碼</string>
 
@@ -52,9 +56,14 @@
     <string name="delete_title">刪除這筆紀錄？</string>
     <string name="delete_message">「%1$s」會從當天的紀錄中移除，無法復原。</string>
 
-    <!-- 歷史 -->
+    <!-- 歷史（月曆） -->
     <string name="history_title">歷史</string>
-    <string name="history_empty">還沒有任何紀錄</string>
+    <string name="prev_month">上個月</string>
+    <string name="next_month">下個月</string>
+    <string name="back_to_this_month">回到本月</string>
+    <string name="history_empty_month">這個月還沒有任何紀錄</string>
+    <string name="history_month_summary">記錄了 %1$d 天，平均每天 %2$s kcal</string>
+    <string name="history_month_over">其中 %1$d 天超過目標</string>
 
     <!-- 設定 -->
     <string name="settings_title">設定</string>
@@ -80,12 +89,20 @@
     <string name="barcode_per_100g">以下是每 100 g 的營養值，請填你實際吃的公克數</string>
     <string name="barcode_grams">實際份量 (g)</string>
 
+    <!-- 文字辨識 -->
+    <string name="text_lookup_title">文字輸入辨識</string>
+    <string name="text_lookup_hint">用一句話描述吃了什麼，AI 會估算營養素。講得越具體越準 —— 店名、品項、大小杯、甜度都可以寫。</string>
+    <string name="text_lookup_label">吃了什麼</string>
+    <string name="text_lookup_placeholder">例如：CoCo 珍珠奶茶 大杯半糖</string>
+    <string name="text_lookup_examples">試試這些：</string>
+    <string name="text_lookup_go">估算營養素</string>
+
     <!-- 拍照辨識 -->
     <string name="photo_analyzing">AI 辨識中…</string>
-    <string name="photo_review_title">確認辨識結果</string>
-    <string name="photo_review_hint">AI 的估算只是參考，請確認並修正後再儲存。取消勾選就不會記錄該項。</string>
+    <string name="review_title">確認辨識結果</string>
+    <string name="review_hint">AI 的估算只是參考，請確認並修正後再儲存。取消勾選就不會記錄該項。存進去之後還可以點開逐欄細改。</string>
     <string name="photo_no_key">還沒設定 Gemini API key，請先到設定頁填入</string>
-    <string name="photo_nothing_found">照片裡沒有辨識到食物，換一張或改用手動輸入</string>
+    <string name="review_nothing_found">沒有辨識到食物。換一張照片、把描述講得更具體，或改用手動輸入</string>
     <string name="photo_confidence">把握度 %1$d%%</string>
     <string name="photo_save_selected">儲存勾選的 %1$d 項</string>
     <string name="go_to_settings">去設定</string>

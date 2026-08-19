@@ -41,8 +41,8 @@ import kotlin.math.roundToInt
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PhotoReviewScreen(
-    state: PhotoState,
+fun ReviewScreen(
+    state: AnalysisState,
     onToggle: (Int) -> Unit,
     onSave: () -> Unit,
     onRetry: () -> Unit,
@@ -53,7 +53,7 @@ fun PhotoReviewScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.photo_review_title)) },
+                title = { Text(stringResource(R.string.review_title)) },
                 navigationIcon = {
                     IconButton(onClick = onClose) {
                         Icon(Icons.Default.Close, stringResource(R.string.close))
@@ -63,7 +63,7 @@ fun PhotoReviewScreen(
         },
     ) { inner ->
         when (state) {
-            PhotoState.Analyzing -> Column(
+            AnalysisState.Analyzing -> Column(
                 Modifier
                     .fillMaxSize()
                     .padding(inner)
@@ -75,7 +75,7 @@ fun PhotoReviewScreen(
                 Text(stringResource(R.string.photo_analyzing))
             }
 
-            is PhotoState.Failed -> FailureBody(
+            is AnalysisState.Failed -> FailureBody(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(inner)
@@ -86,7 +86,7 @@ fun PhotoReviewScreen(
                 onManualInstead = onManualInstead,
             )
 
-            is PhotoState.Ready ->
+            is AnalysisState.Ready ->
                 if (state.items.isEmpty()) {
                     Column(
                         Modifier
@@ -95,7 +95,7 @@ fun PhotoReviewScreen(
                             .padding(24.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
-                        Text(stringResource(R.string.photo_nothing_found))
+                        Text(stringResource(R.string.review_nothing_found))
                         OutlinedButton(onClick = onManualInstead, modifier = Modifier.fillMaxWidth()) {
                             Text(stringResource(R.string.add_manual))
                         }
@@ -117,7 +117,7 @@ fun PhotoReviewScreen(
 @Composable
 private fun ReadyBody(
     modifier: Modifier,
-    state: PhotoState.Ready,
+    state: AnalysisState.Ready,
     onToggle: (Int) -> Unit,
     onSave: () -> Unit,
 ) {
@@ -130,7 +130,7 @@ private fun ReadyBody(
         ) {
             item {
                 Text(
-                    stringResource(R.string.photo_review_hint),
+                    stringResource(R.string.review_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -152,7 +152,7 @@ private fun ReadyBody(
 }
 
 @Composable
-private fun ItemRow(item: PhotoItem, onToggle: () -> Unit) {
+private fun ItemRow(item: AnalysisItem, onToggle: () -> Unit) {
     val food = item.food
     Card(
         shape = CardShape,

@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.YearMonth
 
 /**
  * 畫面。沿用 LocalReader 的做法：sealed interface + when 分派，不引入導航函式庫。
@@ -42,18 +43,30 @@ sealed interface Screen {
     data object Settings : Screen
     data object EditEntry : Screen
     data object Barcode : Screen
-    data object PhotoReview : Screen
+    data object TextLookup : Screen
+    data object Review : Screen
 }
 
-/** 拍照辨識的三個階段。 */
-sealed interface PhotoState {
-    data object Analyzing : PhotoState
-    data class Ready(val items: List<PhotoItem>) : PhotoState
-    data class Failed(val reason: String) : PhotoState
+/** AI 辨識的三個階段。照片與文字描述共用。 */
+sealed interface AnalysisState {
+    data object Analyzing : AnalysisState
+    data class Ready(val items: List<AnalysisItem>) : AnalysisState
+    data class Failed(val reason: String) : AnalysisState
 }
 
 /** 確認畫面裡的一列：模型認出來的東西，加上「要不要記錄」。 */
-data class PhotoItem(val food: DetectedFood, val selected: Boolean = true)
+data class AnalysisItem(val food: DetectedFood, val selected: Boolean = true)
+
+/**
+ * 這次辨識是從哪裡來的。
+ *
+ * 「重試」必須知道要重跑哪一件事 —— 之前是讓畫面自己記著照片 URI，
+ * 但文字辨識加進來之後那個做法就不成立了。
+ */
+sealed interface AnalysisSource {
+    data class Photo(val uri: Uri) : AnalysisSource
+    data class Text(val query: String) : AnalysisSource
+}
 
 /** 條碼查詢的四種結局。分開來 UI 才講得出「查無此商品」和「連線失敗」的差別。 */
 sealed interface BarcodeState {
@@ -151,20 +164,32 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         private set
     var entries by mutableStateOf<List<FoodEntry>>(emptyList())
         private set
-    var dailyTotals by mutableStateOf<List<DayTotal>>(emptyList())
+    /** 月曆目前顯示的月份 */
+    var visibleMonth by mutableStateOf(YearMonth.now())
+        private set
+    /** 該月每一天的合計，key 是 "yyyy-MM-dd"。沒紀錄的日子不會出現在 map 裡。 */
+    var monthTotals by mutableStateOf<Map<String, DayTotal>>(emptyMap())
         private set
     var draft by mutableStateOf(EntryDraft())
         private set
     var barcodeState by mutableStateOf<BarcodeState>(BarcodeState.Idle)
         private set
-    var photoState by mutableStateOf<PhotoState?>(null)
+    var analysisState by mutableStateOf<AnalysisState?>(null)
         private set
+    private var lastSource: AnalysisSource? = null
 
     val totals: Totals get() = entries.totals()
 
     init {
         viewModelScope.launch { settingsStore.settingsFlow.collect { settings = it } }
-        viewModelScope.launch { dao.observeDailyTotals(HISTORY_DAYS).collect { dailyTotals = it } }
+        // 換月份就換一條 Flow，和換日期同樣的道理
+        viewModelScope.launch {
+            snapshotFlow { visibleMonth }
+                .flatMapLatest { month ->
+                    dao.observeRange(month.atDay(1).toString(), month.atEndOfMonth().toString())
+                }
+                .collect { totals -> monthTotals = totals.associateBy { it.date } }
+        }
         // 換日期就要換一條 Flow。用 snapshotFlow 把 Compose state 轉成 Flow，
         // flatMapLatest 會自動取消上一天的訂閱，不會累積。
         viewModelScope.launch {
@@ -186,6 +211,14 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun shiftDay(days: Long) { selectedDate = selectedDate.plusDays(days) }
+
+    /** 開月曆時對齊到目前看的那一天所屬的月份，而不是永遠跳回本月。 */
+    fun openHistory() {
+        visibleMonth = YearMonth.from(selectedDate)
+        screen = Screen.History
+    }
+
+    fun shiftMonth(months: Long) { visibleMonth = visibleMonth.plusMonths(months) }
 
     // --- 編輯 ---
 
@@ -276,23 +309,35 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         startPrefilled(product.toDraft(grams))
     }
 
-    // --- 拍照辨識 ---
+    // --- AI 辨識（照片與文字共用）---
 
-    /**
-     * 壓縮 -> 丟給 Gemini -> 進確認畫面。
-     *
-     * 這裡**不會**直接寫進資料庫。模型估的數字一定要讓使用者看過、
-     * 可以取消勾選，否則等於在使用者的飲食紀錄裡塞它自己編的數字。
-     */
     /** 有沒有 key。給 UI 在開相機**之前**問，別讓使用者拍完才發現不能用。 */
     fun hasApiKey(): Boolean = settings.geminiApiKey.isNotBlank()
 
     fun reportMissingApiKey() {
-        photoState = PhotoState.Failed(NO_API_KEY)
-        screen = Screen.PhotoReview
+        analysisState = AnalysisState.Failed(NO_API_KEY)
+        screen = Screen.Review
     }
 
-    fun analyzePhoto(uri: Uri) {
+    fun openTextLookup() { screen = Screen.TextLookup }
+
+    fun analyzePhoto(uri: Uri) = startAnalysis(AnalysisSource.Photo(uri))
+
+    fun analyzeText(query: String) {
+        if (query.isBlank()) return
+        startAnalysis(AnalysisSource.Text(query.trim()))
+    }
+
+    /** 重跑上一次的辨識。要重跑哪一件事由 [lastSource] 決定，畫面不必記。 */
+    fun retryAnalysis() { lastSource?.let(::startAnalysis) }
+
+    /**
+     * 送去 Gemini -> 進確認畫面。
+     *
+     * 這裡**不會**直接寫進資料庫。模型估的數字一定要讓使用者看過、
+     * 可以取消勾選，否則等於在使用者的飲食紀錄裡塞它自己編的數字。
+     */
+    private fun startAnalysis(source: AnalysisSource) {
         val key = settings.geminiApiKey
         // 這裡仍然要擋一次：從相機回來的期間設定可能被改掉，
         // 而這裡才是真正會把 key 送出去的地方。
@@ -300,25 +345,31 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
             reportMissingApiKey()
             return
         }
-        photoState = PhotoState.Analyzing
-        screen = Screen.PhotoReview
+        lastSource = source
+        analysisState = AnalysisState.Analyzing
+        screen = Screen.Review
         viewModelScope.launch {
-            val image = ImageCompressor.toBase64Jpeg(getApplication(), uri)
-            photoState = image.fold(
-                onSuccess = { base64 ->
-                    gemini.analyzeFood(base64, key, settings.geminiModel).fold(
-                        onSuccess = { PhotoState.Ready(it.map(::PhotoItem)) },
-                        onFailure = { PhotoState.Failed(it.message ?: "unknown") },
-                    )
-                },
-                onFailure = { PhotoState.Failed(it.message ?: "unknown") },
+            val model = settings.geminiModel
+            val result = when (source) {
+                is AnalysisSource.Text -> gemini.analyzeDescription(source.query, key, model)
+                is AnalysisSource.Photo ->
+                    // 壓縮失敗（檔案壞了、格式不支援）也要走同一條錯誤路徑，
+                    // 不然使用者只會看到轉圈停住
+                    ImageCompressor.toBase64Jpeg(getApplication(), source.uri)
+                        .mapCatching { base64 ->
+                            gemini.analyzeFood(base64, key, model).getOrThrow()
+                        }
+            }
+            analysisState = result.fold(
+                onSuccess = { AnalysisState.Ready(it.map(::AnalysisItem)) },
+                onFailure = { AnalysisState.Failed(it.message ?: "unknown") },
             )
         }
     }
 
-    fun togglePhotoItem(index: Int) {
-        val current = photoState as? PhotoState.Ready ?: return
-        photoState = PhotoState.Ready(
+    fun toggleAnalysisItem(index: Int) {
+        val current = analysisState as? AnalysisState.Ready ?: return
+        analysisState = AnalysisState.Ready(
             current.items.mapIndexed { i, item ->
                 if (i == index) item.copy(selected = !item.selected) else item
             }
@@ -326,15 +377,15 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** 一次寫入所有勾選的項目。存完就回今天，使用者要細調再點進去改。 */
-    fun savePhotoSelection() {
-        val current = photoState as? PhotoState.Ready ?: return
+    fun saveAnalysisSelection() {
+        val current = analysisState as? AnalysisState.Ready ?: return
         val chosen = current.items.filter { it.selected }
         if (chosen.isEmpty()) return
         val meal = guessMeal()
         val now = System.currentTimeMillis()
         viewModelScope.launch {
             dao.insertAll(chosen.map { it.food.toEntry(selectedDate, meal, now) })
-            photoState = null
+            analysisState = null
             screen = Screen.Today
         }
     }
@@ -360,7 +411,6 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
         /** 用哨兵字串而不是寫死訊息，UI 才能把它換成有「去設定」按鈕的畫面。 */
         const val NO_API_KEY = "NO_API_KEY"
-        private const val HISTORY_DAYS = 60
     }
 }
 

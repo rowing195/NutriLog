@@ -63,6 +63,15 @@ adb exec-out run-as com.watson.nutrilog cat files/datastore/nutri_prefs.preferen
 `run-as` **不能**寫進 `/sdcard`（會產生空檔），一定要走 `exec-out` 接 stdout，
 而且要在 Bash 而非 PowerShell 重導向（PS 會把二進位轉成文字弄壞）。
 
+## 配色
+
+Material3 預設 baseline 是紫色系。**新增顏色角色時整族都要蓋**
+（`surfaceContainerLowest/Low/_/High/Highest`、`surfaceVariant`、`outline*`），
+少蓋一個就會有元件固執地維持預設紫。第一版只蓋了 `primary`，
+結果整個 app 的背景與卡片都是淡紫灰。
+
+三大營養素的固定色放在 `theme/NutrientColors`，不要在各畫面自己寫死色碼。
+
 ## 改動慣例
 
 - 註解寫**繁體中文**，解釋「為什麼」而不是「做了什麼」。

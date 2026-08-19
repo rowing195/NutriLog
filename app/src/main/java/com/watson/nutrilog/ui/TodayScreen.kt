@@ -39,6 +39,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.NutriSettings
@@ -62,6 +65,7 @@ fun TodayScreen(
     onAddManual: () -> Unit,
     onAddPhoto: () -> Unit,
     onAddFromGallery: () -> Unit,
+    onAddText: () -> Unit,
     onAddBarcode: () -> Unit,
     onOpenHistory: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -133,13 +137,14 @@ fun TodayScreen(
             onAddManual = onAddManual,
             onAddPhoto = onAddPhoto,
             onAddFromGallery = onAddFromGallery,
+            onAddText = onAddText,
             onAddBarcode = onAddBarcode,
         )
     }
 }
 
 /**
- * 三種輸入方式的入口。
+ * 所有輸入方式的入口。
  *
  * 用 bottom sheet 而不是展開式 FAB：選項有文字說明，
  * 而展開的小 FAB 只有圖示，第一次用的人猜不出哪個是哪個。
@@ -152,6 +157,7 @@ private fun AddEntrySheet(
     onAddManual: () -> Unit,
     onAddPhoto: () -> Unit,
     onAddFromGallery: () -> Unit,
+    onAddText: () -> Unit,
     onAddBarcode: () -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -159,6 +165,7 @@ private fun AddEntrySheet(
             SheetRow(stringResource(R.string.add_manual)) { onPick(onAddManual) }
             SheetRow(stringResource(R.string.add_photo)) { onPick(onAddPhoto) }
             SheetRow(stringResource(R.string.add_photo_gallery)) { onPick(onAddFromGallery) }
+            SheetRow(stringResource(R.string.add_text)) { onPick(onAddText) }
             SheetRow(stringResource(R.string.add_barcode)) { onPick(onAddBarcode) }
         }
     }
@@ -205,45 +212,66 @@ private fun DateRow(
 
 @Composable
 private fun SummaryCard(totals: Totals, settings: NutriSettings) {
-    Card(shape = CardShape) {
+    Card(
+        shape = CardShape,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+    ) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+                .padding(vertical = 20.dp, horizontal = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            NutrientBar(
-                label = stringResource(R.string.nutrient_calories),
-                value = totals.calories,
-                target = settings.calorieTarget,
-                unit = stringResource(R.string.unit_kcal),
-                color = NutrientColors.Calories,
+            CalorieRing(consumed = totals.calories, target = settings.calorieTarget)
+
+            Text(
+                stringResource(
+                    R.string.calories_consumed,
+                    totals.calories.fmtInt(),
+                    settings.calorieTarget,
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            NutrientBar(
-                label = stringResource(R.string.nutrient_protein),
-                value = totals.proteinG,
-                target = settings.proteinTargetG,
-                unit = stringResource(R.string.unit_gram),
-                color = NutrientColors.Protein,
-            )
-            NutrientBar(
-                label = stringResource(R.string.nutrient_fat),
-                value = totals.fatG,
-                target = settings.fatTargetG,
-                unit = stringResource(R.string.unit_gram),
-                color = NutrientColors.Fat,
-            )
-            NutrientBar(
-                label = stringResource(R.string.nutrient_carbs),
-                value = totals.carbsG,
-                target = settings.carbsTargetG,
-                unit = stringResource(R.string.unit_gram),
-                color = NutrientColors.Carbs,
-            )
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                MacroStat(
+                    label = stringResource(R.string.nutrient_protein),
+                    value = totals.proteinG,
+                    target = settings.proteinTargetG,
+                    unit = stringResource(R.string.unit_gram),
+                    color = NutrientColors.Protein,
+                    modifier = Modifier.weight(1f),
+                )
+                MacroStat(
+                    label = stringResource(R.string.nutrient_fat),
+                    value = totals.fatG,
+                    target = settings.fatTargetG,
+                    unit = stringResource(R.string.unit_gram),
+                    color = NutrientColors.Fat,
+                    modifier = Modifier.weight(1f),
+                )
+                MacroStat(
+                    label = stringResource(R.string.nutrient_carbs),
+                    value = totals.carbsG,
+                    target = settings.carbsTargetG,
+                    unit = stringResource(R.string.unit_gram),
+                    color = NutrientColors.Carbs,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+
             if (settings.showExtendedNutrients) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Text(
-                    "糖 " + totals.sugarG.fmt() + " g · 鈉 " + totals.sodiumMg.fmtInt() +
-                        " mg · 纖維 " + totals.fiberG.fmt() + " g · 飽和脂肪 " +
+                    "糖 " + totals.sugarG.fmt() + " g　鈉 " + totals.sodiumMg.fmtInt() +
+                        " mg　纖維 " + totals.fiberG.fmt() + " g　飽和脂肪 " +
                         totals.satFatG.fmt() + " g",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -258,13 +286,18 @@ private fun MealHeader(meal: Meal, kcal: Double) {
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(top = 8.dp),
+            .padding(top = 12.dp, bottom = 2.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(meal.label(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        Text(
+            meal.symbol() + "  " + meal.label(),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+        )
         Text(
             kcal.fmtInt() + " " + stringResource(R.string.unit_kcal),
-            style = MaterialTheme.typography.titleSmall,
+            style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
@@ -273,8 +306,8 @@ private fun MealHeader(meal: Meal, kcal: Double) {
 @Composable
 private fun EntryRow(entry: FoodEntry, onClick: () -> Unit) {
     Card(
-        shape = CardShape,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        shape = SmallCardShape,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
@@ -282,12 +315,16 @@ private fun EntryRow(entry: FoodEntry, onClick: () -> Unit) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(Modifier.weight(1f)) {
-                Text(entry.name, style = MaterialTheme.typography.bodyLarge)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    entry.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                )
                 if (entry.servingText.isNotBlank()) {
                     Text(
                         entry.servingText,
@@ -297,10 +334,18 @@ private fun EntryRow(entry: FoodEntry, onClick: () -> Unit) {
                 }
                 MacroSummaryText(entry.proteinG, entry.fatG, entry.carbsG)
             }
-            Text(
-                entry.calories.fmtInt() + " " + stringResource(R.string.unit_kcal),
-                style = MaterialTheme.typography.titleMedium,
-            )
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    entry.calories.fmtInt(),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    stringResource(R.string.unit_kcal),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -310,15 +355,21 @@ private fun EmptyHint() {
     Column(
         Modifier
             .fillMaxWidth()
-            .padding(vertical = 32.dp),
+            .padding(vertical = 40.dp, horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text(stringResource(R.string.today_empty), style = MaterialTheme.typography.titleMedium)
+        Text("🍽", fontSize = 44.sp)
+        Text(
+            stringResource(R.string.today_empty),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Medium,
+        )
         Text(
             stringResource(R.string.today_empty_hint),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
         )
     }
 }

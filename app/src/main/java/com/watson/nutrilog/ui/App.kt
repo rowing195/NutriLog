@@ -91,8 +91,12 @@ fun NutriLogApp(viewModel: NutriViewModel) {
             onAddManual = viewModel::startNewEntry,
             onAddPhoto = startCamera,
             onAddFromGallery = startGallery,
+            onAddText = {
+                // 文字辨識同樣先擋沒 key 的情況，理由和相機一樣
+                if (viewModel.hasApiKey()) viewModel.openTextLookup() else viewModel.reportMissingApiKey()
+            },
             onAddBarcode = viewModel::openBarcode,
-            onOpenHistory = { viewModel.goTo(Screen.History) },
+            onOpenHistory = viewModel::openHistory,
             onOpenSettings = { viewModel.goTo(Screen.Settings) },
         )
 
@@ -121,13 +125,21 @@ fun NutriLogApp(viewModel: NutriViewModel) {
             )
         }
 
-        Screen.PhotoReview -> {
+        Screen.TextLookup -> {
             BackHandler { viewModel.backToToday() }
-            PhotoReviewScreen(
-                state = viewModel.photoState ?: PhotoState.Analyzing,
-                onToggle = viewModel::togglePhotoItem,
-                onSave = viewModel::savePhotoSelection,
-                onRetry = { pendingPhotoUri?.let(viewModel::analyzePhoto) },
+            TextLookupScreen(
+                onLookup = viewModel::analyzeText,
+                onClose = viewModel::backToToday,
+            )
+        }
+
+        Screen.Review -> {
+            BackHandler { viewModel.backToToday() }
+            ReviewScreen(
+                state = viewModel.analysisState ?: AnalysisState.Analyzing,
+                onToggle = viewModel::toggleAnalysisItem,
+                onSave = viewModel::saveAnalysisSelection,
+                onRetry = viewModel::retryAnalysis,
                 onOpenSettings = { viewModel.goTo(Screen.Settings) },
                 onManualInstead = viewModel::startNewEntry,
                 onClose = viewModel::backToToday,
@@ -137,8 +149,11 @@ fun NutriLogApp(viewModel: NutriViewModel) {
         Screen.History -> {
             BackHandler { viewModel.backToToday() }
             HistoryScreen(
-                days = viewModel.dailyTotals,
+                month = viewModel.visibleMonth,
+                totals = viewModel.monthTotals,
                 settings = viewModel.settings,
+                selectedDate = viewModel.selectedDate,
+                onShiftMonth = viewModel::shiftMonth,
                 onOpenDay = viewModel::showDate,
                 onClose = viewModel::backToToday,
             )

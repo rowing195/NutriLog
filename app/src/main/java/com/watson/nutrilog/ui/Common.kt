@@ -1,10 +1,15 @@
 package com.watson.nutrilog.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -12,9 +17,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.db.Meal
 import com.watson.nutrilog.ui.theme.NutrientColors
@@ -32,6 +43,14 @@ fun Meal.label(): String = stringResource(
         Meal.SNACK -> R.string.meal_snack
     }
 )
+
+/** 每種餐別一個符號。純文字清單掃起來很吃力，有個記號就容易定位。 */
+fun Meal.symbol(): String = when (this) {
+    Meal.BREAKFAST -> "🌅"
+    Meal.LUNCH -> "🍱"
+    Meal.DINNER -> "🍽"
+    Meal.SNACK -> "🍪"
+}
 
 /** 顯示用的數字：整數不拖小數點，其他保留一位。營養素再精確也沒有意義。 */
 fun Double.fmt(): String =
@@ -52,13 +71,80 @@ fun LocalDate.displayLabel(today: LocalDate = LocalDate.now()): String {
 }
 
 /**
- * 一條營養素進度條。
+ * 熱量環。
  *
- * 超標時整條轉紅：這個 app 的重點是「今天還能吃多少」，
- * 進度條停在 100% 看起來就像剛好達標，那是完全相反的意思。
+ * 中間顯示的是**還可以吃多少**，不是已經吃多少 —— 使用者在餐前打開 app
+ * 想知道的是「還剩多少額度」，「已攝取 1850」還要自己減一次。
+ * 超標就改成顯示超出多少並整圈轉紅。
  */
 @Composable
-fun NutrientBar(
+fun CalorieRing(
+    consumed: Double,
+    target: Int,
+    modifier: Modifier = Modifier,
+    diameter: Int = 156,
+    stroke: Int = 13,
+) {
+    val fraction = if (target > 0) (consumed / target).toFloat() else 0f
+    val over = fraction > 1f
+    val remaining = target - consumed
+    val ringColor = if (over) NutrientColors.Over else NutrientColors.Calories
+    val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+
+    Box(modifier.size(diameter.dp), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize()) {
+            val width = stroke.dp.toPx()
+            val inset = width / 2
+            val arcSize = Size(size.width - width, size.height - width)
+            drawArc(
+                color = trackColor,
+                startAngle = -90f,
+                sweepAngle = 360f,
+                useCenter = false,
+                topLeft = Offset(inset, inset),
+                size = arcSize,
+                style = Stroke(width = width, cap = StrokeCap.Round),
+            )
+            // 超標時整圈畫滿：停在某個角度看起來像還沒吃完，意思正好相反
+            drawArc(
+                color = ringColor,
+                startAngle = -90f,
+                sweepAngle = if (over) 360f else fraction.coerceIn(0f, 1f) * 360f,
+                useCenter = false,
+                topLeft = Offset(inset, inset),
+                size = arcSize,
+                style = Stroke(width = width, cap = StrokeCap.Round),
+            )
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                stringResource(if (over) R.string.calories_over else R.string.calories_remaining),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                kotlin.math.abs(remaining).fmtInt(),
+                fontSize = 36.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (over) NutrientColors.Over else MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                stringResource(R.string.unit_kcal),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/**
+ * 一個營養素的小卡：名稱、數值、細進度條。
+ *
+ * 三個並排時每個都很窄，所以數值用 "92/100 g" 這種緊湊寫法。
+ * 單位跟著數值同一行 —— 單獨一行的 "g" 沒有對齊基準，看起來像掉出來的。
+ */
+@Composable
+fun MacroStat(
     label: String,
     value: Double,
     target: Int,
@@ -68,32 +154,35 @@ fun NutrientBar(
 ) {
     val fraction = if (target > 0) (value / target).toFloat() else 0f
     val over = fraction > 1f
-    Column(modifier.fillMaxWidth()) {
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(label, style = MaterialTheme.typography.labelLarge)
-            Text(
-                "${value.fmtInt()} / $target $unit",
-                style = MaterialTheme.typography.labelMedium,
-                color = if (over) NutrientColors.Over else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+    Column(
+        modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            value.fmtInt() + "/" + target + " " + unit,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = if (over) NutrientColors.Over else MaterialTheme.colorScheme.onSurface,
+        )
         LinearProgressIndicator(
             progress = { fraction.coerceIn(0f, 1f) },
             color = if (over) NutrientColors.Over else color,
-            trackColor = MaterialTheme.colorScheme.surfaceVariant,
-            strokeCap = androidx.compose.ui.graphics.StrokeCap.Round,
+            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            strokeCap = StrokeCap.Round,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 4.dp),
+                .height(5.dp),
         )
     }
 }
 
-/** 「蛋白 12 · 脂肪 5 · 碳水 30」這種一行摘要，紀錄列與歷史列共用。 */
+/** 「蛋白 12 · 脂肪 5 · 碳水 30」這種一行摘要，紀錄列與確認畫面共用。 */
 @Composable
 fun MacroSummaryText(
     proteinG: Double,
@@ -109,4 +198,5 @@ fun MacroSummaryText(
     )
 }
 
-val CardShape = RoundedCornerShape(16.dp)
+val CardShape = RoundedCornerShape(20.dp)
+val SmallCardShape = RoundedCornerShape(14.dp)
