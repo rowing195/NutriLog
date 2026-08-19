@@ -32,7 +32,11 @@ data class NutriSettings(
 ) {
     companion object {
         // 模型會改朝換代，所以設定頁可以改。注意 gemini-2.0-flash 已經下架，別填。
-        const val DEFAULT_MODEL = "gemini-3.5-flash"
+        //
+        // 改預設**只影響全新安裝**：舊資料裡已經存了一個 geminiModel 值
+        // （序列化時 encodeDefaults = true，第一次存設定就把它寫進去了），
+        // 所以既有使用者要自己到設定頁改，不會被這行帶著走。
+        const val DEFAULT_MODEL = "gemini-3.7-flash"
         const val MIN_TARGET = 0
         const val MAX_CALORIE_TARGET = 6000
         const val MAX_MACRO_TARGET = 800

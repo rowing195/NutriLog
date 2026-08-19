@@ -63,6 +63,23 @@ CI 已經加了防呆：**推 tag 但沒設 `KEYSTORE_BASE64` 時 workflow 直�
 
 產金鑰與設 secret 的步驟見 README 發佈章節。
 
+### GCP 的贈送額度不能用在 Gemini API
+
+實際踩到：帳號有 9000+ 美元的 GCP 贈送額度，第一次呼叫就回 429。
+
+Google 明文把 Gemini API 排除在贈送額度之外 ——
+「Gemini API usage costs are specifically excluded from the $300 Google Cloud
+Free Trial」，而 2026-03-02 之後開的帳號連 $300 Welcome credit 也不能付
+Gemini API。所以掛著一大筆 GCP 額度的專案**仍然停在 Free tier**，
+撞的是 Free tier 的每日請求上限，跟「額度剩多少」無關。
+
+要離開 Free tier 只有一條路：連結帳單帳戶並**預付至少 $10**。
+在 AI Studio 的 Projects 頁 Billing Tier 欄可以看目前層級。
+
+這也是為什麼 `GeminiClient.explain()` 要把 Google 的 `error.message` 與
+`quotaId` 原文帶到畫面上：只說「已達用量上限」會讓人以為是自己用太多，
+而真正的資訊在 quotaId（例如 GenerateRequestsPerDayPerProjectPerModel-FreeTier）。
+
 ### Open Food Facts 對台灣商品收錄不完整
 
 查無資料是常態而不是例外，所以「查無 → 手動輸入」那條路必須保持順暢。

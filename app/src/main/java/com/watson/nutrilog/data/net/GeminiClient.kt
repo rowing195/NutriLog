@@ -5,6 +5,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -79,10 +84,8 @@ class GeminiClient(private val client: OkHttpClient = SharedHttp.client) {
             client.newCall(request).execute().use { response ->
                 val body = response.body?.string().orEmpty()
                 if (!response.isSuccessful) {
-                    // 原始回應留在 logcat 就好。把一整包 JSON 印在畫面上，
-                    // 使用者看不懂，還會把真正有用的那一句話擠掉。
-                    Log.w(TAG, "Gemini " + response.code + ": " + body.take(500))
-                    error(friendlyError(response.code))
+                    Log.w(TAG, "Gemini " + response.code + ": " + body.take(800))
+                    error(explain(response.code, body))
                 }
                 val parsed = json.decodeFromString(GeminiResponse.serializer(), body)
                 val text = parsed.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text
@@ -92,15 +95,51 @@ class GeminiClient(private val client: OkHttpClient = SharedHttp.client) {
         }
     }
 
-    /** 把 HTTP status 翻成使用者看得懂的話。原始回應寫進 logcat，不進畫面。 */
-    private fun friendlyError(code: Int): String = when (code) {
-        400 -> "請求被拒絕，API key 可能不正確"
-        401, 403 -> "API key 無效或沒有權限"
-        404 -> "找不到這個模型，請到設定頁確認模型名稱"
-        429 -> "已達 API 用量上限，稍後再試"
-        in 500..599 -> "Gemini 服務暫時無法回應"
-        else -> "Gemini 回應 HTTP " + code
+    /**
+     * 錯誤訊息 = 我們的一句話定性 + Google 自己的說明。
+     *
+     * 只給定性（例如「已達用量上限」）在第一次使用就撞 429 時會**誤導**：
+     * 使用者會以為自己用太多，但實際原因可能是專案還在 Free tier、
+     * 或那個模型的每日額度是 0。Google 的 error.message 與 quotaId
+     * 才講得出是哪一項配額，所以照原文帶出來 —— 但只帶解析過的欄位，
+     * 不是把整包 JSON 倒在畫面上。
+     */
+    private fun explain(code: Int, body: String): String {
+        val headline = when (code) {
+            400 -> "請求被拒絕，API key 可能不正確"
+            401, 403 -> "API key 無效或沒有權限"
+            404 -> "找不到這個模型，請到設定頁確認模型名稱"
+            429 -> "配額不足。這不一定代表你用太多 —— 也可能是專案還在免費層，或這個模型的額度是 0"
+            in 500..599 -> "Gemini 服務暫時無法回應"
+            else -> "Gemini 回應 HTTP " + code
+        }
+        val detail = runCatching {
+            val error = json.decodeFromString(ErrorEnvelope.serializer(), body).error ?: return@runCatching ""
+            // quotaId 長得像 GenerateRequestsPerDayPerProjectPerModel-FreeTier，
+            // 直接點出是哪一條限制擋下來的，比什麼都有用
+            val quotaId = error.details
+                .mapNotNull { it as? JsonObject }
+                .flatMap { it["violations"]?.jsonArray.orEmpty() }
+                .mapNotNull { (it as? JsonObject)?.get("quotaId")?.jsonPrimitive?.contentOrNull }
+                .firstOrNull()
+            listOfNotNull(
+                error.message.trim().takeIf { it.isNotEmpty() },
+                quotaId?.let { "quotaId: " + it },
+            ).joinToString("\n\n")
+        }.getOrDefault("")
+
+        return if (detail.isBlank()) headline else headline + "\n\n" + detail
     }
+
+    @Serializable
+    private data class ErrorEnvelope(val error: ErrorBody? = null)
+
+    @Serializable
+    private data class ErrorBody(
+        val message: String = "",
+        val status: String = "",
+        val details: List<JsonElement> = emptyList(),
+    )
 
     @Serializable
     private data class GeminiResponse(val candidates: List<Candidate> = emptyList())
