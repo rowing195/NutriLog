@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">飲食紀錄</string>
+
+    <!-- 今日 -->
+    <string name="today_title">今天</string>
+    <string name="today_empty">今天還沒有紀錄</string>
+    <string name="today_empty_hint">點右下角的 ＋ 開始記錄。可以手動輸入、拍一張食物照讓 AI 判斷，或掃商品條碼。</string>
+    <string name="prev_day">前一天</string>
+    <string name="next_day">後一天</string>
+    <string name="back_to_today">回到今天</string>
+
+    <!-- 營養素 -->
+    <string name="nutrient_calories">熱量</string>
+    <string name="nutrient_protein">蛋白質</string>
+    <string name="nutrient_fat">脂肪</string>
+    <string name="nutrient_carbs">碳水</string>
+    <string name="nutrient_sugar">糖</string>
+    <string name="nutrient_sodium">鈉</string>
+    <string name="nutrient_fiber">膳食纖維</string>
+    <string name="nutrient_satfat">飽和脂肪</string>
+    <string name="unit_kcal">kcal</string>
+    <string name="unit_gram">g</string>
+    <string name="unit_mg">mg</string>
+
+    <!-- 餐別 -->
+    <string name="meal_breakfast">早餐</string>
+    <string name="meal_lunch">午餐</string>
+    <string name="meal_dinner">晚餐</string>
+    <string name="meal_snack">點心</string>
+
+    <!-- 新增入口 -->
+    <string name="add_entry">新增紀錄</string>
+    <string name="add_manual">手動輸入</string>
+    <string name="add_photo">拍照辨識</string>
+    <string name="add_photo_gallery">從相簿選</string>
+    <string name="add_barcode">掃條碼</string>
+    <string name="add_barcode_manual">手動輸入條碼</string>
+
+    <!-- 編輯表單 -->
+    <string name="entry_new_title">新增食物</string>
+    <string name="entry_edit_title">編輯食物</string>
+    <string name="entry_name">食物名稱</string>
+    <string name="entry_serving">份量</string>
+    <string name="entry_serving_hint">例如 1 碗 (250 g)</string>
+    <string name="entry_advanced">進階營養素</string>
+    <string name="save">儲存</string>
+    <string name="cancel">取消</string>
+    <string name="delete">刪除</string>
+    <string name="close">關閉</string>
+    <string name="entry_name_required">請先填食物名稱</string>
+    <string name="delete_title">刪除這筆紀錄？</string>
+    <string name="delete_message">「%1$s」會從當天的紀錄中移除，無法復原。</string>
+
+    <!-- 歷史 -->
+    <string name="history_title">歷史</string>
+    <string name="history_empty">還沒有任何紀錄</string>
+
+    <!-- 設定 -->
+    <string name="settings_title">設定</string>
+    <string name="settings_targets">每日目標</string>
+    <string name="settings_gemini">AI 影像辨識</string>
+    <string name="settings_api_key">Gemini API key</string>
+    <string name="settings_api_key_hint">貼上你的 key</string>
+    <string name="settings_api_key_help">拍照辨識需要自己的 Gemini API key，到 aistudio.google.com 免費申請。key 只存在這支手機裡，不會上傳到任何地方。</string>
+    <string name="settings_model">模型</string>
+    <string name="settings_show_extended">顯示進階營養素</string>
+    <string name="settings_show_extended_help">糖、鈉、膳食纖維、飽和脂肪。關掉的話這幾欄在輸入時預設收起來。</string>
+    <string name="settings_paste">貼上</string>
+
+    <!-- 條碼 -->
+    <string name="barcode_title">掃條碼</string>
+    <string name="barcode_input">條碼數字</string>
+    <string name="barcode_lookup">查詢</string>
+    <string name="barcode_searching">查詢中…</string>
+    <string name="barcode_not_found">查無此商品，改用手動輸入吧</string>
+    <string name="barcode_from_cache">本機已存的資料</string>
+    <string name="barcode_scanner_unavailable">這台裝置無法叫出掃描器，請用手動輸入條碼</string>
+    <string name="barcode_per_100g">以下是每 100 g 的營養值，請填你實際吃的公克數</string>
+    <string name="barcode_grams">實際份量 (g)</string>
+
+    <!-- 拍照辨識 -->
+    <string name="photo_analyzing">AI 辨識中…</string>
+    <string name="photo_review_title">確認辨識結果</string>
+    <string name="photo_review_hint">AI 的估算只是參考，請確認並修正後再儲存。取消勾選就不會記錄該項。</string>
+    <string name="photo_no_key">還沒設定 Gemini API key，請先到設定頁填入</string>
+    <string name="photo_nothing_found">照片裡沒有辨識到食物，換一張或改用手動輸入</string>
+    <string name="photo_confidence">把握度 %1$d%%</string>
+    <string name="photo_save_selected">儲存勾選的 %1$d 項</string>
+    <string name="go_to_settings">去設定</string>
+    <string name="retry">重試</string>
+    <string name="network_error">連線失敗，請檢查網路</string>
+</resources>

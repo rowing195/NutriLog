@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 簡單的「打開的書」圖示，向量繪製，不需要各密度 PNG。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group android:scaleX="2.2"
+        android:scaleY="2.2"
+        android:translateX="27"
+        android:translateY="30">
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M11,4.5C9.5,3.6 7.8,3.2 6,3.2C4.6,3.2 3.2,3.4 2,3.9V19.2C3.2,18.7 4.6,18.5 6,18.5C7.8,18.5 9.5,18.9 11,19.8V4.5Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M13,4.5V19.8C14.5,18.9 16.2,18.5 18,18.5C19.4,18.5 20.8,18.7 22,19.2V3.9C20.8,3.4 19.4,3.2 18,3.2C16.2,3.2 14.5,3.6 13,4.5Z" />
+    </group>
+</vector>

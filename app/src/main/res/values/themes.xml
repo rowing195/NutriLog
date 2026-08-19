@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      啟動時套用的 XML 主題（app 進程起來、Compose 還沒接手的那一瞬間）。
+      真正的畫面配色由 Compose 的 MaterialTheme 決定，見 ui/theme/Theme.kt。
+    -->
+    <style name="Theme.NutriLog" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

@@ -1,0 +1,166 @@
+# NutriLog 飲食紀錄
+
+Android 每日飲食營養素紀錄器（Kotlin + Compose）。三種輸入方式：手動輸入、
+拍食物照交給 Gemini 估算、掃商品條碼查 Open Food Facts。
+
+**所有紀錄都存在手機本地**，沒有後端伺服器、沒有帳號。唯一的對外連線是
+影像辨識與條碼查詢兩支公開 API。
+
+---
+
+## 功能
+
+### 今日
+- 上方可左右換日，回看或補登任何一天。
+- 熱量與蛋白質／脂肪／碳水對每日目標的進度條，**超標會整條轉紅**
+  （停在 100% 看起來像剛好達標，那是相反的意思）。
+- 紀錄依早／午／晚／點心分組，每組有小計。點任一筆進去編輯或刪除。
+- 開啟「顯示進階營養素」後，另外顯示糖、鈉、膳食纖維、飽和脂肪的合計。
+
+### 三種輸入方式
+
+| 方式 | 怎麼運作 |
+|---|---|
+| **手動輸入** | 直接填。核心四項（熱量／蛋白質／脂肪／碳水）永遠可見，進階四項收在展開區。 |
+| **拍照辨識** | 拍照或從相簿選 → 壓縮成 1024 px → Gemini 估算 → **確認畫面**逐項勾選後才入庫。 |
+| **掃條碼** | 掃描或手動輸入條碼 → 先查本機快取，沒有才連 Open Food Facts → 填實際公克數自動換算。 |
+
+三條路最後都匯流到同一張編輯表單，入庫前一定看得到、改得動。
+
+### 歷史
+近 60 天，一天一列的熱量與三大營養素合計（資料庫直接 `GROUP BY` 算，
+不把明細撈進記憶體）。點一列跳回那天的明細。
+
+### 設定
+Gemini API key、模型名稱、每日四項目標、進階營養素開關。
+
+---
+
+## 設定 Gemini API key
+
+拍照辨識需要你自己的 key：
+
+1. 到 [aistudio.google.com](https://aistudio.google.com) 免費申請一把 API key。
+2. 開 app → 右上角 **設定** → **Gemini API key** 貼上。
+
+key 只存在這支手機的 DataStore 裡，**不會編進 APK**，也不會傳到 Google 以外的地方。
+所以這個 APK 可以直接分享給別人，對方填自己的 key 就能用。
+
+預設模型是 `gemini-3.5-flash`。想更省可以改成 `gemini-3.5-flash-lite`。
+（注意 `gemini-2.0-flash` 已經下架，填了會回 404。）
+
+---
+
+## 設計決策
+
+### 為什麼紀錄用 Room，設定用 DataStore
+
+飲食紀錄**逐日無上限累積**，而且核心查詢是「某一天的所有紀錄」與
+「近 N 天的每日合計」—— 這是關聯式查詢。把幾年份紀錄序列化成一個 JSON 字串、
+每新增一筆就整包重寫，是明確的錯誤選擇。
+
+設定則只有一份、不需要查詢，用 DataStore 就好。兩種儲存方式共存是刻意的。
+
+### 為什麼完全不需要相機權限
+
+Manifest 裡**只有 `INTERNET` 一個權限**：
+
+- 拍照 → `ActivityResultContracts.TakePicture()`，取景在系統相機 App 裡完成。
+- 掃條碼 → Play 服務的 Google Code Scanner，掃描 UI 跑在 Play 服務的行程裡。
+- 選相簿 → `PickVisualMedia`，本來就不需要讀取儲存空間的權限。
+
+三者都是「別的行程取像，本 app 只拿結果」，所以一次執行階段權限請求都不用。
+
+### 為什麼模型結果一定要經過確認畫面
+
+Gemini 給的是**估算值**。直接寫進資料庫等於在使用者的飲食紀錄裡塞模型自己編的數字。
+確認畫面會顯示每一項的把握度，可以逐項取消勾選；存進去之後仍然可以點進去逐欄修改。
+
+### 為什麼手動輸入條碼是必要功能而不是備案
+
+Google Code Scanner 要從 Play 服務**動態下載**掃描模組，不是每台裝置都成功
+（模擬器尤其常失敗）。手動輸入走的是完全相同的查詢與入庫路徑，
+所以掃描器叫不出來時功能不會斷掉，只是多打幾個數字。
+
+### 為什麼沒有 Retrofit
+
+只有兩支端點。OkHttp + 既有的 kotlinx-serialization 手寫約 200 行就夠，
+比拉進一整套 Retrofit + converter 單純。
+
+### 沒有導航函式庫
+
+畫面只有六個，而且除了「今天」以外都是「開一個、按返回就關掉」。
+`sealed interface Screen` + `when` 分派就夠了，不需要真正的返回堆疊。
+
+---
+
+## 外部 API
+
+### Open Food Facts
+
+```
+GET https://world.openfoodfacts.org/api/v2/product/{barcode}.json
+```
+
+- 讀取**不需要** API key，但**一定要帶自訂 `User-Agent`**，這是 OFF 明文要求的。
+- 讀取端點限制 **每個 IP 每分鐘 15 次** → 這就是本機要存 `cached_products` 的原因。
+- 營養素欄位（`energy-kcal_100g`、`proteins_100g`…）**經常缺漏**，
+  缺的一律留 `null` 而不是補 0 ——「沒資料」和「真的是 0」必須分得開。
+- `sodium_100g` 的單位是**公克**，存進資料庫時要 ×1000 換成毫克。
+- 台灣本地商品收錄不完整，查無資料是正常情況。
+
+### Gemini
+
+```
+POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent
+```
+
+- key 走 `x-goog-api-key` header 而不是 `?key=`：query string 會被各層代理與日誌記下來。
+- 用 `generationConfig.responseMimeType` + `responseSchema` **強制結構化輸出**，
+  否則模型會回夾著說明文字的 markdown code fence，就得自己剝字串而且隨時會變。
+- 送出前一定要壓縮。原圖 12 MP base64 之後是 4 MB 起跳的請求，又慢又貴，
+  而且對辨識準確度毫無幫助。
+
+---
+
+## 建置
+
+```powershell
+$env:JAVA_HOME  = "C:\Program Files\Eclipse Adoptium\jdk-17.0.7.7-hotspot"
+$env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
+
+& "$env:LOCALAPPDATA\Android\tools\gradle-8.11.1\bin\gradle.bat" -p "C:\code\android app\NutriLog" assembleDebug
+```
+
+APK 在 `app/build/outputs/apk/debug/app-debug.apk`。
+
+模擬器與部署：
+
+```powershell
+& "C:\code\android app\NutriLog\tools\emu.ps1" start    # 開模擬器並等 boot_completed
+& "C:\code\android app\NutriLog\tools\emu.ps1" deploy   # build + 安裝
+```
+
+## 發佈
+
+推一個 `v` 開頭的 tag，GitHub Actions 會建置並發佈 Release：
+
+```bash
+git tag -a v1.0 -m "第一版" && git push origin v1.0
+```
+
+要正式簽章就在 repo 設定四個 secret：`KEYSTORE_BASE64`、`STORE_PASSWORD`、
+`KEY_ALIAS`、`KEY_PASSWORD`。沒設的話會退回 debug 簽章，流程照樣跑得完
+（但這樣產出的 APK 和本機建置的簽章不同，兩邊不能互相覆蓋安裝）。
+
+## 技術規格
+
+| 項目 | 值 |
+|---|---|
+| Kotlin / AGP / Gradle | 2.0.21 / 8.7.3 / 8.11.1 |
+| minSdk / targetSdk | 26 / 35 |
+| UI | Compose（BOM 2024.10.01）+ Material 3 |
+| 資料 | Room 2.6.1（紀錄）+ DataStore Preferences（設定） |
+| 網路 | OkHttp 4.12.0 + kotlinx-serialization |
+| 條碼 | play-services-code-scanner 16.1.0 |
+| 權限 | 只有 `INTERNET` |

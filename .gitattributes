@@ -1,0 +1,14 @@
+# 預設交給 git 自動判斷文字/二進位，並在 repo 裡統一存成 LF
+* text=auto
+
+# gradlew 是 shell script，被轉成 CRLF 會在 Linux/macOS/CI 上直接跑不起來
+gradlew text eol=lf
+
+# PowerShell 腳本維持 CRLF。PS 5.1 對編碼與行尾比較龜毛，
+# 而這兩支只會在 Windows 上跑（見 tools/ 裡的說明）
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+
+*.jar binary
+*.apk binary
+*.png binary

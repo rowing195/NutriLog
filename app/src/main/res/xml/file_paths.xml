@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- 拍下來的原圖只是送去辨識的中繼檔，放 cache 讓系統缺空間時可以自己回收 -->
+    <cache-path name="meal_photos" path="photos/" />
+</paths>

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      刻意只宣告 INTERNET 一個權限。
+
+      沒有 CAMERA 是故意的：拍照交給系統相機 App（ActivityResultContracts.TakePicture），
+      掃條碼交給 Play 服務的 Google Code Scanner，兩者都在別的行程裡取景，
+      本 app 只拿結果，因此完全不需要執行階段權限請求。
+      相簿選圖走 PickVisualMedia，也不需要讀取儲存空間的權限。
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.NutriLog">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.NutriLog">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+          TakePicture 要把照片寫到「我們指定的 URI」，而 file:// 從 Android 7 起
+          丟給別的 App 就會 FileUriExposedException。必須透過 FileProvider
+          換成 content://，並靠 grantUriPermissions 讓相機 App 有權寫入。
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+
+</manifest>

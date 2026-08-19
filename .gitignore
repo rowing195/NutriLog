@@ -1,0 +1,43 @@
+# 注意：.gitignore 不支援行尾註解。
+# `local.properties   # 說明` 會被當成一整個包含空白與 # 的樣式，於是什麼都沒擋到。
+# 註解一律自己一行。
+
+# --- 建置產物 ---
+build/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+
+# --- Gradle ---
+.gradle/
+.kotlin/
+
+# 各台機器的 SDK 路徑不同，不進版控
+local.properties
+
+# --- Android Studio / IntelliJ ---
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+
+# --- 簽章金鑰。外洩等於別人可以冒名發版 ---
+*.jks
+*.keystore
+keystore.properties
+
+# --- 本機產出 ---
+dist/
+*.log
+*.hprof
+
+# --- 作業系統 ---
+.DS_Store
+Thumbs.db
+
+# --- 測試過程的暫存 ---
+# ui.ps1 從裝置拉下來的 uiautomator dump
+/tools/*.xml
