@@ -172,10 +172,17 @@ repo 必須先設好四個 secret：`KEYSTORE_BASE64`、`STORE_PASSWORD`、
 
 **這是 bash 腳本，要用 Git Bash 跑，cmd 和 PowerShell 都不能直接執行。**
 
-Git Bash 視窗裡（在專案任何位置都可以，腳本會自己找到專案根目錄）：
+Git Bash 視窗裡：
 
 ```bash
-./tools/setup-signing.sh
+cd "/c/code/android app/NutriLog" && ./tools/setup-signing.sh
+```
+
+**注意 `./` 是相對路徑，得先 `cd` 進專案。** 路徑有空格，引號不能省。
+不想換目錄就用絕對路徑，腳本會自己從所在位置推導出專案根目錄：
+
+```bash
+"/c/code/android app/NutriLog/tools/setup-signing.sh"
 ```
 
 從 PowerShell 呼叫：
