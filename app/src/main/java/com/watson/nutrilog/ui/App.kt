@@ -17,6 +17,7 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.watson.nutrilog.R
+import com.watson.nutrilog.data.CsvExport
 import java.io.File
 import java.time.LocalDate
 
@@ -66,6 +67,12 @@ fun NutriLogApp(viewModel: NutriViewModel) {
             pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
         }
     }
+
+    // 走 SAF 讓使用者自己挑存檔位置：不需要儲存權限，
+    // 而且檔案落在使用者看得到的地方，不會跟著 app 一起被解除安裝。
+    val createCsv = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument(CsvExport.MIME_TYPE)
+    ) { uri -> uri?.let(viewModel::exportCsv) }
 
     val startScanner = {
         val options = GmsBarcodeScannerOptions.Builder()
@@ -163,7 +170,9 @@ fun NutriLogApp(viewModel: NutriViewModel) {
             BackHandler { viewModel.backToToday() }
             SettingsScreen(
                 settings = viewModel.settings,
+                exportMessage = viewModel.exportMessage,
                 onChange = viewModel::updateSettings,
+                onExportCsv = { createCsv.launch(viewModel.suggestedCsvName()) },
                 onClose = viewModel::backToToday,
             )
         }

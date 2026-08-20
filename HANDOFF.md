@@ -33,6 +33,10 @@
 | 文字辨識 | 範例晶片填入 → 送出 → 走 Gemini（假 key 驗到 400 與錯誤處理）|
 | 文字辨識重試 | 「重試」重跑的是文字查詢，不是照片（retryAnalysis 依 lastSource 分派）|
 | 深色模式 | 卡片與背景有層次，不再是預設紫 |
+| CSV 匯出 | SAF 存檔 → 「已匯出 15 筆紀錄」；檔案前 3 bytes 是 EF BB BF（BOM）|
+| CSV 內容 | 缺資料欄位為空、餐別與來源翻成中文、依日期與時間排序 |
+| CSV 跳脫 | 名稱含逗號與雙引號的紀錄，用 Python csv 模組回讀後每列都是 14 欄，沒被拆開 |
+| 乾淨 clone | 從 GitHub clone 後只設 JAVA_HOME/ANDROID_HOME 即建置成功，不需 local.properties |
 
 ## 待驗證（需要使用者提供的東西）
 
@@ -162,6 +166,12 @@ adb shell "cat /data/local/tmp/seed.sql | run-as com.watson.nutrilog sqlite3 dat
 `adb push` 的**本機路徑要用 Windows 格式**（`C:/...`）——
 在 Git Bash 裡設了 `MSYS_NO_PATHCONV=1` 之後，`/c/...` 不會被轉換，
 adb 是 Windows 執行檔，看不懂那個路徑。
+
+### emu.ps1 deploy 曾經會謊報成功
+
+模擬器掛掉時 `adb install` 印 "device not found"，但腳本照樣印
+"deployed to emulator-5554" —— 接下來幾分鐘都在對著一個根本沒安裝上去的版本除錯。
+已加上 `$LASTEXITCODE` 檢查。
 
 ### 截圖一定要在 Bash 重導向
 

@@ -9,6 +9,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.watson.nutrilog.R
+import com.watson.nutrilog.data.CsvExport
 import com.watson.nutrilog.data.NutriSettings
 import com.watson.nutrilog.data.SettingsStore
 import com.watson.nutrilog.data.db.CachedProduct
@@ -178,6 +179,10 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         private set
     private var lastSource: AnalysisSource? = null
 
+    /** 匯出結果訊息。顯示完就該清掉，離開設定頁時一併清。 */
+    var exportMessage by mutableStateOf<String?>(null)
+        private set
+
     val totals: Totals get() = entries.totals()
 
     init {
@@ -203,7 +208,10 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
 
     fun goTo(target: Screen) { screen = target }
 
-    fun backToToday() { screen = Screen.Today }
+    fun backToToday() {
+        exportMessage = null
+        screen = Screen.Today
+    }
 
     fun showDate(date: LocalDate) {
         selectedDate = date
@@ -391,6 +399,39 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // --- 設定 ---
+
+    /** 建議的檔名。交給 SAF 當預設值，使用者仍可自己改。 */
+    fun suggestedCsvName(): String = CsvExport.fileName()
+
+    /**
+     * 寫進使用者用系統選擇器挑的位置。
+     *
+     * 走 SAF 而不是自己找路徑：不需要任何儲存權限，而且檔案落在
+     * 使用者自己看得到的地方（下載資料夾、雲端硬碟…），
+     * 不是藏在 app 沙箱裡等著被解除安裝一起刪掉。
+     */
+    fun exportCsv(uri: Uri) {
+        viewModelScope.launch {
+            exportMessage = runCatching {
+                val entries = dao.allEntries()
+                val csv = CsvExport.build(entries)
+                getApplication<Application>().contentResolver.openOutputStream(uri)?.use { out ->
+                    out.write(csv.toByteArray(Charsets.UTF_8))
+                } ?: error("無法寫入檔案")
+                entries.size
+            }.fold(
+                onSuccess = { count ->
+                    getApplication<Application>().getString(R.string.export_done, count)
+                },
+                onFailure = { cause ->
+                    getApplication<Application>().getString(
+                        R.string.export_failed,
+                        cause.message ?: "unknown",
+                    )
+                },
+            )
+        }
+    }
 
     fun updateSettings(newSettings: NutriSettings) {
         // 先更新 UI 再落地，避免打字或拉 slider 時卡頓

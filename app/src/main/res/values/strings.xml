@@ -77,6 +77,11 @@
     <string name="settings_show_extended">顯示進階營養素</string>
     <string name="settings_show_extended_help">糖、鈉、膳食纖維、飽和脂肪。關掉的話這幾欄在輸入時預設收起來。</string>
     <string name="settings_paste">貼上</string>
+    <string name="settings_data">資料</string>
+    <string name="export_csv">匯出 CSV</string>
+    <string name="export_csv_help">把全部飲食紀錄存成 CSV，可用 Excel 或 Google 試算表打開。這是把資料帶出手機的唯一方式 —— 紀錄只存在本機，沒有雲端備份，換手機前記得先匯出。</string>
+    <string name="export_done">已匯出 %1$d 筆紀錄</string>
+    <string name="export_failed">匯出失敗：%1$s</string>
 
     <!-- 條碼 -->
     <string name="barcode_title">掃條碼</string>

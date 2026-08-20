@@ -68,7 +68,11 @@ switch ($Action) {
         & $Gradle -p $Project assembleDebug --console=plain -q
         if ($LASTEXITCODE -ne 0) { throw "gradle assembleDebug failed" }
 
+        # Check the install actually happened. Without this the script cheerfully
+        # prints "deployed" after adb said "device not found", and the next few
+        # minutes get spent debugging an app version that was never installed.
         & $Adb -s $Serial install -r "$Project\app\build\outputs\apk\debug\app-debug.apk"
+        if ($LASTEXITCODE -ne 0) { throw "adb install failed (is $Serial running? try: emu.ps1 start)" }
         Write-Output "deployed to $Serial"
     }
 

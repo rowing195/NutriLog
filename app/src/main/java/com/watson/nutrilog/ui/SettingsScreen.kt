@@ -19,6 +19,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -40,7 +41,9 @@ import com.watson.nutrilog.data.NutriSettings
 @Composable
 fun SettingsScreen(
     settings: NutriSettings,
+    exportMessage: String?,
     onChange: (NutriSettings) -> Unit,
+    onExportCsv: () -> Unit,
     onClose: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -144,6 +147,25 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
+            SectionTitle(stringResource(R.string.settings_data))
+            Text(
+                stringResource(R.string.export_csv_help),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedButton(onClick = onExportCsv, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.export_csv))
+            }
+            exportMessage?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
         }
     }
 }

@@ -27,6 +27,10 @@ interface NutriDao {
     @Query("SELECT * FROM food_entries WHERE id = :id")
     suspend fun findEntry(id: Long): FoodEntry?
 
+    /** 匯出用。一次全撈是刻意的：匯出的定位是備份，篩一半的備份沒有意義。 */
+    @Query("SELECT * FROM food_entries ORDER BY date, loggedAt")
+    suspend fun allEntries(): List<FoodEntry>
+
     /**
      * 某段日期區間的每日合計，月曆用。
      *
