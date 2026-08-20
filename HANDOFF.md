@@ -167,6 +167,26 @@ adb shell "cat /data/local/tmp/seed.sql | run-as com.watson.nutrilog sqlite3 dat
 在 Git Bash 裡設了 `MSYS_NO_PATHCONV=1` 之後，`/c/...` 不會被轉換，
 adb 是 Windows 執行檔，看不懂那個路徑。
 
+### 換 app 圖示：自適應圖示的安全區
+
+圖示是 `mipmap-*/ic_launcher_foreground.png`（五種密度）+
+`values/ic_launcher_background.xml` 的底色，由
+`mipmap-anydpi-v26/ic_launcher*.xml` 組起來。
+
+**內容佔 108dp 畫布的比例是 0.62**，這個數字是試出來的：
+啟動器只顯示中央 72/108，而圓形遮罩會再削掉四角。
+0.68 時角色的頭髮兩側會被圓形遮罩切掉，0.56 又太小顯得空。
+換圖時務必先套圓形遮罩看過再定案，別只看方形預覽。
+
+原圖是去背 PNG（500x500 RGBA），內容幾乎填滿整張、四邊沒有留白，
+所以縮放前要先 getbbox() 裁到實際內容再置中，否則邊距會不對稱。
+
+底色從原本的深綠改成暖奶油 `#F8EDE1`：角色是淺膚色配藍灰頭髮，
+壓在深綠上整個糊在一起。
+
+放 mipmap 而不是 drawable 是因為啟動器可能取用其他密度的圖示，
+mipmap 不會被密度裁切最佳化砍掉。
+
 ### emu.ps1 deploy 曾經會謊報成功
 
 模擬器掛掉時 `adb install` 印 "device not found"，但腳本照樣印
