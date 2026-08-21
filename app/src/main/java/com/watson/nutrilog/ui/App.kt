@@ -99,12 +99,10 @@ fun NutriLogApp(viewModel: NutriViewModel) {
             onAddForMeal = { meal -> viewModel.startNewEntry(meal) },
             onAddPhoto = startCamera,
             onAddFromGallery = startGallery,
-            onAddText = {
-                // 文字辨識同樣先擋沒 key 的情況，理由和相機一樣
-                if (viewModel.hasApiKey()) viewModel.openTextLookup() else viewModel.reportMissingApiKey()
-            },
+            // 這個畫面同時是常吃清單，不需要 key 也能用，
+            // 真的要送文字去 AI 時 analyzeText 自己會再擋一次沒 key 的情況
+            onAddText = viewModel::openTextLookup,
             onAddBarcode = viewModel::openBarcode,
-            onAddFromLibrary = viewModel::openSearch,
             onOpenHistory = viewModel::openHistory,
             onOpenSearch = viewModel::openSearch,
             onOpenSettings = { viewModel.goTo(Screen.Settings) },
@@ -138,6 +136,10 @@ fun NutriLogApp(viewModel: NutriViewModel) {
         Screen.TextLookup -> {
             BackHandler { viewModel.backToToday() }
             TextLookupScreen(
+                targetDate = viewModel.selectedDate,
+                frequent = viewModel.frequentFoods,
+                recent = viewModel.recentFoods,
+                onReuseSuggestion = viewModel::reuse,
                 onLookup = viewModel::analyzeText,
                 onClose = viewModel::backToToday,
             )

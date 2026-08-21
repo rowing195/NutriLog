@@ -34,9 +34,8 @@
     <string name="add_manual">輸入營養素</string>
     <string name="add_photo">拍照辨識</string>
     <string name="add_photo_gallery">從相簿選</string>
-    <string name="add_text">文字輸入辨識</string>
+    <string name="add_text">常吃／文字輸入</string>
     <string name="add_barcode">掃條碼</string>
-    <string name="add_from_library">從常吃的選</string>
 
     <!-- 編輯表單 -->
     <string name="entry_new_title">新增食物</string>
@@ -109,7 +108,8 @@
     <string name="barcode_grams">實際份量 (g)</string>
 
     <!-- 文字辨識 -->
-    <string name="text_lookup_title">文字輸入辨識</string>
+    <string name="text_lookup_title">常吃／文字輸入</string>
+    <string name="text_lookup_divider">沒有嗎？用文字描述</string>
     <string name="text_lookup_hint">用一句話描述吃了什麼，AI 會估算營養素。講得越具體越準 —— 店名、品項、大小杯、甜度都可以寫。</string>
     <string name="text_lookup_label">吃了什麼</string>
     <string name="text_lookup_placeholder">例如：CoCo 珍珠奶茶 大杯半糖</string>

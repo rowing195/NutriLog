@@ -156,7 +156,7 @@ fun SearchScreen(
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SuggestionSheet(
+internal fun SuggestionSheet(
     suggestion: FoodSuggestion,
     onDismiss: () -> Unit,
     onAdd: () -> Unit,
@@ -219,10 +219,10 @@ private fun NutrientLine(label: String, value: Double, unit: String) {
     }
 }
 
-/** 常吃／最近兩頁，可以左右滑動切換。 */
+/** 常吃／最近兩頁，可以左右滑動切換。TextLookupScreen 也共用這個元件。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun FoodLibrary(
+internal fun FoodLibrary(
     frequent: List<FoodSuggestion>,
     recent: List<FoodSuggestion>,
     onReuse: (FoodSuggestion) -> Unit,

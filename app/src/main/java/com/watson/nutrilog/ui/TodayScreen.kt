@@ -69,7 +69,6 @@ fun TodayScreen(
     onAddFromGallery: () -> Unit,
     onAddText: () -> Unit,
     onAddBarcode: () -> Unit,
-    onAddFromLibrary: () -> Unit,
     onOpenHistory: () -> Unit,
     onOpenSearch: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -150,7 +149,6 @@ fun TodayScreen(
             onAddFromGallery = onAddFromGallery,
             onAddText = onAddText,
             onAddBarcode = onAddBarcode,
-            onAddFromLibrary = onAddFromLibrary,
         )
     }
 }
@@ -171,16 +169,16 @@ private fun AddEntrySheet(
     onAddFromGallery: () -> Unit,
     onAddText: () -> Unit,
     onAddBarcode: () -> Unit,
-    onAddFromLibrary: () -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(bottom = 32.dp)) {
-            // 「從常吃的選」擺第一個：這是最不花力氣、也最常用的一條路
-            SheetRow(stringResource(R.string.add_from_library)) { onPick(onAddFromLibrary) }
+            // 「常吃／文字輸入」擺第一個：多半是忘記拍照事後補登，
+            // 這時通常會先想到「這不是常吃的那個嗎」，該畫面同時給了常吃清單，
+            // 找不到才用文字描述交給 AI，不用每次都繞去搜尋頁。
+            SheetRow(stringResource(R.string.add_text)) { onPick(onAddText) }
             SheetRow(stringResource(R.string.add_manual)) { onPick(onAddManual) }
             SheetRow(stringResource(R.string.add_photo)) { onPick(onAddPhoto) }
             SheetRow(stringResource(R.string.add_photo_gallery)) { onPick(onAddFromGallery) }
-            SheetRow(stringResource(R.string.add_text)) { onPick(onAddText) }
             SheetRow(stringResource(R.string.add_barcode)) { onPick(onAddBarcode) }
         }
     }
