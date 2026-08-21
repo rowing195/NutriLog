@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">飲食紀錄</string>
+    <string name="app_name">肥胖日記</string>
 
     <!-- 今日 -->
     <string name="meal_empty">還沒有紀錄，點一下新增</string>

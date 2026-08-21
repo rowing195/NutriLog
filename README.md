@@ -1,6 +1,9 @@
-# NutriLog 飲食紀錄
+# 肥胖日記（NutriLog）
 
-Android 每日飲食營養素紀錄器（Kotlin + Compose）。四種輸入方式：自己輸入營養素、
+Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱是「肥胖日記」，
+專案代號維持 NutriLog —— package、repo、APK 檔名與簽章都綁在它身上。
+
+四種輸入方式：自己輸入營養素、
 拍食物照或打一句文字交給 Gemini 估算、掃商品條碼查 Open Food Facts。
 
 **所有紀錄都存在手機本地**，沒有後端伺服器、沒有帳號。唯一的對外連線是
