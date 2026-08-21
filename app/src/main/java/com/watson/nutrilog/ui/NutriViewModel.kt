@@ -179,6 +179,16 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         private set
     private var lastSource: AnalysisSource? = null
 
+    /**
+     * AI 確認畫面要記進哪一餐。
+     *
+     * 原本是存檔當下才 guessMeal()，等於「照時間猜了就算」——
+     * 補登昨天的晚餐時會全部掉進點心。改成開確認畫面時先猜一個當預設，
+     * 使用者可以改。
+     */
+    var analysisMeal by mutableStateOf(Meal.BREAKFAST)
+        private set
+
     /** 匯出結果訊息。顯示完就該清掉，離開設定頁時一併清。 */
     var exportMessage by mutableStateOf<String?>(null)
         private set
@@ -230,9 +240,14 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- 編輯 ---
 
-    /** 開一張空白表單。餐別依現在時間猜，猜錯使用者改一下就好，總比每次都要選。 */
-    fun startNewEntry() {
-        draft = EntryDraft(meal = guessMeal())
+    /**
+     * 開一張空白表單。
+     *
+     * [meal] 給「從某一餐的區塊點進來」用；沒指定就依現在時間猜，
+     * 猜錯使用者改一下就好，總比每次都要選。
+     */
+    fun startNewEntry(meal: Meal? = null) {
+        draft = EntryDraft(meal = meal ?: guessMeal())
         screen = Screen.EditEntry
     }
 
@@ -354,6 +369,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         lastSource = source
+        analysisMeal = guessMeal()
         analysisState = AnalysisState.Analyzing
         screen = Screen.Review
         viewModelScope.launch {
@@ -375,6 +391,8 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun updateAnalysisMeal(meal: Meal) { analysisMeal = meal }
+
     fun toggleAnalysisItem(index: Int) {
         val current = analysisState as? AnalysisState.Ready ?: return
         analysisState = AnalysisState.Ready(
@@ -389,7 +407,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         val current = analysisState as? AnalysisState.Ready ?: return
         val chosen = current.items.filter { it.selected }
         if (chosen.isEmpty()) return
-        val meal = guessMeal()
+        val meal = analysisMeal
         val now = System.currentTimeMillis()
         viewModelScope.launch {
             dao.insertAll(chosen.map { it.food.toEntry(selectedDate, meal, now) })

@@ -1,5 +1,6 @@
 package com.watson.nutrilog.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -37,11 +38,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.NutriSettings
@@ -63,6 +63,7 @@ fun TodayScreen(
     onBackToToday: () -> Unit,
     onOpenEntry: (FoodEntry) -> Unit,
     onAddManual: () -> Unit,
+    onAddForMeal: (Meal) -> Unit,
     onAddPhoto: () -> Unit,
     onAddFromGallery: () -> Unit,
     onAddText: () -> Unit,
@@ -109,19 +110,23 @@ fun TodayScreen(
             }
             item { SummaryCard(totals, settings) }
 
-            if (entries.isEmpty()) {
-                item { EmptyHint() }
-            } else {
-                // 依餐別分組。空的餐別整段不顯示，免得畫面被四個空標題佔滿。
-                Meal.entries.forEach { meal ->
-                    val ofMeal = entries.filter { it.mealType == meal }
-                    if (ofMeal.isNotEmpty()) {
-                        item(key = "header-" + meal.name) {
-                            MealHeader(meal, ofMeal.totals().calories)
-                        }
-                        items(ofMeal, key = { it.id }) { entry ->
-                            EntryRow(entry, onClick = { onOpenEntry(entry) })
-                        }
+            // 四餐一律都顯示，空的也留著並寫 0。
+            //
+            // 原本只列有紀錄的餐別，但那樣「今天還沒吃早餐」和「今天忘了記早餐」
+            // 在畫面上長得一模一樣（兩者都是不存在）。固定四格之後，
+            // 空的那一格本身就是提醒，點下去還能直接補登該餐。
+            Meal.entries.forEach { meal ->
+                val ofMeal = entries.filter { it.mealType == meal }
+                item(key = "header-" + meal.name) {
+                    MealHeader(meal, ofMeal.totals().calories)
+                }
+                if (ofMeal.isEmpty()) {
+                    item(key = "empty-" + meal.name) {
+                        EmptyMealRow(onClick = { onAddForMeal(meal) })
+                    }
+                } else {
+                    items(ofMeal, key = { it.id }) { entry ->
+                        EntryRow(entry, onClick = { onOpenEntry(entry) })
                     }
                 }
             }
@@ -351,25 +356,32 @@ private fun EntryRow(entry: FoodEntry, onClick: () -> Unit) {
 }
 
 @Composable
-private fun EmptyHint() {
-    Column(
-        Modifier
+private fun EmptyMealRow(onClick: () -> Unit) {
+    Card(
+        shape = SmallCardShape,
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 40.dp, horizontal = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .clickable(onClick = onClick),
     ) {
-        Text("🍽", fontSize = 44.sp)
-        Text(
-            stringResource(R.string.today_empty),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Medium,
-        )
-        Text(
-            stringResource(R.string.today_empty_hint),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                stringResource(R.string.meal_empty),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                "0",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }

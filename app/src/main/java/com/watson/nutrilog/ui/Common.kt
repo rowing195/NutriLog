@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -179,6 +181,32 @@ fun MacroStat(
                 .fillMaxWidth()
                 .height(5.dp),
         )
+    }
+}
+
+/**
+ * 餐別選擇。
+ *
+ * 編輯表單與 AI 確認畫面共用 —— 只要是「要把東西記進某一餐」的地方
+ * 就該讓使用者自己挑，不能由 app 依時間猜了就算。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+// modifier 放在 onSelect 前面：Compose 的慣例是 lambda 擺最後，
+// 不然呼叫端的 trailing lambda 會綁到 modifier 上。
+fun MealPicker(selected: Meal, modifier: Modifier = Modifier, onSelect: (Meal) -> Unit) {
+    Row(
+        modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Meal.entries.forEach { meal ->
+            FilterChip(
+                selected = meal == selected,
+                onClick = { onSelect(meal) },
+                label = { Text(meal.label()) },
+            )
+        }
     }
 }
 

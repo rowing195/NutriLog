@@ -3,9 +3,7 @@
     <string name="app_name">飲食紀錄</string>
 
     <!-- 今日 -->
-    <string name="today_title">今天</string>
-    <string name="today_empty">今天還沒有紀錄</string>
-    <string name="today_empty_hint">點右下角的 ＋ 開始記錄。可以自己輸入營養素、拍張食物照或打一句描述讓 AI 估算，或掃商品條碼。</string>
+    <string name="meal_empty">還沒有紀錄，點一下新增</string>
     <string name="prev_day">前一天</string>
     <string name="next_day">後一天</string>
     <string name="back_to_today">回到今天</string>
@@ -24,7 +22,6 @@
     <string name="calories_over">已超出</string>
     <string name="calories_consumed">已攝取 %1$s / %2$d kcal</string>
     <string name="unit_gram">g</string>
-    <string name="unit_mg">mg</string>
 
     <!-- 餐別 -->
     <string name="meal_breakfast">早餐</string>
@@ -104,6 +101,7 @@
     <!-- 拍照辨識 -->
     <string name="photo_analyzing">AI 辨識中…</string>
     <string name="review_title">確認辨識結果</string>
+    <string name="review_meal">要記進哪一餐</string>
     <string name="review_hint">AI 的估算只是參考，請確認並修正後再儲存。取消勾選就不會記錄該項。存進去之後還可以點開逐欄細改。</string>
     <string name="photo_no_key">還沒設定 Gemini API key，請先到設定頁填入</string>
     <string name="review_nothing_found">沒有辨識到食物。換一張照片、把描述講得更具體，或自己輸入營養素</string>

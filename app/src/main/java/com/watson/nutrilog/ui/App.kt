@@ -95,7 +95,8 @@ fun NutriLogApp(viewModel: NutriViewModel) {
             onShiftDay = viewModel::shiftDay,
             onBackToToday = { viewModel.showDate(LocalDate.now()) },
             onOpenEntry = viewModel::startEdit,
-            onAddManual = viewModel::startNewEntry,
+            onAddManual = { viewModel.startNewEntry() },
+            onAddForMeal = { meal -> viewModel.startNewEntry(meal) },
             onAddPhoto = startCamera,
             onAddFromGallery = startGallery,
             onAddText = {
@@ -144,6 +145,8 @@ fun NutriLogApp(viewModel: NutriViewModel) {
             BackHandler { viewModel.backToToday() }
             ReviewScreen(
                 state = viewModel.analysisState ?: AnalysisState.Analyzing,
+                meal = viewModel.analysisMeal,
+                onMealChange = viewModel::updateAnalysisMeal,
                 onToggle = viewModel::toggleAnalysisItem,
                 onSave = viewModel::saveAnalysisSelection,
                 onRetry = viewModel::retryAnalysis,

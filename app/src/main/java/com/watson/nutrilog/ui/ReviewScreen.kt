@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.watson.nutrilog.R
+import com.watson.nutrilog.data.db.Meal
 import kotlin.math.roundToInt
 
 /**
@@ -43,6 +44,8 @@ import kotlin.math.roundToInt
 @Composable
 fun ReviewScreen(
     state: AnalysisState,
+    meal: Meal,
+    onMealChange: (Meal) -> Unit,
     onToggle: (Int) -> Unit,
     onSave: () -> Unit,
     onRetry: () -> Unit,
@@ -106,6 +109,8 @@ fun ReviewScreen(
                             .fillMaxSize()
                             .padding(inner),
                         state = state,
+                        meal = meal,
+                        onMealChange = onMealChange,
                         onToggle = onToggle,
                         onSave = onSave,
                     )
@@ -118,6 +123,8 @@ fun ReviewScreen(
 private fun ReadyBody(
     modifier: Modifier,
     state: AnalysisState.Ready,
+    meal: Meal,
+    onMealChange: (Meal) -> Unit,
     onToggle: (Int) -> Unit,
     onSave: () -> Unit,
 ) {
@@ -135,6 +142,14 @@ private fun ReadyBody(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            item {
+                Text(
+                    stringResource(R.string.review_meal),
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+            item { MealPicker(meal, onSelect = onMealChange) }
             itemsIndexed(state.items) { index, item ->
                 ItemRow(item, onToggle = { onToggle(index) })
             }
