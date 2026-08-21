@@ -5,7 +5,7 @@
     <!-- 今日 -->
     <string name="today_title">今天</string>
     <string name="today_empty">今天還沒有紀錄</string>
-    <string name="today_empty_hint">點右下角的 ＋ 開始記錄。可以手動輸入、拍一張食物照讓 AI 判斷，或掃商品條碼。</string>
+    <string name="today_empty_hint">點右下角的 ＋ 開始記錄。可以自己輸入營養素、拍張食物照或打一句描述讓 AI 估算，或掃商品條碼。</string>
     <string name="prev_day">前一天</string>
     <string name="next_day">後一天</string>
     <string name="back_to_today">回到今天</string>
@@ -34,12 +34,11 @@
 
     <!-- 新增入口 -->
     <string name="add_entry">新增紀錄</string>
-    <string name="add_manual">手動輸入</string>
+    <string name="add_manual">輸入營養素</string>
     <string name="add_photo">拍照辨識</string>
     <string name="add_photo_gallery">從相簿選</string>
     <string name="add_text">文字輸入辨識</string>
     <string name="add_barcode">掃條碼</string>
-    <string name="add_barcode_manual">手動輸入條碼</string>
 
     <!-- 編輯表單 -->
     <string name="entry_new_title">新增食物</string>
@@ -88,7 +87,7 @@
     <string name="barcode_input">條碼數字</string>
     <string name="barcode_lookup">查詢</string>
     <string name="barcode_searching">查詢中…</string>
-    <string name="barcode_not_found">查無此商品，改用手動輸入吧</string>
+    <string name="barcode_not_found">查無此商品，改成自己輸入營養素吧</string>
     <string name="barcode_from_cache">本機已存的資料</string>
     <string name="barcode_scanner_unavailable">這台裝置無法叫出掃描器，請用手動輸入條碼</string>
     <string name="barcode_per_100g">以下是每 100 g 的營養值，請填你實際吃的公克數</string>
@@ -107,7 +106,7 @@
     <string name="review_title">確認辨識結果</string>
     <string name="review_hint">AI 的估算只是參考，請確認並修正後再儲存。取消勾選就不會記錄該項。存進去之後還可以點開逐欄細改。</string>
     <string name="photo_no_key">還沒設定 Gemini API key，請先到設定頁填入</string>
-    <string name="review_nothing_found">沒有辨識到食物。換一張照片、把描述講得更具體，或改用手動輸入</string>
+    <string name="review_nothing_found">沒有辨識到食物。換一張照片、把描述講得更具體，或自己輸入營養素</string>
     <string name="photo_confidence">把握度 %1$d%%</string>
     <string name="photo_save_selected">儲存勾選的 %1$d 項</string>
     <string name="go_to_settings">去設定</string>
