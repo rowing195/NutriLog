@@ -16,6 +16,7 @@ import com.watson.nutrilog.data.db.CachedProduct
 import com.watson.nutrilog.data.db.DayTotal
 import com.watson.nutrilog.data.db.EntrySource
 import com.watson.nutrilog.data.db.FoodEntry
+import com.watson.nutrilog.data.db.FoodSuggestion
 import com.watson.nutrilog.data.db.Meal
 import com.watson.nutrilog.data.db.NutriDatabase
 import com.watson.nutrilog.data.db.Totals
@@ -25,7 +26,11 @@ import com.watson.nutrilog.data.net.GeminiClient
 import com.watson.nutrilog.data.net.ImageCompressor
 import com.watson.nutrilog.data.net.OpenFoodFactsClient
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalTime
@@ -46,6 +51,7 @@ sealed interface Screen {
     data object Barcode : Screen
     data object TextLookup : Screen
     data object Review : Screen
+    data object Search : Screen
 }
 
 /** AI 辨識的三個階段。照片與文字描述共用。 */
@@ -149,7 +155,7 @@ data class EntryDraft(
     }
 }
 
-@OptIn(ExperimentalCoroutinesApi::class)
+@OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 class NutriViewModel(application: Application) : AndroidViewModel(application) {
 
     private val dao = NutriDatabase.get(application).dao()
@@ -189,6 +195,16 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     var analysisMeal by mutableStateOf(Meal.BREAKFAST)
         private set
 
+    /** 搜尋輸入。空字串時畫面顯示食物庫（常吃／最近兩頁），有字才換成逐筆結果。 */
+    var searchQuery by mutableStateOf("")
+        private set
+    var searchResults by mutableStateOf<List<FoodEntry>>(emptyList())
+        private set
+    var frequentFoods by mutableStateOf<List<FoodSuggestion>>(emptyList())
+        private set
+    var recentFoods by mutableStateOf<List<FoodSuggestion>>(emptyList())
+        private set
+
     /** 匯出結果訊息。顯示完就該清掉，離開設定頁時一併清。 */
     var exportMessage by mutableStateOf<String?>(null)
         private set
@@ -211,6 +227,34 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
             snapshotFlow { selectedDate }
                 .flatMapLatest { dao.observeDay(it.toString()) }
                 .collect { entries = it }
+        }
+        viewModelScope.launch {
+            dao.observeFrequentFoods(
+                since = LocalDate.now().minusDays(FREQUENT_WINDOW_DAYS).toString(),
+                limit = LIBRARY_LIMIT,
+            ).collect { frequentFoods = it }
+        }
+        viewModelScope.launch {
+            dao.observeRecentFoods(LIBRARY_LIMIT).collect { recentFoods = it }
+        }
+        // 邊打邊搜。debounce 是為了不要每按一個鍵就查一次 ——
+        // 查詢本身很快，但每次都重建 Flow、重繪整份清單並不值得。
+        viewModelScope.launch {
+            snapshotFlow { searchQuery }
+                .debounce(SEARCH_DEBOUNCE_MS)
+                .flatMapLatest { raw ->
+                    val tokens = raw.trim().split(WHITESPACE).filter { it.isNotBlank() }
+                    if (tokens.isEmpty()) {
+                        flowOf(emptyList())
+                    } else {
+                        // SQL 只用第一個關鍵字粗篩，其餘在記憶體裡 AND ——
+                        // 這樣「珍奶 大杯」才找得到（兩個字分別落在名稱與份量欄位）
+                        dao.searchEntries(tokens.first()).map { rows ->
+                            rows.filter { row -> tokens.all(row::matches) }
+                        }
+                    }
+                }
+                .collect { searchResults = it }
         }
     }
 
@@ -237,6 +281,21 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun shiftMonth(months: Long) { visibleMonth = visibleMonth.plusMonths(months) }
+
+    // --- 搜尋與食物庫 ---
+
+    /** 每次重新打開都從乾淨的狀態開始，不要接著上次的關鍵字。 */
+    fun openSearch() {
+        searchQuery = ""
+        screen = Screen.Search
+    }
+
+    fun updateSearchQuery(query: String) { searchQuery = query }
+
+    /** 從食物庫或搜尋結果再記一筆：填好草稿丟進編輯表單，份量與餐別都還能改。 */
+    fun reuse(suggestion: FoodSuggestion) = startPrefilled(suggestion.toDraft())
+
+    fun reuse(entry: FoodEntry) = startPrefilled(EntryDraft.of(entry).copy(id = null))
 
     // --- 編輯 ---
 
@@ -470,6 +529,12 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
         /** 用哨兵字串而不是寫死訊息，UI 才能把它換成有「去設定」按鈕的畫面。 */
         const val NO_API_KEY = "NO_API_KEY"
+
+        /** 「常吃」只算最近這麼多天 —— 它該反映現在的習慣，不是三個月前戒掉的東西。 */
+        private const val FREQUENT_WINDOW_DAYS = 90L
+        private const val LIBRARY_LIMIT = 60
+        private const val SEARCH_DEBOUNCE_MS = 250L
+        private val WHITESPACE = Regex("\\s+")
     }
 }
 
@@ -527,6 +592,33 @@ private fun Double.roundTo1(): Double = Math.round(this * 10.0) / 10.0
 
 private fun Double.asInputValue(): String =
     if (this % 1.0 == 0.0) toLong().toString() else toString()
+
+/**
+ * 一筆紀錄有沒有命中某個關鍵字。名稱與份量文字都算 ——
+ * 規格常常只寫在份量裡（「大杯 700ml 半糖」），只比對名稱會漏掉。
+ */
+fun FoodEntry.matches(token: String): Boolean =
+    name.contains(token, ignoreCase = true) || servingText.contains(token, ignoreCase = true)
+
+/**
+ * 食物庫的一項 -> 可以直接存的草稿。
+ *
+ * 刻意**不帶** id 與 barcode：這是「照這個再記一筆」，不是編輯舊的那一筆。
+ * 來源標成 MANUAL，因為使用者是自己從庫裡挑的，不是這次新跑了一次 AI 或條碼。
+ */
+fun FoodSuggestion.toDraft() = EntryDraft(
+    name = name,
+    servingText = servingText,
+    calories = calories.asInput(),
+    protein = proteinG.asInput(),
+    fat = fatG.asInput(),
+    carbs = carbsG.asInput(),
+    sugar = sugarG.asInput(),
+    sodium = sodiumMg.asInput(),
+    fiber = fiberG.asInput(),
+    satFat = satFatG.asInput(),
+    source = EntrySource.MANUAL,
+)
 
 /** 空字串當 0。使用者留白通常是「不知道」而不是想輸入別的東西。 */
 private fun String.toNumberOrZero(): Double = toNumberOrNull() ?: 0.0

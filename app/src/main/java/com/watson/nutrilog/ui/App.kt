@@ -104,7 +104,9 @@ fun NutriLogApp(viewModel: NutriViewModel) {
                 if (viewModel.hasApiKey()) viewModel.openTextLookup() else viewModel.reportMissingApiKey()
             },
             onAddBarcode = viewModel::openBarcode,
+            onAddFromLibrary = viewModel::openSearch,
             onOpenHistory = viewModel::openHistory,
+            onOpenSearch = viewModel::openSearch,
             onOpenSettings = { viewModel.goTo(Screen.Settings) },
         )
 
@@ -152,6 +154,22 @@ fun NutriLogApp(viewModel: NutriViewModel) {
                 onRetry = viewModel::retryAnalysis,
                 onOpenSettings = { viewModel.goTo(Screen.Settings) },
                 onManualInstead = viewModel::startNewEntry,
+                onClose = viewModel::backToToday,
+            )
+        }
+
+        Screen.Search -> {
+            BackHandler { viewModel.backToToday() }
+            SearchScreen(
+                query = viewModel.searchQuery,
+                targetDate = viewModel.selectedDate,
+                results = viewModel.searchResults,
+                frequent = viewModel.frequentFoods,
+                recent = viewModel.recentFoods,
+                onQueryChange = viewModel::updateSearchQuery,
+                onOpenDay = viewModel::showDate,
+                onReuseEntry = viewModel::reuse,
+                onReuseSuggestion = viewModel::reuse,
                 onClose = viewModel::backToToday,
             )
         }

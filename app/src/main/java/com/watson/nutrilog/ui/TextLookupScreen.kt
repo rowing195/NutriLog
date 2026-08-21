@@ -2,8 +2,6 @@ package com.watson.nutrilog.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -14,7 +12,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -41,7 +38,7 @@ import com.watson.nutrilog.R
  * 存在的理由：不是每餐都方便拍照，而且台灣的連鎖店品項
  * （手搖飲、便當）拍了也不容易看出規格，直接講「大杯半糖」還比較準。
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TextLookupScreen(
     onLookup: (String) -> Unit,
@@ -89,20 +86,6 @@ fun TextLookupScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            Text(
-                stringResource(R.string.text_lookup_examples),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                EXAMPLES.forEach { example ->
-                    AssistChip(
-                        onClick = { query = example },
-                        label = { Text(example) },
-                    )
-                }
-            }
-
             Button(
                 onClick = submit,
                 enabled = query.isNotBlank(),
@@ -113,11 +96,3 @@ fun TextLookupScreen(
         }
     }
 }
-
-/** 點一下就填進去。第一次用的人最大的疑問是「要打多細」，範例比說明有用。 */
-private val EXAMPLES = listOf(
-    "CoCo 珍珠奶茶",
-    "滷肉飯一碗",
-    "麥當勞大麥克",
-    "美式咖啡不加糖",
-)

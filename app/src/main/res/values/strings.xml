@@ -36,6 +36,7 @@
     <string name="add_photo_gallery">從相簿選</string>
     <string name="add_text">文字輸入辨識</string>
     <string name="add_barcode">掃條碼</string>
+    <string name="add_from_library">從常吃的選</string>
 
     <!-- 編輯表單 -->
     <string name="entry_new_title">新增食物</string>
@@ -51,6 +52,23 @@
     <string name="entry_name_required">請先填食物名稱</string>
     <string name="delete_title">刪除這筆紀錄？</string>
     <string name="delete_message">「%1$s」會從當天的紀錄中移除，無法復原。</string>
+
+    <!-- 搜尋與食物庫 -->
+    <string name="search_title">搜尋</string>
+    <string name="search_label">食物名稱或份量</string>
+    <string name="search_placeholder">例如：珍奶 大杯</string>
+    <string name="search_clear">清除</string>
+    <string name="search_reuse">照這筆再記一筆</string>
+    <string name="search_sheet_add">加入</string>
+    <string name="search_target_date">加入的紀錄會記到 %1$s</string>
+    <string name="search_sheet_note">以下是最後一次吃的數值。按「加入」會帶進編輯表單，份量與餐別都還可以改。</string>
+    <string name="search_tab_frequent">常吃</string>
+    <string name="search_tab_recent">最近</string>
+    <string name="search_stats_frequent">%1$d 次 · 最後 %2$s</string>
+    <string name="search_stats_recent">最後 %1$s</string>
+    <string name="search_no_result">找不到符合的紀錄。多個關鍵字要全部命中，試著少打一點。</string>
+    <string name="search_empty_frequent">還沒有足夠的紀錄。這份清單是從你自己吃過的東西長出來的，記幾天之後就會有內容。</string>
+    <string name="search_empty_recent">還沒有任何紀錄。</string>
 
     <!-- 歷史（月曆） -->
     <string name="history_title">歷史</string>

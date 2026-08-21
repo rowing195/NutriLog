@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -68,7 +69,9 @@ fun TodayScreen(
     onAddFromGallery: () -> Unit,
     onAddText: () -> Unit,
     onAddBarcode: () -> Unit,
+    onAddFromLibrary: () -> Unit,
     onOpenHistory: () -> Unit,
+    onOpenSearch: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
     val today = LocalDate.now()
@@ -78,6 +81,9 @@ fun TodayScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.app_name)) },
                 actions = {
+                    IconButton(onClick = onOpenSearch) {
+                        Icon(Icons.Default.Search, stringResource(R.string.search_title))
+                    }
                     IconButton(onClick = onOpenHistory) {
                         Icon(Icons.Default.DateRange, stringResource(R.string.history_title))
                     }
@@ -144,6 +150,7 @@ fun TodayScreen(
             onAddFromGallery = onAddFromGallery,
             onAddText = onAddText,
             onAddBarcode = onAddBarcode,
+            onAddFromLibrary = onAddFromLibrary,
         )
     }
 }
@@ -164,9 +171,12 @@ private fun AddEntrySheet(
     onAddFromGallery: () -> Unit,
     onAddText: () -> Unit,
     onAddBarcode: () -> Unit,
+    onAddFromLibrary: () -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(bottom = 32.dp)) {
+            // 「從常吃的選」擺第一個：這是最不花力氣、也最常用的一條路
+            SheetRow(stringResource(R.string.add_from_library)) { onPick(onAddFromLibrary) }
             SheetRow(stringResource(R.string.add_manual)) { onPick(onAddManual) }
             SheetRow(stringResource(R.string.add_photo)) { onPick(onAddPhoto) }
             SheetRow(stringResource(R.string.add_photo_gallery)) { onPick(onAddFromGallery) }
