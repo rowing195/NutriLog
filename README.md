@@ -1,19 +1,495 @@
-# 肥胖日記（NutriLog）
+<div align="center" id="top">
+
+<!-- HEADER STYLE: CLASSIC -->
+<img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png" width="140" style="position: relative; top: 0; right: 0;" alt="Project Logo"/>
+
+# NutriLog
+
+<em>離線記錄每日營養，資料只留在你手機裡</em>
+
+<!-- BADGES -->
+<img src="https://img.shields.io/github/last-commit/rowing195/NutriLog?style=flat&logo=git&logoColor=white&color=0080ff" alt="last-commit">
+	<img src="https://img.shields.io/github/languages/top/rowing195/NutriLog?style=flat&color=0080ff" alt="repo-top-language">
+	<img src="https://img.shields.io/github/languages/count/rowing195/NutriLog?style=flat&color=0080ff" alt="repo-language-count">
+	<img src="https://img.shields.io/github/v/release/rowing195/NutriLog?style=flat&logo=github&logoColor=white&color=0080ff" alt="release">
+
+<em>Built with the tools and technologies:</em>
+
+<img src="https://img.shields.io/badge/Kotlin-7F52FF.svg?style=flat&logo=kotlin&logoColor=white" alt="Kotlin">
+	<img src="https://img.shields.io/badge/Android-34A853.svg?style=flat&logo=android&logoColor=white" alt="Android">
+	<img src="https://img.shields.io/badge/Jetpack%20Compose-4285F4.svg?style=flat&logo=jetpackcompose&logoColor=white" alt="Jetpack Compose">
+	<img src="https://img.shields.io/badge/Gradle-02303A.svg?style=flat&logo=gradle&logoColor=white" alt="Gradle">
+	<img src="https://img.shields.io/badge/SQLite-003B57.svg?style=flat&logo=sqlite&logoColor=white" alt="SQLite">
+	<img src="https://img.shields.io/badge/Google%20Gemini-8E75B2.svg?style=flat&logo=googlegemini&logoColor=white" alt="Google Gemini">
+	<img src="https://img.shields.io/badge/GitHub%20Actions-2088FF.svg?style=flat&logo=githubactions&logoColor=white" alt="GitHub Actions">
+
+</div>
+<br>
+
+---
+
+### 目錄
+
+- [總覽](#總覽)
+- [特色](#特色)
+- [專案結構](#專案結構)
+    - [專案索引](#專案索引)
+- [開始使用](#開始使用)
+    - [需求](#需求)
+    - [安裝](#安裝)
+    - [使用](#使用)
+    - [測試](#測試)
+- [功能](#功能)
+- [設定 Gemini API key](#設定-gemini-api-key)
+- [設計決策](#設計決策)
+- [外部 API](#外部-api)
+- [發佈](#發佈)
+- [技術規格](#技術規格)
+- [貢獻](#貢獻)
+- [授權](#授權)
+- [致謝](#致謝)
+
+---
+
+## 總覽
 
 Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱是「肥胖日記」，
 專案代號維持 NutriLog —— package、repo、APK 檔名與簽章都綁在它身上。
 
-四種輸入方式：自己輸入營養素、
-拍食物照或打一句文字交給 Gemini 估算、掃商品條碼查 Open Food Facts。
+**Why NutriLog?** 市面上的飲食紀錄 app 幾乎都要你先開帳號、再把三餐上傳到別人的伺服器。
+這支不用：沒有後端、沒有帳號，紀錄全部躺在你自己的手機裡。
 
-**所有紀錄都存在手機本地**，沒有後端伺服器、沒有帳號。唯一的對外連線是
-影像辨識與條碼查詢兩支公開 API。
+- 🔒 **完全離線** — 唯一的對外連線是影像辨識與條碼查詢兩支公開 API，兩者都是你主動觸發才會發生。
+- 🍱 **四條輸入路徑** — 自己填數字、拍照或打一句話交給 Gemini 估、掃商品條碼查 Open Food Facts。
+- ✅ **AI 的數字一律要你點頭** — 模型給的是估算值，一定先經過確認畫面才入庫。
+- 📅 **看得出空白** — 月曆式歷史讓「哪幾天忘了記」一眼就有形狀，清單做不到這件事。
+- 📤 **CSV 匯出** — 唯一能把資料帶出手機的路徑，所以定位是備份，預設全部匯出。
+- 🔑 **權限只有一個** — Manifest 裡只有 `INTERNET`，連相機權限都不需要。
+
+---
+
+## 特色
+
+| | 元件 | 細節 |
+|---|---|---|
+| ⚙️ | **架構** | <ul><li>單一 activity-scoped `NutriViewModel` 串起所有畫面狀態</li><li>`sealed interface Screen` + `when` 分派，刻意不引入導航函式庫</li><li>畫面本身無狀態，只吃資料與 lambda</li></ul> |
+| 🔩 | **程式品質** | <ul><li>KDoc 寫繁體中文，解釋「為什麼」而不是「做了什麼」</li><li>版本統一收在 `gradle/libs.versions.toml`</li><li>Compose BOM 管理所有 compose 函式庫版號</li></ul> |
+| 📄 | **文件** | <ul><li>README（本檔）＋ `CLAUDE.md`（環境與慣例）＋ `HANDOFF.md`（狀態）</li><li>踩過的坑寫在原地註解裡，不另開 wiki</li></ul> |
+| 🔌 | **整合** | <ul><li>Google Gemini（照片／文字辨識）</li><li>Open Food Facts（條碼查詢）</li><li>Play 服務 Code Scanner（掃描 UI）</li><li>GitHub Actions 推 tag 自動發 Release</li></ul> |
+| 🧩 | **模組化** | <ul><li>`data/db` Room、`data/net` 外部 API、`ui` 畫面、`ui/theme` 色票與字階</li><li>`CsvExport` 是純函式、不碰 Android API</li></ul> |
+| 🧪 | **測試** | <ul><li>**沒有自動化測試套件**</li><li>`tools/ui.ps1` 提供依元件文字定位的手動 UI 驗證</li><li>回歸清單記在 `CLAUDE.md`：新增→編輯→刪除、換日、force-stop</li></ul> |
+| ⚡️ | **效能** | <ul><li>每日／每月合計由 SQL `GROUP BY` 算，不把明細撈進記憶體</li><li>相片壓到長邊 1024 px 才送出</li><li>全 app 共用一個 `OkHttpClient`</li><li>條碼結果存本機快取</li></ul> |
+| 🛡️ | **安全** | <ul><li>只有 `INTERNET` 權限</li><li>API key 存 DataStore，**不編進 APK**</li><li>key 走 `x-goog-api-key` header 而不是 query string</li><li>`keystore.properties` 與 `release.jks` 都在 gitignore</li></ul> |
+| 📦 | **相依** | <ul><li>Room、DataStore、OkHttp、kotlinx-serialization、play-services-code-scanner</li><li>刻意不用 Retrofit —— 只有兩支端點</li></ul> |
+| 🚀 | **擴充性** | <ul><li>Room 關聯式儲存，`date` 有索引</li><li>新增 `NutriSettings` 欄位一律給預設值，舊資料靠預設值相容</li></ul> |
+
+---
+
+## 專案結構
+
+```sh
+└── NutriLog/
+    ├── .github/
+    │   └── workflows/
+    ├── app/
+    │   ├── build.gradle.kts
+    │   ├── proguard-rules.pro
+    │   └── src/
+    ├── design/
+    │   ├── Budget.dc.html
+    │   ├── Journal.dc.html
+    │   ├── Main.dc.html
+    │   ├── Refined.dc.html
+    │   └── canvas.json
+    ├── gradle/
+    │   ├── libs.versions.toml
+    │   └── wrapper/
+    ├── tools/
+    │   ├── emu.ps1
+    │   ├── setup-signing.sh
+    │   └── ui.ps1
+    ├── build.gradle.kts
+    ├── settings.gradle.kts
+    ├── CLAUDE.md
+    ├── HANDOFF.md
+    └── README.md
+```
+
+### 專案索引
+
+<details open>
+	<summary><b><code>NUTRILOG/</code></b></summary>
+	<!-- __root__ Submodule -->
+	<details>
+		<summary><b>__root__</b></summary>
+		<blockquote>
+			<div class='directory-path' style='padding: 8px 0; color: #666;'>
+				<code><b>⦿ __root__</b></code>
+			<table style='width: 100%; border-collapse: collapse;'>
+			<thead>
+				<tr style='background-color: #f8f9fa;'>
+					<th style='width: 30%; text-align: left; padding: 8px;'>檔案</th>
+					<th style='text-align: left; padding: 8px;'>說明</th>
+				</tr>
+			</thead>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/build.gradle.kts'>app/build.gradle.kts</a></b></td>
+					<td style='padding: 8px;'>模組建置設定。版號由 CI 從 tag 傳入的 property 覆蓋，本機建置才用預設值。<br>- 簽章讀 `keystore.properties`，檔案不存在就退回 debug 簽章，讓別人 clone 下來照樣建得起來。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/gradle/libs.versions.toml'>gradle/libs.versions.toml</a></b></td>
+					<td style='padding: 8px;'>版本目錄，所有相依與外掛的版號單一來源。KSP 的版號前半段必須和 Kotlin 完全一致，對不上會直接建置失敗。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/CLAUDE.md'>CLAUDE.md</a></b></td>
+					<td style='padding: 8px;'>這台機器的環境設定與專案慣例：建置指令、模擬器規則、配色與版面語言、回歸清單。</td>
+				</tr>
+			</table>
+		</blockquote>
+	</details>
+	<!-- app.src.main.java.com.watson.nutrilog Submodule -->
+	<details>
+		<summary><b>com.watson.nutrilog</b></summary>
+		<blockquote>
+			<div class='directory-path' style='padding: 8px 0; color: #666;'>
+				<code><b>⦿ app/src/main/java/com/watson/nutrilog</b></code>
+			<table style='width: 100%; border-collapse: collapse;'>
+			<thead>
+				<tr style='background-color: #f8f9fa;'>
+					<th style='width: 30%; text-align: left; padding: 8px;'>檔案</th>
+					<th style='text-align: left; padding: 8px;'>說明</th>
+				</tr>
+			</thead>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/MainActivity.kt'>MainActivity.kt</a></b></td>
+					<td style='padding: 8px;'>唯一的 Activity。開 edge-to-edge、套上主題，並建立 activity-scoped 的 ViewModel —— 各畫面之間的狀態（草稿、選到的日期）就靠它串起來。</td>
+				</tr>
+			</table>
+		</blockquote>
+	</details>
+	<!-- data Submodule -->
+	<details>
+		<summary><b>data</b></summary>
+		<blockquote>
+			<div class='directory-path' style='padding: 8px 0; color: #666;'>
+				<code><b>⦿ app/src/main/java/com/watson/nutrilog/data</b></code>
+			<table style='width: 100%; border-collapse: collapse;'>
+			<thead>
+				<tr style='background-color: #f8f9fa;'>
+					<th style='width: 30%; text-align: left; padding: 8px;'>檔案</th>
+					<th style='text-align: left; padding: 8px;'>說明</th>
+				</tr>
+			</thead>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/CsvExport.kt'>CsvExport.kt</a></b></td>
+					<td style='padding: 8px;'>把飲食紀錄轉成 CSV，是唯一能把資料帶出手機的路徑。<br>- 純函式、不碰 Android API，格式對不對用眼睛看就知道。<br>- 檔頭有 UTF-8 BOM，少了它 Excel 會用系統 ANSI 解讀，中文全變亂碼。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/SettingsStore.kt'>SettingsStore.kt</a></b></td>
+					<td style='padding: 8px;'>使用者設定與每日目標。用 DataStore 而不是 Room，因為它就只有一份、不需要查詢。</td>
+				</tr>
+			</table>
+		</blockquote>
+	</details>
+	<!-- data.db Submodule -->
+	<details>
+		<summary><b>data.db</b></summary>
+		<blockquote>
+			<div class='directory-path' style='padding: 8px 0; color: #666;'>
+				<code><b>⦿ app/src/main/java/com/watson/nutrilog/data/db</b></code>
+			<table style='width: 100%; border-collapse: collapse;'>
+			<thead>
+				<tr style='background-color: #f8f9fa;'>
+					<th style='width: 30%; text-align: left; padding: 8px;'>檔案</th>
+					<th style='text-align: left; padding: 8px;'>說明</th>
+				</tr>
+			</thead>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/db/FoodEntry.kt'>FoodEntry.kt</a></b></td>
+					<td style='padding: 8px;'>一筆吃下去的東西，以及全天合計 `Totals`。日期存本地字串而不是 timestamp —— 跨時區時「今天」該是使用者當下的今天。延伸四項可為 null，`0.0` 會讓「沒資料」和「真的是 0」分不出來。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/db/NutriDao.kt'>NutriDao.kt</a></b></td>
+					<td style='padding: 8px;'>所有查詢。合計走 SQL `GROUP BY`，不把明細撈進記憶體。常吃／最近以「名稱＋份量文字」分組，靠 SQLite 的 `MAX()` 保證裸欄位取自最後一次那筆。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/db/FoodSuggestion.kt'>FoodSuggestion.kt</a></b></td>
+					<td style='padding: 8px;'>個人食物庫的一列 —— 從既有紀錄聚合出來的品項，不是資料表，所以不需要動 schema。這是唯一不用打字也不花 API 額度就能記一筆的來源。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/db/CachedProduct.kt'>CachedProduct.kt</a></b></td>
+					<td style='padding: 8px;'>查過的條碼商品，每 100 g 的營養值。存在理由是 OFF 每分鐘 15 次的查詢上限，以及常吃的東西會一直重複掃到 —— 查過一次之後沒網路也帶得出來。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/db/NutriDatabase.kt'>NutriDatabase.kt</a></b></td>
+					<td style='padding: 8px;'>Room 資料庫本體與單例。兩張表：`food_entries` 與 `cached_products`。</td>
+				</tr>
+			</table>
+		</blockquote>
+	</details>
+	<!-- data.net Submodule -->
+	<details>
+		<summary><b>data.net</b></summary>
+		<blockquote>
+			<div class='directory-path' style='padding: 8px 0; color: #666;'>
+				<code><b>⦿ app/src/main/java/com/watson/nutrilog/data/net</b></code>
+			<table style='width: 100%; border-collapse: collapse;'>
+			<thead>
+				<tr style='background-color: #f8f9fa;'>
+					<th style='width: 30%; text-align: left; padding: 8px;'>檔案</th>
+					<th style='text-align: left; padding: 8px;'>說明</th>
+				</tr>
+			</thead>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/net/GeminiClient.kt'>GeminiClient.kt</a></b></td>
+					<td style='padding: 8px;'>照片與文字描述的營養估算。用 `responseSchema` 強制結構化輸出，否則模型會回夾著說明文字的 markdown。5xx 與逾時自動重試三次，4xx 不重試。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/net/OpenFoodFactsClient.kt'>OpenFoodFactsClient.kt</a></b></td>
+					<td style='padding: 8px;'>條碼查詢。讀取不需要 key，但一定要帶自訂 User-Agent，這是 OFF 明文要求的；用預設 UA 會被擋掉。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/net/ImageCompressor.kt'>ImageCompressor.kt</a></b></td>
+					<td style='padding: 8px;'>把相片壓成可以塞進請求的 base64 JPEG。原圖 12 MP base64 後是 4 MB 起跳，又慢又貴，而且對辨識準確度毫無幫助 —— 模型看的是盤子裡有什麼，不是毛孔。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/net/SharedHttp.kt'>SharedHttp.kt</a></b></td>
+					<td style='padding: 8px;'>全 app 共用的 `OkHttpClient`。連線池與執行緒池都掛在實例上，每次呼叫 new 一個等於重新握手還會漏執行緒。</td>
+				</tr>
+			</table>
+		</blockquote>
+	</details>
+	<!-- ui Submodule -->
+	<details>
+		<summary><b>ui</b></summary>
+		<blockquote>
+			<div class='directory-path' style='padding: 8px 0; color: #666;'>
+				<code><b>⦿ app/src/main/java/com/watson/nutrilog/ui</b></code>
+			<table style='width: 100%; border-collapse: collapse;'>
+			<thead>
+				<tr style='background-color: #f8f9fa;'>
+					<th style='width: 30%; text-align: left; padding: 8px;'>檔案</th>
+					<th style='text-align: left; padding: 8px;'>說明</th>
+				</tr>
+			</thead>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/NutriViewModel.kt'>NutriViewModel.kt</a></b></td>
+					<td style='padding: 8px;'>唯一的 ViewModel：畫面分派、選到的日期、編輯草稿、辨識狀態、搜尋與食物庫。數字欄位在草稿裡存 String —— 打到一半的 `12.` 不是合法的 Double，解析留到儲存那一刻。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/App.kt'>App.kt</a></b></td>
+					<td style='padding: 8px;'>根 composable。把狀態分派到各畫面，並持有相機、相簿、SAF、條碼掃描這些跨 App 的啟動器。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/TodayScreen.kt'>TodayScreen.kt</a></b></td>
+					<td style='padding: 8px;'>主畫面：一週長條、已吃熱量、依餐別分段的額度條、三大營養素組成、常吃快捷，以及固定四餐的紀錄清單。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/EditEntryScreen.kt'>EditEntryScreen.kt</a></b></td>
+					<td style='padding: 8px;'>共用輸入表單，四條輸入路徑最後都匯流到這裡。核心四項排成 2×2，數字用自己畫的鍵盤 —— 系統鍵盤會蓋住儲存鈕。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/ReviewScreen.kt'>ReviewScreen.kt</a></b></td>
+					<td style='padding: 8px;'>模型辨識結果的確認畫面。這一步不能省：直接寫進資料庫等於在使用者的飲食紀錄裡塞模型自己編的數字。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/SearchScreen.kt'>SearchScreen.kt</a></b></td>
+					<td style='padding: 8px;'>搜尋與個人食物庫。沒輸入時是常吃／最近兩頁，有輸入就整個換成逐筆搜尋結果 —— 兩種列的性質不同，所以是切換而不是並排。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/TextLookupScreen.kt'>TextLookupScreen.kt</a></b></td>
+					<td style='padding: 8px;'>常吃清單與文字辨識合成一頁。忘了拍照事後補登時，第一反應通常是「這不是常吃的那個嗎」，找不到才用文字描述交給 AI。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/HistoryScreen.kt'>HistoryScreen.kt</a></b></td>
+					<td style='padding: 8px;'>月曆式歷史。用月曆而不是清單，是因為月曆看得出空白：哪幾天忘了記、連續幾天超標，一眼就有形狀。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/BarcodeScreen.kt'>BarcodeScreen.kt</a></b></td>
+					<td style='padding: 8px;'>條碼掃描與手動輸入。手動輸入不是備案而是必要功能 —— 掃描模組要從 Play 服務下載，不是每台裝置都成功。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/SettingsScreen.kt'>SettingsScreen.kt</a></b></td>
+					<td style='padding: 8px;'>Gemini API key、模型名稱、每日四項目標、進階營養素開關，以及 CSV 匯出。key 用密碼樣式顯示，截圖或旁人看到就等於外流。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/Common.kt'>Common.kt</a></b></td>
+					<td style='padding: 8px;'>跨畫面共用的小元件與格式化：`Hairline()`、`SectionLabel()`、餐別選擇、數字顯示格式、日期標籤。</td>
+				</tr>
+			</table>
+		</blockquote>
+	</details>
+	<!-- ui.theme Submodule -->
+	<details>
+		<summary><b>ui.theme</b></summary>
+		<blockquote>
+			<div class='directory-path' style='padding: 8px 0; color: #666;'>
+				<code><b>⦿ app/src/main/java/com/watson/nutrilog/ui/theme</b></code>
+			<table style='width: 100%; border-collapse: collapse;'>
+			<thead>
+				<tr style='background-color: #f8f9fa;'>
+					<th style='width: 30%; text-align: left; padding: 8px;'>檔案</th>
+					<th style='text-align: left; padding: 8px;'>說明</th>
+				</tr>
+			</thead>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/theme/Theme.kt'>Theme.kt</a></b></td>
+					<td style='padding: 8px;'>「紙與墨」色票（明／暗）、襯線字階，以及三大營養素的語意色 `NutriPalette`。表面之間刻意幾乎沒有對比 —— 版面靠細線分隔而不是卡片色塊。</td>
+				</tr>
+			</table>
+		</blockquote>
+	</details>
+	<!-- tools Submodule -->
+	<details>
+		<summary><b>tools</b></summary>
+		<blockquote>
+			<div class='directory-path' style='padding: 8px 0; color: #666;'>
+				<code><b>⦿ tools</b></code>
+			<table style='width: 100%; border-collapse: collapse;'>
+			<thead>
+				<tr style='background-color: #f8f9fa;'>
+					<th style='width: 30%; text-align: left; padding: 8px;'>檔案</th>
+					<th style='text-align: left; padding: 8px;'>說明</th>
+				</tr>
+			</thead>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/tools/emu.ps1'>emu.ps1</a></b></td>
+					<td style='padding: 8px;'>開模擬器並等 `boot_completed`，以及 build＋安裝。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/tools/ui.ps1'>ui.ps1</a></b></td>
+					<td style='padding: 8px;'>UI 驗證：列出畫面所有文字節點與座標，並依**元件文字**（而不是寫死座標）點擊。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/tools/setup-signing.sh'>setup-signing.sh</a></b></td>
+					<td style='padding: 8px;'>一次性的簽章金鑰設定精靈：產金鑰 → 驗指紋 → 寫本機設定 → 設四個 GitHub secret。是 bash 不是 PowerShell，要用 Git Bash 跑。</td>
+				</tr>
+			</table>
+		</blockquote>
+	</details>
+	<!-- .github.workflows Submodule -->
+	<details>
+		<summary><b>.github.workflows</b></summary>
+		<blockquote>
+			<div class='directory-path' style='padding: 8px 0; color: #666;'>
+				<code><b>⦿ .github/workflows</b></code>
+			<table style='width: 100%; border-collapse: collapse;'>
+			<thead>
+				<tr style='background-color: #f8f9fa;'>
+					<th style='width: 30%; text-align: left; padding: 8px;'>檔案</th>
+					<th style='text-align: left; padding: 8px;'>說明</th>
+				</tr>
+			</thead>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/.github/workflows/release.yml'>release.yml</a></b></td>
+					<td style='padding: 8px;'>推 `v` 開頭的 tag 就建置並發佈 Release。缺簽章 secret 時**故意讓 workflow 失敗**，而不是靜默退回 debug 簽章。</td>
+				</tr>
+			</table>
+		</blockquote>
+	</details>
+	<!-- design Submodule -->
+	<details>
+		<summary><b>design</b></summary>
+		<blockquote>
+			<div class='directory-path' style='padding: 8px 0; color: #666;'>
+				<code><b>⦿ design</b></code>
+			<table style='width: 100%; border-collapse: collapse;'>
+			<thead>
+				<tr style='background-color: #f8f9fa;'>
+					<th style='width: 30%; text-align: left; padding: 8px;'>檔案</th>
+					<th style='text-align: left; padding: 8px;'>說明</th>
+				</tr>
+			</thead>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/design/Main.dc.html'>Main.dc.html</a></b></td>
+					<td style='padding: 8px;'>改版的互動原型：今日頁與編輯表單，含深色開關與每日目標拉桿。是實作前用來確認方向的稿子，不是 app 的一部分。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/design/canvas.json'>canvas.json</a></b></td>
+					<td style='padding: 8px;'>畫布版面：原型一頁、當初探索的三個方向（精修／額度優先／日記）另一頁。</td>
+				</tr>
+			</table>
+		</blockquote>
+	</details>
+</details>
+
+---
+
+## 開始使用
+
+### 需求
+
+- **語言：** Kotlin 2.0.21
+- **建置工具：** Gradle 8.11.1（或用 repo 內的 `gradlew`）
+- **JDK：** 17
+- **Android SDK：** compileSdk 35，最低支援 Android 8.0（minSdk 26）
+
+只是想用 app 的話不需要以上任何一項 —— 直接到
+[Releases](https://github.com/rowing195/NutriLog/releases) 下載 APK 裝上就好。
+
+### 安裝
+
+從原始碼建置：
+
+1. **Clone：**
+
+    ```sh
+    ❯ git clone https://github.com/rowing195/NutriLog
+    ```
+
+2. **進到專案目錄：**
+
+    ```sh
+    ❯ cd NutriLog
+    ```
+
+3. **建置：**
+
+    ```sh
+    ❯ ./gradlew assembleDebug
+    ```
+
+APK 產生在 `app/build/outputs/apk/debug/app-debug.apk`。
+
+沒有 `keystore.properties` 也建得起來 —— release 會自動退回 debug 簽章。
+
+### 使用
+
+裝到已連線的裝置或模擬器：
+
+```sh
+❯ ./gradlew installDebug
+```
+
+Windows 上可以用附的腳本一次開模擬器並部署：
+
+```powershell
+& ".\tools\emu.ps1" start    # 開模擬器並等 boot_completed
+& ".\tools\emu.ps1" deploy   # build + 安裝
+```
+
+### 測試
+
+**這個專案沒有自動化測試套件** —— `src/test` 與 `src/androidTest` 都不存在，
+所以沒有可以跑的 `gradlew test`。
+
+驗證靠模擬器上的手動回歸，用 [`tools/ui.ps1`](tools/ui.ps1) 依元件文字定位（不寫死座標）：
+
+```powershell
+& ".\tools\ui.ps1" dump              # 列出畫面所有文字節點與中心座標
+& ".\tools\ui.ps1" tap "記一筆"
+& ".\tools\ui.ps1" type "Chicken"    # input text 只吃 ASCII，測試資料一律用英數
+```
+
+動到閱讀以外的畫面後要跑的三項回歸：**手動新增→編輯→刪除**、
+**換日**（前一天應為空、回今天資料還在）、**force-stop 後資料與設定都還在**。
 
 ---
 
 ## 功能
 
 ### 今日
+
 - 上方是**一週長條**：換日和「這幾天吃得鬆或緊」用同一個元件解決。
   長條高度是當天熱量佔目標的比例，超標整條轉紅，空白的那幾天一眼看得出來。
   兩側的箭頭跨週，再遠就開月曆。
@@ -55,6 +531,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 AI 估的數字最常在這裡出錯。不擋儲存，真實食物本來就有誤差，這只是提醒。
 
 ### 歷史（月曆）
+
 一格一天的月曆，格子裡直接寫當天熱量，底色深淺代表吃了多少、超標轉紅。
 
 用月曆而不是清單，是因為月曆**看得出空白**：哪幾天忘了記、連續幾天超標，
@@ -65,13 +542,11 @@ AI 估的數字最常在這裡出錯。不擋儲存，真實食物本來就有�
 不把明細撈進記憶體。
 
 ### 搜尋與個人食物庫
+
 右上角放大鏡打開。同一份食物庫也出現在新增選單的「常吃／文字輸入」上半，
 以及今日頁的常吃快捷 —— 三個入口，同一份從你自己的紀錄長出來的清單。
 
-（早期版本另外有一個叫「從常吃的選」的入口，點進去其實就是這個搜尋畫面，
-是多餘的重複，已經併掉。）
-
-**沒輸入時**是從你自己的紀錄長出來的食物庫，兩頁可左右滑動切換：
+**沒輸入時**是食物庫，兩頁可左右滑動切換：
 
 | | 常吃 | 最近 |
 |---|---|---|
@@ -82,33 +557,18 @@ AI 估的數字最常在這裡出錯。不擋儲存，真實食物本來就有�
 （大杯／中杯／半糖），而且它是文字、不會像 AI 每次估的數字那樣抖動。
 用數字當鍵的話，同一杯中杯珍奶會因為三次估算值略有出入而散成三列。
 
-點一項會跳出面板攤開完整營養素，按「加入」帶進**預填好的編輯表單**，
-份量與餐別都還能改。
-
-**有輸入時**整個換成逐筆搜尋結果，日期新到舊：
-
-- 比對**名稱 ＋ 份量文字**，空白拆成多個關鍵字全部要命中。
-  「珍奶 大杯」找得到 —— 兩個字分別落在名稱與份量欄位。
-- 點一列**跳到那天的今日頁**（看得到當天全貌，而不只是那一筆）。
-- 右側「＋」照這筆再記一筆。
-
-加入的紀錄會落在**目前選的那一天**，跟其他新增路徑一致。不是今天的時候
-畫面上會明講「加入的紀錄會記到 8月18日」—— 搜尋畫面看不到日期列，
-不講的話使用者無從得知自己正在補登哪一天。
-
-### 設定
-Gemini API key、模型名稱、每日四項目標、進階營養素開關，以及 **CSV 匯出**。
+**有輸入時**整個換成逐筆搜尋結果，日期新到舊。比對名稱＋份量文字，
+空白拆成多個關鍵字全部要命中 ——「珍奶 大杯」找得到，兩個字分別落在名稱與份量欄位。
 
 ### 匯出 CSV
+
 把全部紀錄存成 CSV，用 Excel 或 Google 試算表打得開。
 **這是唯一能把資料帶出手機的方式** —— 紀錄只在本機、沒有雲端備份，
 換手機或誤刪 app 就沒了，所以匯出的定位是備份，預設全部匯出、不做日期篩選。
 
-兩個細節值得知道：
-
-- 檔頭有 **UTF-8 BOM**。少了它 Excel 會用系統 ANSI 解讀，中文全變亂碼。
-- 缺資料的營養素是**空欄不是 0**。到了試算表更沒機會分辨
-  「沒標示」和「真的是 0」。
+兩個細節值得知道：檔頭有 **UTF-8 BOM**（少了它 Excel 會用系統 ANSI 解讀，
+中文全變亂碼）；缺資料的營養素是**空欄不是 0**（到了試算表更沒機會分辨
+「沒標示」和「真的是 0」）。
 
 存檔位置由系統選擇器決定（SAF），所以不需要任何儲存權限，
 檔案也落在你自己看得到的地方，不會跟著 app 被解除安裝一起刪掉。
@@ -150,20 +610,31 @@ Manifest 裡**只有 `INTERNET` 一個權限**：
 
 三者都是「別的行程取像，本 app 只拿結果」，所以一次執行階段權限請求都不用。
 
-### 配色：整族 surface 都要自己指定
+### 配色：用線分隔，不用色塊
 
-Material3 的預設 baseline 是**紫色系**的。只覆蓋 `primary` 的話，
-背景與卡片仍然是淡紫灰，跟綠色主色互相打架 —— 第一版就是這樣，
-整個 app 看起來是紫的。`Theme.kt` 因此把 `surfaceContainer*` 整族、
-`surfaceVariant`、`outline` 全部指定成帶綠的中性灰。
+視覺基底是「紙與墨」：暖中性底色、襯線給數字與食物名稱。有兩件事會咬人：
 
-同理，這裡刻意不用 Material You 動態取色：顏色在這個 app 裡有語意
-（三大營養素各有固定色、超標轉紅），讓桌布決定色相會直接破壞那層意義。
+- **表面之間幾乎沒有對比**（底 `#F8F7F2` vs 浮起 `#FDFCF9` 只差 3%）。
+  這是故意的 —— 版面靠**細線**分隔，不是靠卡片色塊。不要為了「看得出是一張卡」
+  去加深 `surfaceContainer`，那會把整個設計拉回舊樣子。要分隔就畫線。
+- **深色不是純黑而是暖灰 `#191813`**。純黑會讓襯線字看起來發灰，細線也會整條消失。
+
+Material3 的預設 baseline 是紫色系，**新增顏色角色時整族都要蓋**
+（`surfaceContainer*`、`surfaceVariant`、`outline*`），少蓋一個就會有元件固執地維持預設紫。
+
+刻意不用 Material You 動態取色：顏色在這個 app 裡有語意（三大營養素各有固定色、
+超標轉紅），讓桌布決定色相會直接破壞那層意義。三大營養素的色是
+`@Composable` getter 而不是常數 —— 深淺兩套的值不一樣（深色底上要提亮）。
+
+字體用系統的 `FontFamily.Serif` 而不是打包字型檔：中文會落到 Noto Serif CJK，
+而打包一套中文襯線要多好幾 MB，這支 app 的 APK 是直接分享給人裝的，不值得。
 
 ### 為什麼模型結果一定要經過確認畫面
 
 Gemini 給的是**估算值**。直接寫進資料庫等於在使用者的飲食紀錄裡塞模型自己編的數字。
 確認畫面會顯示每一項的把握度，可以逐項取消勾選；存進去之後仍然可以點進去逐欄修改。
+
+常吃快捷是**唯一**不繞確認畫面的路徑，因為那組數字是使用者自己吃過、自己存過的。
 
 ### 為什麼手動輸入條碼是必要功能而不是備案
 
@@ -178,7 +649,7 @@ Google Code Scanner 要從 Play 服務**動態下載**掃描模組，不是每�
 
 ### 沒有導航函式庫
 
-畫面只有七個，而且除了「今天」以外都是「開一個、按返回就關掉」。
+畫面只有八個，而且除了「今天」以外都是「開一個、按返回就關掉」。
 `sealed interface Screen` + `when` 分派就夠了，不需要真正的返回堆疊。
 
 ---
@@ -217,24 +688,6 @@ POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateCon
 
 ---
 
-## 建置
-
-```powershell
-$env:JAVA_HOME  = "C:\Program Files\Eclipse Adoptium\jdk-17.0.7.7-hotspot"
-$env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
-
-& "$env:LOCALAPPDATA\Android\tools\gradle-8.11.1\bin\gradle.bat" -p "C:\code\android app\NutriLog" assembleDebug
-```
-
-APK 在 `app/build/outputs/apk/debug/app-debug.apk`。
-
-模擬器與部署：
-
-```powershell
-& "C:\code\android app\NutriLog\tools\emu.ps1" start    # 開模擬器並等 boot_completed
-& "C:\code\android app\NutriLog\tools\emu.ps1" deploy   # build + 安裝
-```
-
 ## 發佈
 
 推一個 `v` 開頭的 tag，GitHub Actions 會建置並發佈 Release：
@@ -266,32 +719,18 @@ repo 必須先設好四個 secret：`KEYSTORE_BASE64`、`STORE_PASSWORD`、
 
 **這是 bash 腳本，要用 Git Bash 跑，cmd 和 PowerShell 都不能直接執行。**
 
-Git Bash 視窗裡：
-
 ```bash
 cd "/c/code/android app/NutriLog" && ./tools/setup-signing.sh
 ```
 
 **注意 `./` 是相對路徑，得先 `cd` 進專案。** 路徑有空格，引號不能省。
-不想換目錄就用絕對路徑，腳本會自己從所在位置推導出專案根目錄：
-
-```bash
-"/c/code/android app/NutriLog/tools/setup-signing.sh"
-```
-
-從 PowerShell 呼叫：
+從 PowerShell 或 cmd 呼叫也能跑：
 
 ```powershell
 & "C:\Program Files\Git\bin\bash.exe" "C:\code\android app\NutriLog\tools\setup-signing.sh"
 ```
 
-從 cmd 呼叫：
-
-```bat
-"C:\Program Files\Git\bin\bash.exe" "C:\code\android app\NutriLog\tools\setup-signing.sh"
-```
-
-後兩者能跑，但主控台的 codepage 通常不是 UTF-8，框線字元可能會歪掉
+但主控台的 codepage 通常不是 UTF-8，框線字元可能會歪掉
 （腳本輸出刻意全用 ASCII 英文就是為了這個）。**建議直接開 Git Bash。**
 
 不想跑腳本就手動：
@@ -306,14 +745,48 @@ gh secret set STORE_PASSWORD; gh secret set KEY_ALIAS; gh secret set KEY_PASSWOR
 **`release.jks` 一定要另外備份。** 弄丟它就再也發不出可以覆蓋更新的版本了。
 GitHub secret 是唯讀不回的，不算備份。
 
+---
+
 ## 技術規格
 
 | 項目 | 值 |
 |---|---|
 | Kotlin / AGP / Gradle | 2.0.21 / 8.7.3 / 8.11.1 |
-| minSdk / targetSdk | 26 / 35 |
+| minSdk / targetSdk / compileSdk | 26 / 35 / 35 |
+| JDK | 17 |
 | UI | Compose（BOM 2024.10.01）+ Material 3 |
-| 資料 | Room 2.6.1（紀錄）+ DataStore Preferences（設定） |
-| 網路 | OkHttp 4.12.0 + kotlinx-serialization |
+| 資料 | Room 2.6.1（紀錄）+ DataStore Preferences 1.1.1（設定） |
+| 網路 | OkHttp 4.12.0 + kotlinx-serialization 1.7.3 |
 | 條碼 | play-services-code-scanner 16.1.0 |
 | 權限 | 只有 `INTERNET` |
+
+---
+
+## 貢獻
+
+- **🐛 [回報問題](https://github.com/rowing195/NutriLog/issues)**：回報 bug 或提出功能建議。
+- **💡 送 Pull Request**：fork → 開分支 → 改 → 送 PR。
+
+改動前請先看 [`CLAUDE.md`](CLAUDE.md)：註解寫繁體中文並解釋「為什麼」、
+PowerShell 腳本只能用 ASCII、動到 Room entity 就要加 migration 並升 version、
+營養素缺資料一律 `null` 不要補 0。
+
+---
+
+## 授權
+
+這個 repo **沒有附授權條款檔案**。在沒有明示授權的情況下，著作權預設保留，
+第三方不會自動取得使用、修改或散布的權利。要開放給別人用的話，
+加一個 `LICENSE` 檔案（例如 MIT 或 Apache-2.0）就好。
+
+---
+
+## 致謝
+
+- [Open Food Facts](https://world.openfoodfacts.org) —— 群眾貢獻的開放食品資料庫，條碼查詢的資料來源。
+- [Google Gemini API](https://ai.google.dev) —— 照片與文字的營養估算。
+- [Google Code Scanner](https://developers.google.com/ml-kit/vision/barcode-scanning/code-scanner) —— 不需要相機權限的掃描 UI。
+
+<div align="left"><a href="#top">回到頂端</a></div>
+
+---
