@@ -1,0 +1,214 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Roboto:wght@400;500;700&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #2E7D5B; } a:hover { color: #1E5C41; }
+  </style>
+</helmet>
+
+<div style="width: 390px; height: 844px; background: #F6FAF7; color: #191D1A; font-family: 'Noto Sans TC', Roboto, system-ui, sans-serif; position: relative; overflow: hidden;">
+
+  <!-- header -->
+  <div style="height: 52px; display: flex; align-items: center; gap: 2px; padding: 0 8px 0 16px;">
+    <div style="flex-grow: 1; font-size: 15px; line-height: 20px; font-weight: 700; color: #4C5A52;">2026 年 8 月</div>
+    <div style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: #4C5A52;">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+    </div>
+    <div style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: #4C5A52;">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 9.5h17M8 3.5V6M16 3.5V6"/></svg>
+    </div>
+    <div style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: #4C5A52;">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 3.5v2M12 18.5v2M20.5 12h-2M5.5 12h-2M17.8 6.2l-1.4 1.4M7.6 16.4l-1.4 1.4M17.8 17.8l-1.4-1.4M7.6 7.6 6.2 6.2"/></svg>
+    </div>
+  </div>
+
+  <!-- 一週長條：換日 + 「這幾天吃得鬆或緊」同時解決，取代原本只顯示一天的日期列 -->
+  <div style="display: flex; gap: 4px; padding: 0 12px 10px;">
+    <div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 6px 0; border-radius: 12px;">
+      <div style="font-size: 10px; line-height: 13px; color: #C0392B; opacity: 0.75;">日</div>
+      <div style="font-size: 13px; line-height: 17px; font-weight: 500; color: #4C5A52;">16</div>
+      <div style="width: 5px; height: 28px; border-radius: 3px; background: #E1EAE4; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden;"><div style="height: 62%; background: #7FC8A2; border-radius: 3px;"></div></div>
+    </div>
+    <div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 6px 0; border-radius: 12px;">
+      <div style="font-size: 10px; line-height: 13px; color: #4C5A52;">一</div>
+      <div style="font-size: 13px; line-height: 17px; font-weight: 500; color: #4C5A52;">17</div>
+      <div style="width: 5px; height: 28px; border-radius: 3px; background: #E1EAE4; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden;"><div style="height: 88%; background: #4E9E77; border-radius: 3px;"></div></div>
+    </div>
+    <div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 6px 0; border-radius: 12px;">
+      <div style="font-size: 10px; line-height: 13px; color: #4C5A52;">二</div>
+      <div style="font-size: 13px; line-height: 17px; font-weight: 500; color: #4C5A52;">18</div>
+      <div style="width: 5px; height: 28px; border-radius: 3px; background: #E1EAE4; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden;"><div style="height: 100%; background: #C0392B; border-radius: 3px;"></div></div>
+    </div>
+    <div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 6px 0; border-radius: 12px;">
+      <div style="font-size: 10px; line-height: 13px; color: #4C5A52;">三</div>
+      <div style="font-size: 13px; line-height: 17px; font-weight: 500; color: #4C5A52;">19</div>
+      <div style="width: 5px; height: 28px; border-radius: 3px; background: #E1EAE4; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden;"><div style="height: 45%; background: #7FC8A2; border-radius: 3px;"></div></div>
+    </div>
+    <div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 6px 0; border-radius: 12px;">
+      <div style="font-size: 10px; line-height: 13px; color: #4C5A52;">四</div>
+      <div style="font-size: 13px; line-height: 17px; font-weight: 500; color: #4C5A52;">20</div>
+      <div style="width: 5px; height: 28px; border-radius: 3px; background: #E1EAE4; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden;"><div style="height: 76%; background: #4E9E77; border-radius: 3px;"></div></div>
+    </div>
+    <div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 6px 0; border-radius: 12px; background: #CDEBDC;">
+      <div style="font-size: 10px; line-height: 13px; font-weight: 700; color: #2E7D5B;">五</div>
+      <div style="font-size: 13px; line-height: 17px; font-weight: 700; color: #0B2A1C;">21</div>
+      <div style="width: 5px; height: 28px; border-radius: 3px; background: #FFFFFF; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden;"><div style="height: 75%; background: #2E7D5B; border-radius: 3px;"></div></div>
+    </div>
+    <div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 6px 0; border-radius: 12px;">
+      <div style="font-size: 10px; line-height: 13px; color: #C0392B; opacity: 0.4;">六</div>
+      <div style="font-size: 13px; line-height: 17px; color: #4C5A52; opacity: 0.4;">22</div>
+      <div style="width: 5px; height: 28px; border-radius: 3px; background: #E1EAE4;"></div>
+    </div>
+  </div>
+
+  <div style="padding: 0 16px; display: flex; flex-direction: column; gap: 14px;">
+
+    <!-- 主數字：直接是「還可以吃」，不用環 -->
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <div style="display: flex; align-items: baseline; gap: 8px;">
+        <div style="font-size: 60px; line-height: 62px; font-weight: 700; letter-spacing: -2.5px; color: #191D1A;">490</div>
+        <div style="display: flex; flex-direction: column; gap: 1px;">
+          <div style="font-size: 14px; line-height: 18px; font-weight: 700; color: #2E7D5B;">kcal 還可以吃</div>
+          <div style="font-size: 12px; line-height: 16px; color: #4C5A52;">已吃 1510 · 目標 2000</div>
+        </div>
+      </div>
+
+      <!-- 額度長條依餐別分段：一眼看出額度被哪一餐吃掉 -->
+      <div style="display: flex; gap: 2px; height: 14px;">
+        <div style="width: 22.5%; background: #7FC8A2; border-radius: 7px 3px 3px 7px;"></div>
+        <div style="width: 29%; background: #4E9E77; border-radius: 3px;"></div>
+        <div style="width: 24%; background: #2E7D5B; border-radius: 3px;"></div>
+        <div style="flex-grow: 1; background: #E1EAE4; border-radius: 3px 7px 7px 3px;"></div>
+      </div>
+      <div style="display: flex; gap: 14px;">
+        <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 8px; height: 8px; border-radius: 2px; background: #7FC8A2;"></div><div style="font-size: 11px; line-height: 15px; color: #4C5A52;">早 450</div></div>
+        <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 8px; height: 8px; border-radius: 2px; background: #4E9E77;"></div><div style="font-size: 11px; line-height: 15px; color: #4C5A52;">午 580</div></div>
+        <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 8px; height: 8px; border-radius: 2px; background: #2E7D5B;"></div><div style="font-size: 11px; line-height: 15px; color: #4C5A52;">點 480</div></div>
+        <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 8px; height: 8px; border-radius: 2px; background: #E1EAE4;"></div><div style="font-size: 11px; line-height: 15px; color: #4C5A52;">剩 490</div></div>
+      </div>
+    </div>
+
+    <!-- 三大營養素壓成一列 -->
+    <div style="display: flex; gap: 10px;">
+      <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 4px;">
+        <div style="font-size: 11px; line-height: 15px; color: #4C5A52;">蛋白質 <span style="color: #191D1A; font-weight: 600;">46</span>/100</div>
+        <div style="width: 100%; height: 4px; border-radius: 2px; background: #E1EAE4; overflow: hidden;"><div style="width: 46%; height: 100%; border-radius: 2px; background: #3A6EA5;"></div></div>
+      </div>
+      <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 4px;">
+        <div style="font-size: 11px; line-height: 15px; color: #4C5A52;">脂肪 <span style="color: #191D1A; font-weight: 600;">55</span>/60</div>
+        <div style="width: 100%; height: 4px; border-radius: 2px; background: #E1EAE4; overflow: hidden;"><div style="width: 92%; height: 100%; border-radius: 2px; background: #D98324;"></div></div>
+      </div>
+      <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 4px;">
+        <div style="font-size: 11px; line-height: 15px; color: #4C5A52;">碳水 <span style="color: #191D1A; font-weight: 600;">203</span>/250</div>
+        <div style="width: 100%; height: 4px; border-radius: 2px; background: #E1EAE4; overflow: hidden;"><div style="width: 81%; height: 100%; border-radius: 2px; background: #9B5DE5;"></div></div>
+      </div>
+    </div>
+
+    <!-- 常吃快捷：忘了拍照時最短的一條路，一點就記 -->
+    <div style="display: flex; flex-direction: column; gap: 7px;">
+      <div style="font-size: 11px; line-height: 15px; font-weight: 700; color: #4C5A52; letter-spacing: 0.4px;">常吃 · 一點就記</div>
+      <div style="display: flex; gap: 7px;">
+        <div style="background: #FFFFFF; border: 1px solid #C7D3CC; border-radius: 20px; padding: 7px 13px; display: flex; align-items: center; gap: 6px;">
+          <div style="font-size: 13px; line-height: 17px; font-weight: 500;">滷肉飯</div>
+          <div style="font-size: 11px; line-height: 15px; color: #4C5A52;">580</div>
+        </div>
+        <div style="background: #FFFFFF; border: 1px solid #C7D3CC; border-radius: 20px; padding: 7px 13px; display: flex; align-items: center; gap: 6px;">
+          <div style="font-size: 13px; line-height: 17px; font-weight: 500;">珍奶</div>
+          <div style="font-size: 11px; line-height: 15px; color: #4C5A52;">480</div>
+        </div>
+        <div style="background: #FFFFFF; border: 1px solid #C7D3CC; border-radius: 20px; padding: 7px 13px; display: flex; align-items: center; gap: 6px;">
+          <div style="font-size: 13px; line-height: 17px; font-weight: 500;">蛋餅</div>
+          <div style="font-size: 11px; line-height: 15px; color: #4C5A52;">320</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="height: 1px; background: #C7D3CC;"></div>
+
+    <!-- 餐別清單：拿掉卡片，改用細線分隔，同樣資訊少掉一半高度 -->
+    <div style="display: flex; flex-direction: column;">
+
+      <div style="display: flex; align-items: center; gap: 7px; padding-bottom: 6px;">
+        <div style="width: 7px; height: 7px; border-radius: 2px; background: #7FC8A2;"></div>
+        <div style="flex-grow: 1; font-size: 13px; line-height: 17px; font-weight: 700; color: #4C5A52;">早餐</div>
+        <div style="font-size: 12px; line-height: 16px; color: #4C5A52;">450</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px; padding: 7px 0;">
+        <div style="flex-grow: 1;">
+          <div style="font-size: 14px; line-height: 18px;">蛋餅</div>
+          <div style="font-size: 11px; line-height: 15px; color: #4C5A52;">1 份</div>
+        </div>
+        <div style="font-size: 14px; line-height: 18px; font-weight: 600;">320</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px; padding: 7px 0;">
+        <div style="flex-grow: 1;">
+          <div style="font-size: 14px; line-height: 18px;">豆漿</div>
+          <div style="font-size: 11px; line-height: 15px; color: #4C5A52;">中杯 無糖</div>
+        </div>
+        <div style="font-size: 14px; line-height: 18px; font-weight: 600;">130</div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 7px; padding: 12px 0 6px;">
+        <div style="width: 7px; height: 7px; border-radius: 2px; background: #4E9E77;"></div>
+        <div style="flex-grow: 1; font-size: 13px; line-height: 17px; font-weight: 700; color: #4C5A52;">午餐</div>
+        <div style="font-size: 12px; line-height: 16px; color: #4C5A52;">580</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px; padding: 7px 0;">
+        <div style="flex-grow: 1;">
+          <div style="font-size: 14px; line-height: 18px;">滷肉飯</div>
+          <div style="font-size: 11px; line-height: 15px; color: #4C5A52;">大碗</div>
+        </div>
+        <div style="font-size: 14px; line-height: 18px; font-weight: 600;">580</div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 7px; padding: 12px 0 6px;">
+        <div style="width: 7px; height: 7px; border-radius: 2px; border: 1px solid #C7D3CC; background: transparent;"></div>
+        <div style="flex-grow: 1; font-size: 13px; line-height: 17px; font-weight: 700; color: #4C5A52;">晚餐</div>
+        <div style="font-size: 12px; line-height: 16px; color: #4C5A52;">0</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px; padding: 7px 0; color: #4C5A52;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        <div style="font-size: 13px; line-height: 17px;">補記晚餐</div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 7px; padding: 12px 0 6px;">
+        <div style="width: 7px; height: 7px; border-radius: 2px; background: #2E7D5B;"></div>
+        <div style="flex-grow: 1; font-size: 13px; line-height: 17px; font-weight: 700; color: #4C5A52;">點心</div>
+        <div style="font-size: 12px; line-height: 16px; color: #4C5A52;">480</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px; padding: 7px 0;">
+        <div style="flex-grow: 1;">
+          <div style="font-size: 14px; line-height: 18px;">CoCo 珍珠奶茶</div>
+          <div style="font-size: 11px; line-height: 15px; color: #4C5A52;">大杯 半糖</div>
+        </div>
+        <div style="font-size: 14px; line-height: 18px; font-weight: 600;">480</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div style="position: absolute; right: 16px; bottom: 16px; height: 52px; border-radius: 26px; background: #2E7D5B; color: #FFFFFF; display: flex; align-items: center; gap: 8px; padding: 0 20px; box-shadow: 0 3px 10px rgba(11, 42, 28, 0.24);">
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    <div style="font-size: 15px; line-height: 20px; font-weight: 700;">記一筆</div>
+  </div>
+
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

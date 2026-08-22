@@ -1,0 +1,146 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #2E7D5B; } a:hover { color: #1E5C41; }
+  </style>
+</helmet>
+
+<div style="width: 390px; height: 1000px; background: #F8F7F2; color: #1A1D18; font-family: 'Noto Sans TC', Roboto, system-ui, sans-serif; position: relative; overflow: hidden;">
+
+  <!-- header -->
+  <div style="height: 56px; display: flex; align-items: center; gap: 2px; padding: 0 10px 0 22px;">
+    <div style="flex-grow: 1; font-size: 12px; line-height: 16px; font-weight: 700; letter-spacing: 3px; color: #6B7168;">肥胖日記</div>
+    <div style="width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; color: #6B7168;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+    </div>
+    <div style="width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; color: #6B7168;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 9.5h17M8 3.5V6M16 3.5V6"/></svg>
+    </div>
+    <div style="width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; color: #6B7168;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 3.5v2M12 18.5v2M20.5 12h-2M5.5 12h-2M17.8 6.2l-1.4 1.4M7.6 16.4l-1.4 1.4M17.8 17.8l-1.4-1.4M7.6 7.6 6.2 6.2"/></svg>
+    </div>
+  </div>
+
+  <div style="padding: 6px 22px 22px; display: flex; flex-direction: column;">
+
+    <!-- 日期：襯線大字，像翻到日記的某一頁 -->
+    <div style="display: flex; align-items: flex-end; justify-content: space-between; padding-bottom: 20px;">
+      <div style="display: flex; align-items: baseline; gap: 10px;">
+        <div style="font-family: 'Noto Serif TC', serif; font-size: 34px; line-height: 40px; font-weight: 600; letter-spacing: -0.5px;">8月21日</div>
+        <div style="font-size: 13px; line-height: 18px; color: #6B7168;">週五</div>
+      </div>
+      <div style="font-size: 11px; line-height: 15px; font-weight: 700; letter-spacing: 1.5px; color: #2E7D5B; padding-bottom: 6px;">今天</div>
+    </div>
+
+    <div style="height: 1px; background: #DBD9CF;"></div>
+
+    <!-- 主句：先講「吃了多少」，額度退成第二行，語氣不逼人 -->
+    <div style="padding: 22px 0 20px; display: flex; flex-direction: column; gap: 14px;">
+      <div style="display: flex; align-items: baseline; gap: 9px;">
+        <div style="font-size: 14px; line-height: 20px; color: #6B7168;">今天吃了</div>
+        <div style="font-family: 'Noto Serif TC', serif; font-size: 44px; line-height: 48px; font-weight: 600; letter-spacing: -1px;">1,510</div>
+        <div style="font-size: 13px; line-height: 20px; color: #6B7168;">kcal</div>
+      </div>
+      <div style="font-size: 13px; line-height: 18px; color: #6B7168;">目標 2,000 · 還有 <span style="color: #2E7D5B; font-weight: 700;">490</span> 的空間</div>
+
+      <!-- 三大營養素畫成「組成」而不是三個進度條：說的是今天吃的結構，不是及不及格 -->
+      <div style="display: flex; flex-direction: column; gap: 9px; padding-top: 4px;">
+        <div style="display: flex; height: 10px; border-radius: 5px; overflow: hidden;">
+          <div style="width: 12%; background: #3A6EA5;"></div>
+          <div style="width: 33%; background: #D98324;"></div>
+          <div style="width: 55%; background: #9B5DE5;"></div>
+        </div>
+        <div style="display: flex; gap: 16px;">
+          <div style="display: flex; align-items: center; gap: 6px;"><div style="width: 7px; height: 7px; border-radius: 4px; background: #3A6EA5;"></div><div style="font-size: 11px; line-height: 15px; color: #6B7168;">蛋白質 46 g</div></div>
+          <div style="display: flex; align-items: center; gap: 6px;"><div style="width: 7px; height: 7px; border-radius: 4px; background: #D98324;"></div><div style="font-size: 11px; line-height: 15px; color: #6B7168;">脂肪 55 g</div></div>
+          <div style="display: flex; align-items: center; gap: 6px;"><div style="width: 7px; height: 7px; border-radius: 4px; background: #9B5DE5;"></div><div style="font-size: 11px; line-height: 15px; color: #6B7168;">碳水 203 g</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="height: 1px; background: #DBD9CF;"></div>
+
+    <!-- 早餐 -->
+    <div style="display: flex; align-items: baseline; justify-content: space-between; padding: 20px 0 10px;">
+      <div style="font-family: 'Noto Serif TC', serif; font-size: 15px; line-height: 20px; font-weight: 600; letter-spacing: 3px; color: #1A1D18;">早餐</div>
+      <div style="font-size: 12px; line-height: 16px; color: #6B7168;">450 kcal</div>
+    </div>
+    <div style="display: flex; align-items: baseline; gap: 12px; padding: 8px 0;">
+      <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 3px;">
+        <div style="font-family: 'Noto Serif TC', serif; font-size: 17px; line-height: 22px;">蛋餅</div>
+        <div style="font-size: 11px; line-height: 15px; color: #6B7168;">1 份 · 蛋白 11 · 脂肪 16 · 碳水 32</div>
+      </div>
+      <div style="font-family: 'Noto Serif TC', serif; font-size: 17px; line-height: 22px; font-weight: 500;">320</div>
+    </div>
+    <div style="display: flex; align-items: baseline; gap: 12px; padding: 8px 0;">
+      <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 3px;">
+        <div style="font-family: 'Noto Serif TC', serif; font-size: 17px; line-height: 22px;">豆漿</div>
+        <div style="font-size: 11px; line-height: 15px; color: #6B7168;">中杯 無糖 · 蛋白 8 · 脂肪 5 · 碳水 13</div>
+      </div>
+      <div style="font-family: 'Noto Serif TC', serif; font-size: 17px; line-height: 22px; font-weight: 500;">130</div>
+    </div>
+
+    <!-- 午餐 -->
+    <div style="display: flex; align-items: baseline; justify-content: space-between; padding: 20px 0 10px;">
+      <div style="font-family: 'Noto Serif TC', serif; font-size: 15px; line-height: 20px; font-weight: 600; letter-spacing: 3px; color: #1A1D18;">午餐</div>
+      <div style="font-size: 12px; line-height: 16px; color: #6B7168;">580 kcal</div>
+    </div>
+    <div style="display: flex; align-items: baseline; gap: 12px; padding: 8px 0;">
+      <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 3px;">
+        <div style="font-family: 'Noto Serif TC', serif; font-size: 17px; line-height: 22px;">滷肉飯</div>
+        <div style="font-size: 11px; line-height: 15px; color: #6B7168;">大碗 · 蛋白 19 · 脂肪 21 · 碳水 78</div>
+      </div>
+      <div style="font-family: 'Noto Serif TC', serif; font-size: 17px; line-height: 22px; font-weight: 500;">580</div>
+    </div>
+
+    <!-- 晚餐：空著就是空著，一條淡淡的線，不做成跟有紀錄一樣重的方塊 -->
+    <div style="display: flex; align-items: baseline; justify-content: space-between; padding: 20px 0 10px;">
+      <div style="font-family: 'Noto Serif TC', serif; font-size: 15px; line-height: 20px; font-weight: 600; letter-spacing: 3px; color: #A8ADA4;">晚餐</div>
+      <div style="font-size: 12px; line-height: 16px; color: #A8ADA4;">—</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 7px; padding: 6px 0; color: #6B7168;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      <div style="font-size: 13px; line-height: 18px;">還沒記</div>
+    </div>
+
+    <!-- 點心 -->
+    <div style="display: flex; align-items: baseline; justify-content: space-between; padding: 20px 0 10px;">
+      <div style="font-family: 'Noto Serif TC', serif; font-size: 15px; line-height: 20px; font-weight: 600; letter-spacing: 3px; color: #1A1D18;">點心</div>
+      <div style="font-size: 12px; line-height: 16px; color: #6B7168;">480 kcal</div>
+    </div>
+    <div style="display: flex; align-items: baseline; gap: 12px; padding: 8px 0;">
+      <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 3px;">
+        <div style="font-family: 'Noto Serif TC', serif; font-size: 17px; line-height: 22px;">CoCo 珍珠奶茶</div>
+        <div style="font-size: 11px; line-height: 15px; color: #6B7168;">大杯 半糖 · 蛋白 8 · 脂肪 13 · 碳水 80</div>
+      </div>
+      <div style="font-family: 'Noto Serif TC', serif; font-size: 17px; line-height: 22px; font-weight: 500;">480</div>
+    </div>
+
+  </div>
+
+  <div style="position: absolute; right: 22px; bottom: 22px; height: 50px; border-radius: 25px; background: #1A1D18; color: #F8F7F2; display: flex; align-items: center; gap: 8px; padding: 0 22px; box-shadow: 0 3px 10px rgba(26, 29, 24, 0.22);">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    <div style="font-family: 'Noto Serif TC', serif; font-size: 15px; line-height: 20px; font-weight: 600;">記一筆</div>
+  </div>
+
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":390,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

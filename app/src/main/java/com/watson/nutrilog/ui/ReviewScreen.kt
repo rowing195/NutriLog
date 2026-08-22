@@ -13,7 +13,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -169,41 +168,38 @@ private fun ReadyBody(
 @Composable
 private fun ItemRow(item: AnalysisItem, onToggle: () -> Unit) {
     val food = item.food
-    Card(
-        shape = CardShape,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onToggle),
-    ) {
+    Column {
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .clickable(onClick = onToggle)
+                .padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Checkbox(checked = item.selected, onCheckedChange = { onToggle() })
             Column(Modifier.weight(1f)) {
-                Text(food.name, style = MaterialTheme.typography.bodyLarge)
+                Text(food.name, style = MaterialTheme.typography.titleMedium)
                 if (food.servingText.isNotBlank()) {
                     Text(
                         food.servingText,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MaterialTheme.colorScheme.outline,
                     )
                 }
                 MacroSummaryText(food.proteinG, food.fatG, food.carbsG)
                 Text(
                     stringResource(R.string.photo_confidence, (food.confidence * 100).roundToInt()),
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.outline,
                 )
             }
             Text(
-                food.calories.fmtInt() + " " + stringResource(R.string.unit_kcal),
+                food.calories.fmtInt(),
                 style = MaterialTheme.typography.titleMedium,
             )
         }
+        Hairline()
     }
 }
 

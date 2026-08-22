@@ -1,36 +1,26 @@
 package com.watson.nutrilog.ui
 
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.db.Meal
-import com.watson.nutrilog.ui.theme.NutrientColors
 import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
@@ -45,14 +35,6 @@ fun Meal.label(): String = stringResource(
         Meal.SNACK -> R.string.meal_snack
     }
 )
-
-/** 每種餐別一個符號。純文字清單掃起來很吃力，有個記號就容易定位。 */
-fun Meal.symbol(): String = when (this) {
-    Meal.BREAKFAST -> "🌅"
-    Meal.LUNCH -> "🍱"
-    Meal.DINNER -> "🍽"
-    Meal.SNACK -> "🍪"
-}
 
 /** 顯示用的數字：整數不拖小數點，其他保留一位。營養素再精確也沒有意義。 */
 fun Double.fmt(): String =
@@ -72,145 +54,16 @@ fun LocalDate.displayLabel(today: LocalDate = LocalDate.now()): String {
     return "$prefix${monthValue}月${dayOfMonth}日（$week）"
 }
 
-/**
- * 熱量環。
- *
- * 中間顯示的是**還可以吃多少**，不是已經吃多少 —— 使用者在餐前打開 app
- * 想知道的是「還剩多少額度」，「已攝取 1850」還要自己減一次。
- * 超標就改成顯示超出多少並整圈轉紅。
- */
-@Composable
-fun CalorieRing(
-    consumed: Double,
-    target: Int,
-    modifier: Modifier = Modifier,
-    diameter: Int = 156,
-    stroke: Int = 13,
-) {
-    val fraction = if (target > 0) (consumed / target).toFloat() else 0f
-    val over = fraction > 1f
-    val remaining = target - consumed
-    val ringColor = if (over) NutrientColors.Over else NutrientColors.Calories
-    val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+/** 紀錄列的第二行：「大碗 · 蛋白 19 · 脂肪 21 · 碳水 78」。份量沒填就不留空的分隔點。 */
+fun detailLine(servingText: String, proteinG: Double, fatG: Double, carbsG: Double): String =
+    listOf(
+        servingText.takeIf { it.isNotBlank() },
+        "蛋白 " + proteinG.fmt(),
+        "脂肪 " + fatG.fmt(),
+        "碳水 " + carbsG.fmt(),
+    ).filterNotNull().joinToString(" · ")
 
-    Box(modifier.size(diameter.dp), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.fillMaxSize()) {
-            val width = stroke.dp.toPx()
-            val inset = width / 2
-            val arcSize = Size(size.width - width, size.height - width)
-            drawArc(
-                color = trackColor,
-                startAngle = -90f,
-                sweepAngle = 360f,
-                useCenter = false,
-                topLeft = Offset(inset, inset),
-                size = arcSize,
-                style = Stroke(width = width, cap = StrokeCap.Round),
-            )
-            // 超標時整圈畫滿：停在某個角度看起來像還沒吃完，意思正好相反
-            drawArc(
-                color = ringColor,
-                startAngle = -90f,
-                sweepAngle = if (over) 360f else fraction.coerceIn(0f, 1f) * 360f,
-                useCenter = false,
-                topLeft = Offset(inset, inset),
-                size = arcSize,
-                style = Stroke(width = width, cap = StrokeCap.Round),
-            )
-        }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                stringResource(if (over) R.string.calories_over else R.string.calories_remaining),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                kotlin.math.abs(remaining).fmtInt(),
-                fontSize = 36.sp,
-                fontWeight = FontWeight.Bold,
-                color = if (over) NutrientColors.Over else MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                stringResource(R.string.unit_kcal),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-/**
- * 一個營養素的小卡：名稱、數值、細進度條。
- *
- * 三個並排時每個都很窄，所以數值用 "92/100 g" 這種緊湊寫法。
- * 單位跟著數值同一行 —— 單獨一行的 "g" 沒有對齊基準，看起來像掉出來的。
- */
-@Composable
-fun MacroStat(
-    label: String,
-    value: Double,
-    target: Int,
-    unit: String,
-    color: Color,
-    modifier: Modifier = Modifier,
-) {
-    val fraction = if (target > 0) (value / target).toFloat() else 0f
-    val over = fraction > 1f
-    Column(
-        modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            value.fmtInt() + "/" + target + " " + unit,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = if (over) NutrientColors.Over else MaterialTheme.colorScheme.onSurface,
-        )
-        LinearProgressIndicator(
-            progress = { fraction.coerceIn(0f, 1f) },
-            color = if (over) NutrientColors.Over else color,
-            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-            strokeCap = StrokeCap.Round,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(5.dp),
-        )
-    }
-}
-
-/**
- * 餐別選擇。
- *
- * 編輯表單與 AI 確認畫面共用 —— 只要是「要把東西記進某一餐」的地方
- * 就該讓使用者自己挑，不能由 app 依時間猜了就算。
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-// modifier 放在 onSelect 前面：Compose 的慣例是 lambda 擺最後，
-// 不然呼叫端的 trailing lambda 會綁到 modifier 上。
-fun MealPicker(selected: Meal, modifier: Modifier = Modifier, onSelect: (Meal) -> Unit) {
-    Row(
-        modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Meal.entries.forEach { meal ->
-            FilterChip(
-                selected = meal == selected,
-                onClick = { onSelect(meal) },
-                label = { Text(meal.label()) },
-            )
-        }
-    }
-}
-
-/** 「蛋白 12 · 脂肪 5 · 碳水 30」這種一行摘要，紀錄列與確認畫面共用。 */
+/** 「蛋白 12 · 脂肪 5 · 碳水 30」這種一行摘要，AI 確認畫面用。 */
 @Composable
 fun MacroSummaryText(
     proteinG: Double,
@@ -221,10 +74,71 @@ fun MacroSummaryText(
     Text(
         "蛋白 ${proteinG.fmt()} · 脂肪 ${fatG.fmt()} · 碳水 ${carbsG.fmt()}",
         style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        color = MaterialTheme.colorScheme.outline,
         modifier = modifier,
     )
 }
 
-val CardShape = RoundedCornerShape(20.dp)
-val SmallCardShape = RoundedCornerShape(14.dp)
+/**
+ * 分隔線。這套版面用線分隔而不是卡片色塊，所以這是最常出現的元件，
+ * 值得有個名字 —— 而不是每個畫面各自寫一次 1dp 的 Box。
+ */
+@Composable
+fun Hairline(modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .fillMaxWidth()
+            .height(1.dp)
+            .background(MaterialTheme.colorScheme.outlineVariant)
+    )
+}
+
+/** 拉開字距的小標（「常吃 · 一點就記」）。 */
+@Composable
+fun SectionLabel(
+    text: String,
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.outline,
+) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelSmall,
+        color = color,
+        modifier = modifier,
+    )
+}
+
+/**
+ * 餐別選擇。編輯表單與 AI 確認畫面共用 —— 只要是「要把東西記進某一餐」的地方
+ * 就該讓使用者自己挑，不能由 app 依時間猜了就算。
+ *
+ * 不用 M3 的 FilterChip：它自帶的容器色在這套低對比色票上幾乎看不出選中與否。
+ */
+@Composable
+fun MealPicker(selected: Meal, modifier: Modifier = Modifier, onSelect: (Meal) -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Row(
+        modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Meal.entries.forEach { meal ->
+            val active = meal == selected
+            Text(
+                meal.label(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (active) scheme.onPrimary else scheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(PillShape)
+                    .background(if (active) scheme.primary else Color.Transparent)
+                    .border(1.dp, if (active) scheme.primary else scheme.outlineVariant, PillShape)
+                    .clickable { onSelect(meal) }
+                    .padding(vertical = 7.dp),
+            )
+        }
+    }
+}
+
+val PillShape = RoundedCornerShape(16.dp)
+val CardShape = RoundedCornerShape(16.dp)

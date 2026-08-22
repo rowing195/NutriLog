@@ -63,14 +63,32 @@ adb exec-out run-as com.watson.nutrilog cat files/datastore/nutri_prefs.preferen
 `run-as` **不能**寫進 `/sdcard`（會產生空檔），一定要走 `exec-out` 接 stdout，
 而且要在 Bash 而非 PowerShell 重導向（PS 會把二進位轉成文字弄壞）。
 
-## 配色
+## 配色與版面語言
 
 Material3 預設 baseline 是紫色系。**新增顏色角色時整族都要蓋**
 （`surfaceContainerLowest/Low/_/High/Highest`、`surfaceVariant`、`outline*`），
 少蓋一個就會有元件固執地維持預設紫。第一版只蓋了 `primary`，
 結果整個 app 的背景與卡片都是淡紫灰。
 
+現在的色票是「紙與墨」，有兩件會咬人的事：
+
+- **表面之間幾乎沒有對比**（底 `#F8F7F2` vs 浮起 `#FDFCF9` 只差 3%）。
+  這是故意的：版面靠**細線**（`Hairline()` / `outlineVariant`）分隔，不是靠卡片色塊。
+  不要為了「看得出是一張卡」去加深 `surfaceContainer` —— 那會把整個設計拉回舊樣子。
+  **要分隔就畫線，不要填色。** 新畫面請直接用 `Hairline()`，不要用 `Card`。
+- **深色不是純黑而是暖灰** `#191813`。純黑會讓襯線字看起來發灰，細線也會整條消失。
+
 三大營養素的固定色放在 `theme/NutrientColors`，不要在各畫面自己寫死色碼。
+它們是 `@Composable` getter 而不是常數 —— 深淺兩套的值不一樣（深色底上要提亮），
+正確的那一套只有在 composition 裡讀得到，所以**不能**在 top-level `val` 用它們。
+
+字體：襯線（`FontFamily.Serif`）給數字與食物名稱，無襯線給介面文字。
+用系統襯線而不是打包字型檔 —— 中文會落到 Noto Serif CJK，而打包一套中文襯線
+要多好幾 MB，這支 app 的 APK 是直接分享給人裝的，不值得。
+
+**自己拼的 `topBar` / `bottomBar` 要自己加 `statusBarsPadding()` / `navigationBarsPadding()`。**
+`MainActivity` 開了 `enableEdgeToEdge()`，M3 的 `TopAppBar` 會自己處理，
+但用 `Column`/`Row` 拼的不會 —— 標題會直接畫到狀態列的時鐘上面。
 
 ## 改動慣例
 

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
@@ -18,8 +19,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -247,15 +246,17 @@ internal fun FoodLibrary(
         } else {
             LazyColumn(
                 Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(horizontal = 22.dp, vertical = 8.dp),
             ) {
                 items(items, key = { it.name + "|" + it.servingText }) { suggestion ->
-                    SuggestionRow(
-                        suggestion = suggestion,
-                        showTimes = page == 0,
-                        onClick = { onReuse(suggestion) },
-                    )
+                    Column {
+                        SuggestionRow(
+                            suggestion = suggestion,
+                            showTimes = page == 0,
+                            onClick = { onReuse(suggestion) },
+                        )
+                        Hairline()
+                    }
                 }
             }
         }
@@ -287,6 +288,9 @@ private fun EmptyLibraryHint(isFrequentPage: Boolean) {
  * 第二行塞了份量、次數與最後日期三樣東西，窄螢幕會擠 ——
  * 讓份量文字先被截斷，因為次數與日期才是這一頁提供的資訊，
  * 份量在點進去之後看得到。
+ *
+ * 不用 Card：這套色票的卡片底色和背景只差 3%，整片卡會糊成一塊，
+ * 分隔改交給列與列之間的細線。
  */
 @Composable
 private fun SuggestionRow(
@@ -294,53 +298,45 @@ private fun SuggestionRow(
     showTimes: Boolean,
     onClick: () -> Unit,
 ) {
-    Card(
-        shape = SmallCardShape,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-        modifier = Modifier
+    Row(
+        Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    suggestion.name,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (suggestion.servingText.isNotBlank()) {
-                        Text(
-                            suggestion.servingText,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false),
-                        )
-                    }
+        Column(Modifier.weight(1f)) {
+            Text(
+                suggestion.name,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (suggestion.servingText.isNotBlank()) {
                     Text(
-                        suggestionStats(suggestion, showTimes),
+                        suggestion.servingText,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MaterialTheme.colorScheme.outline,
                         maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
                     )
                 }
+                Text(
+                    suggestionStats(suggestion, showTimes),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline,
+                    maxLines = 1,
+                )
             }
-            Text(
-                suggestion.calories.fmtInt() + " " + stringResource(R.string.unit_kcal),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-            )
         }
+        Text(
+            suggestion.calories.fmtInt(),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Medium,
+        )
     }
 }
 
@@ -379,68 +375,67 @@ private fun SearchResults(
     }
     LazyColumn(
         Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(horizontal = 22.dp, vertical = 8.dp),
     ) {
         items(results, key = { it.id }) { entry ->
-            ResultRow(
-                entry = entry,
-                onClick = {
-                    runCatching { LocalDate.parse(entry.date) }.getOrNull()?.let(onOpenDay)
-                },
-                onReuse = { onReuse(entry) },
-            )
+            Column {
+                ResultRow(
+                    entry = entry,
+                    onClick = {
+                        runCatching { LocalDate.parse(entry.date) }.getOrNull()?.let(onOpenDay)
+                    },
+                    onReuse = { onReuse(entry) },
+                )
+                Hairline()
+            }
         }
     }
 }
 
 @Composable
 private fun ResultRow(entry: FoodEntry, onClick: () -> Unit, onReuse: () -> Unit) {
-    Card(
-        shape = SmallCardShape,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-        modifier = Modifier
+    Row(
+        Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(start = 16.dp, top = 12.dp, bottom = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                val date = runCatching { LocalDate.parse(entry.date) }.getOrNull()
-                val dateLabel = date?.let { it.monthValue.toString() + "/" + it.dayOfMonth } ?: entry.date
-                Text(
-                    dateLabel + " " + entry.mealType.label() + " · " + entry.name,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (entry.servingText.isNotBlank()) {
-                        Text(
-                            entry.servingText,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false),
-                        )
-                    }
+        Column(Modifier.weight(1f)) {
+            val date = runCatching { LocalDate.parse(entry.date) }.getOrNull()
+            val dateLabel = date?.let { it.monthValue.toString() + "/" + it.dayOfMonth } ?: entry.date
+            Text(
+                dateLabel + " " + entry.mealType.label() + " · " + entry.name,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (entry.servingText.isNotBlank()) {
                     Text(
-                        entry.calories.fmtInt() + " " + stringResource(R.string.unit_kcal),
+                        entry.servingText,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MaterialTheme.colorScheme.outline,
                         maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
                     )
                 }
+                Text(
+                    entry.calories.fmtInt() + " " + stringResource(R.string.unit_kcal),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline,
+                    maxLines = 1,
+                )
             }
-            IconButton(onClick = onReuse) {
-                Icon(Icons.Default.Add, stringResource(R.string.search_reuse))
-            }
+        }
+        IconButton(onClick = onReuse) {
+            Icon(
+                Icons.Default.Add,
+                stringResource(R.string.search_reuse),
+                Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

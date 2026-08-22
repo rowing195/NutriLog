@@ -44,3 +44,11 @@ Thumbs.db
 # --- 測試過程的暫存 ---
 # ui.ps1 從裝置拉下來的 uiautomator dump
 /tools/*.xml
+# 驗證畫面時的暫存截圖
+/tools/_*.png
+
+# --- 設計稿 ---
+# design/*.dc.html 是設計稿原始碼，會進版控。
+# 但發佈用的那份是把 2 MB 的編輯器打包進去的產物，每次重新產生都整份變動，
+# 不該進 git —— 要改設計是改 .dc.html 再重新產生。
+/design/nutrilog-today-redesign.html

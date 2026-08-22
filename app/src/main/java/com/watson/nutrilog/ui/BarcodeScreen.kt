@@ -1,5 +1,6 @@
 package com.watson.nutrilog.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -31,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -132,7 +135,12 @@ private fun FoundCard(state: BarcodeState.Found, onUseProduct: (CachedProduct, D
     var grams by remember(product.barcode) {
         mutableStateOf(product.defaultGrams().let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString() })
     }
-    Card(shape = CardShape) {
+    // 用細框而不是實色卡片：這套色票的卡片底和背景只差 3%，填色等於沒填
+    Card(
+        shape = CardShape,
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
         Column(
             Modifier
                 .fillMaxWidth()

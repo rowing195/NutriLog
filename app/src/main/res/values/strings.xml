@@ -3,7 +3,7 @@
     <string name="app_name">肥胖日記</string>
 
     <!-- 今日 -->
-    <string name="meal_empty">還沒有紀錄，點一下新增</string>
+    <string name="meal_empty">還沒記</string>
     <string name="prev_day">前一天</string>
     <string name="next_day">後一天</string>
     <string name="back_to_today">回到今天</string>
@@ -18,10 +18,9 @@
     <string name="nutrient_fiber">膳食纖維</string>
     <string name="nutrient_satfat">飽和脂肪</string>
     <string name="unit_kcal">kcal</string>
-    <string name="calories_remaining">還可以吃</string>
-    <string name="calories_over">已超出</string>
-    <string name="calories_consumed">已攝取 %1$s / %2$d kcal</string>
-    <string name="unit_gram">g</string>
+    <string name="calories_eaten">已經吃</string>
+    <string name="calories_budget_left">目標 %1$d · 還有 %2$s 的空間</string>
+    <string name="calories_budget_over">目標 %1$d · 已經超出 %2$s</string>
 
     <!-- 餐別 -->
     <string name="meal_breakfast">早餐</string>
@@ -29,8 +28,13 @@
     <string name="meal_dinner">晚餐</string>
     <string name="meal_snack">點心</string>
 
+    <!-- 今日頁 -->
+    <string name="prev_week">上一週</string>
+    <string name="next_week">下一週</string>
+    <string name="quick_add_label">常吃 · 一點就記</string>
+
     <!-- 新增入口 -->
-    <string name="add_entry">新增紀錄</string>
+    <string name="add_entry">記一筆</string>
     <string name="add_manual">輸入營養素</string>
     <string name="add_photo">拍照辨識</string>
     <string name="add_photo_gallery">從相簿選</string>
@@ -38,9 +42,14 @@
     <string name="add_barcode">掃條碼</string>
 
     <!-- 編輯表單 -->
-    <string name="entry_new_title">新增食物</string>
-    <string name="entry_edit_title">編輯食物</string>
+    <string name="entry_new_title">新增</string>
+    <string name="entry_edit_title">編輯</string>
     <string name="entry_name">食物名稱</string>
+    <string name="entry_name_label">吃了什麼</string>
+    <string name="entry_kcal_check">三大營養素換算約 %1$s kcal，和填的數字對得起來</string>
+    <string name="entry_kcal_mismatch">三大營養素換算約 %1$s kcal，和你填的 %2$s 差得有點多</string>
+    <string name="keypad_editing">正在填：%1$s</string>
+    <string name="keypad_done">完成</string>
     <string name="entry_serving">份量</string>
     <string name="entry_serving_hint">例如 1 碗 (250 g)</string>
     <string name="entry_advanced">進階營養素</string>

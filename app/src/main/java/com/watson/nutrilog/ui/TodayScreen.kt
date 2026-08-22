@@ -1,29 +1,34 @@
 package com.watson.nutrilog.ui
 
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -31,7 +36,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,32 +43,44 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.NutriSettings
+import com.watson.nutrilog.data.db.DayTotal
 import com.watson.nutrilog.data.db.FoodEntry
+import com.watson.nutrilog.data.db.FoodSuggestion
 import com.watson.nutrilog.data.db.Meal
 import com.watson.nutrilog.data.db.Totals
 import com.watson.nutrilog.data.db.totals
 import com.watson.nutrilog.ui.theme.NutrientColors
 import java.time.LocalDate
+import kotlin.math.abs
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** 常吃快捷最多擺幾個。再多就會擠成兩行，那就不是「一眼看到、一次點到」了。 */
+private const val QUICK_ADD_COUNT = 3
+
 @Composable
 fun TodayScreen(
     date: LocalDate,
     entries: List<FoodEntry>,
     totals: Totals,
     settings: NutriSettings,
-    onShiftDay: (Long) -> Unit,
+    weekStart: LocalDate,
+    weekTotals: Map<String, DayTotal>,
+    frequent: List<FoodSuggestion>,
+    onPickDay: (LocalDate) -> Unit,
+    onShiftWeek: (Long) -> Unit,
     onBackToToday: () -> Unit,
     onOpenEntry: (FoodEntry) -> Unit,
     onAddManual: () -> Unit,
     onAddForMeal: (Meal) -> Unit,
+    onQuickAdd: (FoodSuggestion) -> Unit,
     onAddPhoto: () -> Unit,
     onAddFromGallery: () -> Unit,
     onAddText: () -> Unit,
@@ -75,26 +91,43 @@ fun TodayScreen(
 ) {
     val today = LocalDate.now()
     var showAddSheet by remember { mutableStateOf(false) }
+    val quick = frequent.take(QUICK_ADD_COUNT)
+
     Scaffold(
+        // 標頭和一週長條不進捲動區：換日是隨時要按得到的，
+        // 捲到下面才發現要先捲回去才能換天很煩。
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.app_name)) },
-                actions = {
-                    IconButton(onClick = onOpenSearch) {
-                        Icon(Icons.Default.Search, stringResource(R.string.search_title))
-                    }
-                    IconButton(onClick = onOpenHistory) {
-                        Icon(Icons.Default.DateRange, stringResource(R.string.history_title))
-                    }
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Default.Settings, stringResource(R.string.settings_title))
-                    }
-                },
-            )
+            // MainActivity 開了 enableEdgeToEdge，而這個 topBar 是自己拼的 Column
+            // 不是 M3 的 TopAppBar —— 沒有這行標題會直接畫到狀態列的時鐘上面。
+            Column(Modifier.statusBarsPadding()) {
+                HeaderRow(
+                    date = date,
+                    isToday = date == today,
+                    onBackToToday = onBackToToday,
+                    onOpenSearch = onOpenSearch,
+                    onOpenHistory = onOpenHistory,
+                    onOpenSettings = onOpenSettings,
+                )
+                WeekStrip(
+                    weekStart = weekStart,
+                    weekTotals = weekTotals,
+                    selected = date,
+                    today = today,
+                    target = settings.calorieTarget,
+                    onPickDay = onPickDay,
+                    onShiftWeek = onShiftWeek,
+                )
+            }
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAddSheet = true }) {
-                Icon(Icons.Default.Add, stringResource(R.string.add_entry))
+            ExtendedFloatingActionButton(
+                onClick = { showAddSheet = true },
+                containerColor = MaterialTheme.colorScheme.inverseSurface,
+                contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+            ) {
+                Icon(Icons.Default.Add, null, Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.add_entry), style = MaterialTheme.typography.titleSmall)
             }
         },
     ) { inner ->
@@ -102,29 +135,21 @@ fun TodayScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(inner),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(horizontal = 22.dp),
         ) {
-            item {
-                DateRow(
-                    date = date,
-                    today = today,
-                    onShiftDay = onShiftDay,
-                    onBackToToday = onBackToToday,
-                )
+            item { Hairline() }
+            item { Budget(entries, totals, settings) }
+            item { Hairline() }
+            item { Macros(totals, settings) }
+            if (quick.isNotEmpty()) {
+                item { Hairline() }
+                item { QuickAdd(quick, onQuickAdd) }
             }
-            item { SummaryCard(totals, settings) }
+            item { Hairline() }
 
-            // 四餐一律都顯示，空的也留著並寫 0。
-            //
-            // 原本只列有紀錄的餐別，但那樣「今天還沒吃早餐」和「今天忘了記早餐」
-            // 在畫面上長得一模一樣（兩者都是不存在）。固定四格之後，
-            // 空的那一格本身就是提醒，點下去還能直接補登該餐。
             Meal.entries.forEach { meal ->
                 val ofMeal = entries.filter { it.mealType == meal }
-                item(key = "header-" + meal.name) {
-                    MealHeader(meal, ofMeal.totals().calories)
-                }
+                item(key = "header-" + meal.name) { MealHeader(meal, ofMeal) }
                 if (ofMeal.isEmpty()) {
                     item(key = "empty-" + meal.name) {
                         EmptyMealRow(onClick = { onAddForMeal(meal) })
@@ -136,7 +161,7 @@ fun TodayScreen(
                 }
             }
             // 最後一筆不要被 FAB 蓋住
-            item { Spacer(Modifier.height(72.dp)) }
+            item { Spacer(Modifier.height(80.dp)) }
         }
     }
 
@@ -149,6 +174,511 @@ fun TodayScreen(
             onAddFromGallery = onAddFromGallery,
             onAddText = onAddText,
             onAddBarcode = onAddBarcode,
+        )
+    }
+}
+
+@Composable
+private fun HeaderRow(
+    date: LocalDate,
+    isToday: Boolean,
+    onBackToToday: () -> Unit,
+    onOpenSearch: () -> Unit,
+    onOpenHistory: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(start = 22.dp, end = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SectionLabel(
+            date.year.toString() + " 年 " + date.monthValue + " 月",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.weight(1f))
+        // 只有離開今天才出現：在今天的時候它是一顆永遠沒作用的按鈕
+        if (!isToday) {
+            TextButton(onClick = onBackToToday) {
+                Text(stringResource(R.string.back_to_today), style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+        IconButton(onClick = onOpenSearch) {
+            Icon(Icons.Default.Search, stringResource(R.string.search_title), Modifier.size(20.dp))
+        }
+        IconButton(onClick = onOpenHistory) {
+            Icon(Icons.Default.DateRange, stringResource(R.string.history_title), Modifier.size(20.dp))
+        }
+        IconButton(onClick = onOpenSettings) {
+            Icon(Icons.Default.Settings, stringResource(R.string.settings_title), Modifier.size(20.dp))
+        }
+    }
+}
+
+/**
+ * 一週長條。換日和「這幾天吃得鬆或緊」用同一個元件解決 ——
+ * 原本那一列只顯示一天，佔掉整整一列卻只講一個日期。
+ *
+ * 長條高度是當天熱量佔目標的比例，超標整條轉紅。空白的那幾天
+ * 一眼就看得出是漏記還是真的沒吃。
+ */
+@Composable
+private fun WeekStrip(
+    weekStart: LocalDate,
+    weekTotals: Map<String, DayTotal>,
+    selected: LocalDate,
+    today: LocalDate,
+    target: Int,
+    onPickDay: (LocalDate) -> Unit,
+    onShiftWeek: (Long) -> Unit,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val over = NutrientColors.Over
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = { onShiftWeek(-1) }, modifier = Modifier.size(28.dp)) {
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                stringResource(R.string.prev_week),
+                Modifier.size(18.dp),
+                tint = scheme.onSurfaceVariant,
+            )
+        }
+        Row(
+            Modifier.weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            repeat(7) { index ->
+                val day = weekStart.plusDays(index.toLong())
+                val kcal = weekTotals[day.toString()]?.kcal ?: 0.0
+                DayColumn(
+                    day = day,
+                    kcal = kcal,
+                    target = target,
+                    isSelected = day == selected,
+                    isFuture = day.isAfter(today),
+                    overColor = over,
+                    onClick = { onPickDay(day) },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        IconButton(onClick = { onShiftWeek(1) }, modifier = Modifier.size(28.dp)) {
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                stringResource(R.string.next_week),
+                Modifier.size(18.dp),
+                tint = scheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DayColumn(
+    day: LocalDate,
+    kcal: Double,
+    target: Int,
+    isSelected: Boolean,
+    isFuture: Boolean,
+    overColor: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val isOver = target > 0 && kcal > target
+    val fraction = if (target > 0) (kcal / target).coerceIn(0.0, 1.0).toFloat() else 0f
+    val weekday = day.dayOfWeek.value % 7
+
+    Column(
+        modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (isSelected) scheme.primaryContainer else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(vertical = 6.dp, horizontal = 2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            WEEKDAYS[weekday],
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+            color = when {
+                isSelected -> scheme.primary
+                // 週末用淡一點的紅，跟平日區隔但不搶戲
+                weekday == 0 || weekday == 6 -> overColor.copy(alpha = if (isFuture) 0.3f else 0.7f)
+                else -> scheme.outline
+            },
+        )
+        Text(
+            day.dayOfMonth.toString(),
+            style = MaterialTheme.typography.titleSmall.copy(letterSpacing = 0.sp),
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+            // 未來的日期壓淡：它們永遠是空的，不該看起來像「忘了記錄」
+            color = when {
+                isSelected -> scheme.onSurface
+                isFuture -> scheme.outline.copy(alpha = 0.45f)
+                else -> scheme.onSurfaceVariant
+            },
+        )
+        Box(
+            Modifier
+                .width(5.dp)
+                .height(24.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(if (isSelected) scheme.surfaceContainerLowest else scheme.surfaceContainerHigh),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            if (kcal > 0) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(if (isOver) 1f else fraction)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(
+                            when {
+                                isOver -> overColor
+                                isSelected -> scheme.primary
+                                else -> NutrientColors.Meals[1]
+                            }
+                        )
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 吃了多少，以及額度被哪一餐吃掉。
+ *
+ * 主數字是**已經吃多少**。之前擺的是「還可以吃」（剩餘額度），
+ * 但實際用下來，打開 app 最先想確認的是「我今天吃了什麼程度」——
+ * 剩餘額度是從那個數字推出來的第二個問題，所以退到下面那一行。
+ *
+ * 下面那條依餐別分段，這是原本的環做不到的：同樣是吃掉 1500 kcal，
+ * 「午餐一次吃掉一大半」和「三餐平均」是完全不同的一天，看形狀就分得出來。
+ */
+@Composable
+private fun Budget(entries: List<FoodEntry>, totals: Totals, settings: NutriSettings) {
+    val scheme = MaterialTheme.colorScheme
+    val target = settings.calorieTarget
+    val consumed = totals.calories
+    val remaining = target - consumed
+    val over = remaining < 0
+    val overColor = NutrientColors.Over
+
+    Column(
+        Modifier.padding(top = 16.dp, bottom = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(Modifier.fillMaxWidth()) {
+            Text(
+                stringResource(R.string.calories_eaten),
+                style = MaterialTheme.typography.bodyMedium,
+                color = scheme.onSurfaceVariant,
+                modifier = Modifier.alignByBaseline(),
+            )
+            Spacer(Modifier.width(9.dp))
+            Text(
+                consumed.fmtInt(),
+                style = MaterialTheme.typography.displayLarge,
+                color = if (over) overColor else scheme.onSurface,
+                modifier = Modifier.alignByBaseline(),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                stringResource(R.string.unit_kcal),
+                style = MaterialTheme.typography.bodyMedium,
+                color = scheme.onSurfaceVariant,
+                modifier = Modifier.alignByBaseline(),
+            )
+        }
+
+        // 目標為 0 等於關掉這條線的意義，就不要講「還有 2000 的空間」
+        if (target > 0) {
+            Text(
+                if (over) {
+                    stringResource(R.string.calories_budget_over, target, abs(remaining).fmtInt())
+                } else {
+                    stringResource(R.string.calories_budget_left, target, remaining.fmtInt())
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = if (over) overColor else scheme.onSurfaceVariant,
+            )
+        }
+
+        MealSegmentBar(entries = entries, target = target, over = over)
+    }
+}
+
+@Composable
+private fun MealSegmentBar(entries: List<FoodEntry>, target: Int, over: Boolean) {
+    val scheme = MaterialTheme.colorScheme
+    val mealColors = NutrientColors.Meals
+    val overColor = NutrientColors.Over
+    val consumed = entries.sumOf { it.calories }
+    val remainder = (target - consumed).coerceAtLeast(0.0)
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(12.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(scheme.surfaceContainerHigh),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Meal.entries.forEachIndexed { index, meal ->
+            val kcal = entries.filter { it.mealType == meal }.sumOf { it.calories }
+            if (kcal <= 0.0) return@forEachIndexed
+            Box(
+                Modifier
+                    .weight(kcal.toFloat())
+                    .fillMaxHeight()
+                    .background(if (over) overColor else mealColors[index])
+            )
+        }
+        if (remainder > 0.0) {
+            Box(
+                Modifier
+                    .weight(remainder.toFloat())
+                    .fillMaxHeight()
+                    .background(scheme.surfaceContainerHigh)
+            )
+        }
+    }
+}
+
+/**
+ * 三大營養素。
+ *
+ * 條子畫的是**組成**（三者換算成熱量後的佔比），圖例才講目標達成率。
+ * 兩個問題一個元件回答：「今天吃的結構長怎樣」和「蛋白質夠不夠」。
+ * 三根各自的及格條只答得出後者，而且三根等長時看不出誰佔多數。
+ */
+@Composable
+private fun Macros(totals: Totals, settings: NutriSettings) {
+    val scheme = MaterialTheme.colorScheme
+    val protein = NutrientColors.Protein
+    val fat = NutrientColors.Fat
+    val carbs = NutrientColors.Carbs
+
+    // 蛋白質與碳水 4 kcal/g、脂肪 9 kcal/g
+    val pKcal = totals.proteinG * 4
+    val fKcal = totals.fatG * 9
+    val cKcal = totals.carbsG * 4
+
+    Column(
+        Modifier.padding(vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(9.dp),
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .height(9.dp)
+                .clip(RoundedCornerShape(5.dp))
+                .background(scheme.surfaceContainerHigh),
+        ) {
+            listOf(pKcal to protein, fKcal to fat, cKcal to carbs).forEach { (kcal, color) ->
+                if (kcal <= 0.0) return@forEach
+                Box(
+                    Modifier
+                        .weight(kcal.toFloat())
+                        .fillMaxHeight()
+                        .background(color)
+                )
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            MacroLegend(stringResource(R.string.nutrient_protein), totals.proteinG, settings.proteinTargetG, protein)
+            MacroLegend(stringResource(R.string.nutrient_fat), totals.fatG, settings.fatTargetG, fat)
+            MacroLegend(stringResource(R.string.nutrient_carbs), totals.carbsG, settings.carbsTargetG, carbs)
+        }
+
+        if (settings.showExtendedNutrients) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                ExtraChip(stringResource(R.string.nutrient_sugar), totals.sugarG.fmt(), "g")
+                ExtraChip(stringResource(R.string.nutrient_sodium), totals.sodiumMg.fmtInt(), "mg")
+                ExtraChip(stringResource(R.string.nutrient_fiber), totals.fiberG.fmt(), "g")
+                ExtraChip(stringResource(R.string.nutrient_satfat), totals.satFatG.fmt(), "g")
+            }
+        }
+    }
+}
+
+@Composable
+private fun MacroLegend(label: String, value: Double, target: Int, color: Color) {
+    val scheme = MaterialTheme.colorScheme
+    val over = target > 0 && value > target
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+        Box(
+            Modifier
+                .size(7.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(color)
+        )
+        Row {
+            Text(
+                value.fmtInt(),
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Bold,
+                color = if (over) NutrientColors.Over else scheme.onSurface,
+            )
+            Text(
+                "/" + target + " " + label,
+                style = MaterialTheme.typography.bodySmall,
+                color = scheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/** 進階營養素。原本是一串用全形空白隔開的長句，那讀起來像一個句子而不是四個數值。 */
+@Composable
+private fun ExtraChip(label: String, value: String, unit: String) {
+    val scheme = MaterialTheme.colorScheme
+    Text(
+        label + " " + value + " " + unit,
+        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
+        color = scheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Clip,
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(scheme.surfaceContainerHigh)
+            .padding(horizontal = 7.dp, vertical = 3.dp),
+    )
+}
+
+/** 常吃：忘了拍照、事後才想補登時最短的一條路，一點就記進今天。 */
+@Composable
+private fun QuickAdd(items: List<FoodSuggestion>, onQuickAdd: (FoodSuggestion) -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Column(
+        Modifier.padding(vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        SectionLabel(stringResource(R.string.quick_add_label))
+        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            items.forEach { suggestion ->
+                Row(
+                    Modifier
+                        .weight(1f, fill = false)
+                        .clip(PillShape)
+                        .border(1.dp, scheme.outlineVariant, PillShape)
+                        .background(scheme.surfaceContainerLow)
+                        .clickable { onQuickAdd(suggestion) }
+                        .padding(horizontal = 13.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        suggestion.name,
+                        style = MaterialTheme.typography.titleMedium.copy(fontSize = 13.sp),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    Text(
+                        suggestion.calories.fmtInt(),
+                        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
+                        color = scheme.outline,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 餐別標題。四餐一律都顯示，空的也留著。
+ *
+ * 只列有紀錄的餐別時，「今天還沒吃早餐」和「今天忘了記早餐」在畫面上
+ * 長得一模一樣（兩者都是不存在）。固定四格之後，空的那一格本身就是提醒。
+ */
+@Composable
+private fun MealHeader(meal: Meal, ofMeal: List<FoodEntry>) {
+    val scheme = MaterialTheme.colorScheme
+    val empty = ofMeal.isEmpty()
+    val color = if (empty) scheme.outline else scheme.onSurface
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(top = 14.dp, bottom = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        Text(meal.label(), style = MaterialTheme.typography.titleSmall, color = color)
+        Text(
+            if (empty) "—" else ofMeal.totals().calories.fmtInt() + " " + stringResource(R.string.unit_kcal),
+            style = MaterialTheme.typography.bodySmall,
+            color = if (empty) scheme.outline else scheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun EntryRow(entry: FoodEntry, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                entry.name,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                detailLine(entry.servingText, entry.proteinG, entry.fatG, entry.carbsG),
+                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
+                color = MaterialTheme.colorScheme.outline,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Text(
+            entry.calories.fmtInt(),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
+@Composable
+private fun EmptyMealRow(onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(top = 4.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Icon(
+            Icons.Default.Add,
+            null,
+            Modifier.size(13.dp),
+            tint = MaterialTheme.colorScheme.outline,
+        )
+        Text(
+            stringResource(R.string.meal_empty),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.outline,
         )
     }
 }
@@ -173,8 +703,7 @@ private fun AddEntrySheet(
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(bottom = 32.dp)) {
             // 「常吃／文字輸入」擺第一個：多半是忘記拍照事後補登，
-            // 這時通常會先想到「這不是常吃的那個嗎」，該畫面同時給了常吃清單，
-            // 找不到才用文字描述交給 AI，不用每次都繞去搜尋頁。
+            // 這時通常會先想到「這不是常吃的那個嗎」，該畫面同時給了常吃清單。
             SheetRow(stringResource(R.string.add_text)) { onPick(onAddText) }
             SheetRow(stringResource(R.string.add_manual)) { onPick(onAddManual) }
             SheetRow(stringResource(R.string.add_photo)) { onPick(onAddPhoto) }
@@ -196,200 +725,4 @@ private fun SheetRow(text: String, onClick: () -> Unit) {
     )
 }
 
-@Composable
-private fun DateRow(
-    date: LocalDate,
-    today: LocalDate,
-    onShiftDay: (Long) -> Unit,
-    onBackToToday: () -> Unit,
-) {
-    Row(
-        Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        IconButton(onClick = { onShiftDay(-1) }) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, stringResource(R.string.prev_day))
-        }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(date.displayLabel(today), style = MaterialTheme.typography.titleMedium)
-            if (date != today) {
-                TextButton(onClick = onBackToToday) { Text(stringResource(R.string.back_to_today)) }
-            }
-        }
-        IconButton(onClick = { onShiftDay(1) }) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, stringResource(R.string.next_day))
-        }
-    }
-}
-
-@Composable
-private fun SummaryCard(totals: Totals, settings: NutriSettings) {
-    Card(
-        shape = CardShape,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-    ) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .padding(vertical = 20.dp, horizontal = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            CalorieRing(consumed = totals.calories, target = settings.calorieTarget)
-
-            Text(
-                stringResource(
-                    R.string.calories_consumed,
-                    totals.calories.fmtInt(),
-                    settings.calorieTarget,
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                MacroStat(
-                    label = stringResource(R.string.nutrient_protein),
-                    value = totals.proteinG,
-                    target = settings.proteinTargetG,
-                    unit = stringResource(R.string.unit_gram),
-                    color = NutrientColors.Protein,
-                    modifier = Modifier.weight(1f),
-                )
-                MacroStat(
-                    label = stringResource(R.string.nutrient_fat),
-                    value = totals.fatG,
-                    target = settings.fatTargetG,
-                    unit = stringResource(R.string.unit_gram),
-                    color = NutrientColors.Fat,
-                    modifier = Modifier.weight(1f),
-                )
-                MacroStat(
-                    label = stringResource(R.string.nutrient_carbs),
-                    value = totals.carbsG,
-                    target = settings.carbsTargetG,
-                    unit = stringResource(R.string.unit_gram),
-                    color = NutrientColors.Carbs,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-
-            if (settings.showExtendedNutrients) {
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                Text(
-                    "糖 " + totals.sugarG.fmt() + " g　鈉 " + totals.sodiumMg.fmtInt() +
-                        " mg　纖維 " + totals.fiberG.fmt() + " g　飽和脂肪 " +
-                        totals.satFatG.fmt() + " g",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun MealHeader(meal: Meal, kcal: Double) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(top = 12.dp, bottom = 2.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            meal.symbol() + "  " + meal.label(),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(
-            kcal.fmtInt() + " " + stringResource(R.string.unit_kcal),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
-private fun EntryRow(entry: FoodEntry, onClick: () -> Unit) {
-    Card(
-        shape = SmallCardShape,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-    ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    entry.name,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
-                )
-                if (entry.servingText.isNotBlank()) {
-                    Text(
-                        entry.servingText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                MacroSummaryText(entry.proteinG, entry.fatG, entry.carbsG)
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    entry.calories.fmtInt(),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    stringResource(R.string.unit_kcal),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun EmptyMealRow(onClick: () -> Unit) {
-    Card(
-        shape = SmallCardShape,
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-    ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                stringResource(R.string.meal_empty),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                "0",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
+private val WEEKDAYS = listOf("日", "一", "二", "三", "四", "五", "六")
