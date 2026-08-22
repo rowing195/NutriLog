@@ -8,7 +8,8 @@
 <em>離線記錄每日營養，資料只留在你手機裡</em>
 
 <!-- BADGES -->
-<img src="https://img.shields.io/github/last-commit/rowing195/NutriLog?style=flat&logo=git&logoColor=white&color=0080ff" alt="last-commit">
+<img src="https://img.shields.io/github/license/rowing195/NutriLog?style=flat&logo=opensourceinitiative&logoColor=white&color=0080ff" alt="license">
+	<img src="https://img.shields.io/github/last-commit/rowing195/NutriLog?style=flat&logo=git&logoColor=white&color=0080ff" alt="last-commit">
 	<img src="https://img.shields.io/github/languages/top/rowing195/NutriLog?style=flat&color=0080ff" alt="repo-top-language">
 	<img src="https://img.shields.io/github/languages/count/rowing195/NutriLog?style=flat&color=0080ff" alt="repo-language-count">
 	<img src="https://img.shields.io/github/v/release/rowing195/NutriLog?style=flat&logo=github&logoColor=white&color=0080ff" alt="release">
@@ -775,9 +776,7 @@ PowerShell 腳本只能用 ASCII、動到 Room entity 就要加 migration 並升
 
 ## 授權
 
-這個 repo **沒有附授權條款檔案**。在沒有明示授權的情況下，著作權預設保留，
-第三方不會自動取得使用、修改或散布的權利。要開放給別人用的話，
-加一個 `LICENSE` 檔案（例如 MIT 或 Apache-2.0）就好。
+NutriLog 採用 [MIT License](LICENSE) 授權。
 
 ---
 

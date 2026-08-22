@@ -21,7 +21,7 @@ jobs:
       HAS_KEYSTORE: ${{ secrets.KEYSTORE_BASE64 != '' }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # 正式 tag 一定要有簽章金鑰，少了就在這裡失敗。
       # 沒擋住的話會產出 debug 簽章的 Release，而 debug 簽章的版本
@@ -35,7 +35,7 @@ jobs:
           exit 1
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
