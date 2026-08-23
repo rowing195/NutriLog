@@ -34,7 +34,7 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -54,7 +54,11 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -146,6 +150,18 @@ fun TodayScreen(
         val target = dayPageOf(date)
         if (dayPagerState.currentPage != target) dayPagerState.animateScrollToPage(target)
     }
+    // 這裡曾經試過改用 currentPage（過半頁就動的即時值）取代 settledPage，
+    // 想讓上方週長條更早跟著動、看起來更即時。單純一頁一頁滑沒事，
+    // 但「回到今天」或從月曆點一個很遠的日子這種長距離跳頁會真的壞掉：
+    // 上面 animateScrollToPage 對遠距離目標會先跳近、再補一小段動畫，
+    // 過程中 currentPage 會經過好幾個中繼頁；這條 collector 只要看到
+    // currentPage 變就馬上 onPickDay 認定那是新的日期，於是在動畫真正
+    // 到達終點之前就把中繼頁的日期「鎖」成正式的 selectedDate ——
+    // 實測過：從很遠的一天按「回到今天」，會停在今天的**前一天**，
+    // 「回到今天」的字樣還留在畫面上，因為當下的日期其實還沒真的到今天。
+    // settledPage 保證整個動畫完全停下來才觸發，不會有中繼頁被誤認成
+    // 終點的問題。之後如果要做即時跟隨，得改成只用來畫視覺效果
+    // （例如選取框的位置），不能拿去當作「這就是新日期」去 commit。
     LaunchedEffect(dayPagerState) {
         snapshotFlow { dayPagerState.settledPage }.collect { page ->
             val d = dayOfPage(page)
@@ -181,7 +197,9 @@ fun TodayScreen(
                 )
                 WeekStrip(
                     pagerState = weekPagerState,
+                    dayPagerState = dayPagerState,
                     weekOfPage = ::weekOfPage,
+                    dayPageOf = ::dayPageOf,
                     weekTotalsFlow = weekTotalsFlow,
                     selected = date,
                     today = today,
@@ -192,14 +210,12 @@ fun TodayScreen(
             }
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
+            FloatingActionButton(
                 onClick = { showAddSheet = true },
                 containerColor = MaterialTheme.colorScheme.inverseSurface,
                 contentColor = MaterialTheme.colorScheme.inverseOnSurface,
             ) {
-                Icon(Icons.Default.Add, null, Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.add_entry), style = MaterialTheme.typography.titleSmall)
+                Icon(Icons.Default.Add, stringResource(R.string.add_entry))
             }
         },
     ) { inner ->
@@ -288,7 +304,9 @@ private fun HeaderRow(
 @Composable
 private fun WeekStrip(
     pagerState: PagerState,
+    dayPagerState: PagerState,
     weekOfPage: (Int) -> LocalDate,
+    dayPageOf: (LocalDate) -> Int,
     weekTotalsFlow: (LocalDate) -> Flow<List<DayTotal>>,
     selected: LocalDate,
     today: LocalDate,
@@ -326,6 +344,8 @@ private fun WeekStrip(
                 selected = selected,
                 today = today,
                 target = target,
+                dayPagerState = dayPagerState,
+                dayPageOf = dayPageOf,
                 onPickDay = onPickDay,
             )
         }
@@ -340,7 +360,26 @@ private fun WeekStrip(
     }
 }
 
-/** 一週長條裡的一頁：七個 [DayColumn]，資料是這一週自己的 Flow，跟目前選到哪一週無關。 */
+/**
+ * 一週長條裡的一頁：七個 [DayColumn]，資料是這一週自己的 Flow，跟目前選到哪一週無關。
+ *
+ * 選取底色的連續位置**只從 [dayPagerState] 自己的一組數字算**（`currentPage` 加
+ * `currentPageOffsetFraction`），不要混用 [selected]。這兩個來源更新的時間點不一樣：
+ * `currentPage` 拖過半頁那一刻就會先跳，`selected` 要等整個手勢結束才變 ——
+ * 拖過半頁但手指還沒放開的那個瞬間，`currentPageOffsetFraction` 已經是相對於
+ * *新* 的 `currentPage` 在算，如果拿它去配 `selected` 算出來的鄰居，方向會對不上，
+ * 於是出現「明明往前一天拖，結果亮了後一天」這種瞬間錯亂（實測過）。
+ * `currentPage` 和 `currentPageOffsetFraction` 是同一個 pager 在同一瞬間讀出來的
+ * 一組數字，兩者相加永遠是連續、方向正確的值，不會有這個問題。
+ *
+ * 這裡只**讀** dayPagerState 拿來畫畫面，不會拿它去 commit 新日期或驅動別的
+ * 分頁器滾動 —— 那條路線之前踩過真的會壞的 bug（見上面 TodayScreen 裡的長註解），
+ * 純讀取當渲染參數才是安全的用法。
+ *
+ * 連續位置落在 0..6 之外代表拖過了這一週的邊界，選取底色會往邊緣淡出；
+ * 週長條本身換成鄰週那一頁，靠既有的 animateScrollToPage 補上轉場，
+ * 不是整排跟著連續滑過去。
+ */
 @Composable
 private fun WeekRow(
     weekStart: LocalDate,
@@ -348,11 +387,16 @@ private fun WeekRow(
     selected: LocalDate,
     today: LocalDate,
     target: Int,
+    dayPagerState: PagerState,
+    dayPageOf: (LocalDate) -> Int,
     onPickDay: (LocalDate) -> Unit,
 ) {
     val totals by remember(weekStart) { weekTotalsFlow(weekStart) }.collectAsState(initial = emptyList())
     val byDate = remember(totals) { totals.associateBy { it.date } }
     val over = NutrientColors.Over
+
+    val weekStartPage = dayPageOf(weekStart)
+    val pillPosition = (dayPagerState.currentPage + dayPagerState.currentPageOffsetFraction) - weekStartPage
 
     Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
         repeat(7) { index ->
@@ -364,6 +408,7 @@ private fun WeekRow(
                 isSelected = day == selected,
                 isFuture = day.isAfter(today),
                 overColor = over,
+                pillAlpha = (1f - abs(pillPosition - index)).coerceIn(0f, 1f),
                 onClick = { onPickDay(day) },
                 modifier = Modifier.weight(1f),
             )
@@ -379,6 +424,7 @@ private fun DayColumn(
     isSelected: Boolean,
     isFuture: Boolean,
     overColor: Color,
+    pillAlpha: Float,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -390,7 +436,7 @@ private fun DayColumn(
     Column(
         modifier
             .clip(RoundedCornerShape(10.dp))
-            .background(if (isSelected) scheme.primaryContainer else Color.Transparent)
+            .background(scheme.primaryContainer.copy(alpha = pillAlpha))
             .clickable(onClick = onClick)
             .padding(vertical = 6.dp, horizontal = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -641,10 +687,25 @@ private fun Macros(totals: Totals, settings: NutriSettings) {
 
         // 橫向捲動：窄螢幕四個 chip 排一列會被裁掉，捲動比自動換行更符合
         // 這排「順手看一眼」的定位，不需要為了塞進一行而把字縮更小。
+        //
+        // 這排能捲的範圍很小（頂多幾十 dp），手指很難剛好停在那個幅度內，
+        // 稍微多滑一點，捲動吃不完的位移會照 nested scroll 往上傳給外層的日分頁器，
+        // 變成不小心換了一天。用 nestedScroll 把「捲不動之後剩下的位移」整個吃掉，
+        // 不讓它傳出去，這排就完全獨立於整頁的左右滑動。
         if (settings.showExtendedNutrients) {
+            val consumeOverscroll = remember {
+                object : NestedScrollConnection {
+                    override fun onPostScroll(
+                        consumed: Offset,
+                        available: Offset,
+                        source: NestedScrollSource,
+                    ): Offset = available
+                }
+            }
             Row(
                 Modifier
                     .fillMaxWidth()
+                    .nestedScroll(consumeOverscroll)
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
             ) {
