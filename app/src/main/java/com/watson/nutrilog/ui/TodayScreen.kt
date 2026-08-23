@@ -69,6 +69,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -846,7 +847,14 @@ private fun Macros(totals: Totals, settings: NutriSettings) {
 @Composable
 private fun MacroLegend(label: String, value: Double, target: Int, color: Color) {
     val scheme = MaterialTheme.colorScheme
-    val over = target > 0 && value > target
+    val severityColor = when (overSeverity(value, target)) {
+        OverSeverity.OVER -> NutrientColors.Over
+        OverSeverity.WARNING -> NutrientColors.Warning
+        OverSeverity.NORMAL -> null
+    }
+    // 「/目標」的斜線跟數字也套襯線，不然「49」是襯線、緊接著的「/100」是無襯線，
+    // 同一個分數兩種字體很突兀；後面的中文單位字維持無襯線。
+    val targetPart = "/$target"
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
         Box(
             Modifier
@@ -859,10 +867,13 @@ private fun MacroLegend(label: String, value: Double, target: Int, color: Color)
                 value.fmtInt(),
                 style = MaterialTheme.typography.bodySmall.copy(fontFamily = NumberFontFamily),
                 fontWeight = FontWeight.Bold,
-                color = if (over) NutrientColors.Over else scheme.onSurface,
+                color = severityColor ?: scheme.onSurface,
             )
             Text(
-                "/" + target + " " + label,
+                buildAnnotatedString {
+                    withStyle(SpanStyle(fontFamily = NumberFontFamily)) { append(targetPart) }
+                    append(" $label")
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = scheme.onSurfaceVariant,
             )
