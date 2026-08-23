@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -54,11 +55,14 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -201,7 +205,6 @@ fun TodayScreen(
                     weekOfPage = ::weekOfPage,
                     dayPageOf = ::dayPageOf,
                     weekTotalsFlow = weekTotalsFlow,
-                    selected = date,
                     today = today,
                     target = settings.calorieTarget,
                     onPickDay = onPickDay,
@@ -308,7 +311,6 @@ private fun WeekStrip(
     weekOfPage: (Int) -> LocalDate,
     dayPageOf: (LocalDate) -> Int,
     weekTotalsFlow: (LocalDate) -> Flow<List<DayTotal>>,
-    selected: LocalDate,
     today: LocalDate,
     target: Int,
     onPickDay: (LocalDate) -> Unit,
@@ -338,10 +340,9 @@ private fun WeekStrip(
             ),
             modifier = Modifier.weight(1f),
         ) { page ->
-            WeekRow(
+            WeekPageContent(
                 weekStart = weekOfPage(page),
                 weekTotalsFlow = weekTotalsFlow,
-                selected = selected,
                 today = today,
                 target = target,
                 dayPagerState = dayPagerState,
@@ -361,30 +362,77 @@ private fun WeekStrip(
 }
 
 /**
- * 一週長條裡的一頁：七個 [DayColumn]，資料是這一週自己的 Flow，跟目前選到哪一週無關。
+ * 週分頁裡的一頁。平常就是這一週的 [WeekRow]；日分頁拖過週界時，額外從旁邊
+ * 滑進鄰週的 [WeekRow]，整個效果只靠 [graphicsLayer] 位移，完全不去動
+ * [weekPagerState][WeekStrip] 自己的捲動狀態 —— 這一頁本身在週分頁器眼中
+ * 從頭到尾都停在原地沒有捲動，鄰週只是「借位」畫在旁邊而已。
  *
- * 選取底色的連續位置**只從 [dayPagerState] 自己的一組數字算**（`currentPage` 加
- * `currentPageOffsetFraction`），不要混用 [selected]。這兩個來源更新的時間點不一樣：
- * `currentPage` 拖過半頁那一刻就會先跳，`selected` 要等整個手勢結束才變 ——
- * 拖過半頁但手指還沒放開的那個瞬間，`currentPageOffsetFraction` 已經是相對於
- * *新* 的 `currentPage` 在算，如果拿它去配 `selected` 算出來的鄰居，方向會對不上，
- * 於是出現「明明往前一天拖，結果亮了後一天」這種瞬間錯亂（實測過）。
- * `currentPage` 和 `currentPageOffsetFraction` 是同一個 pager 在同一瞬間讀出來的
- * 一組數字，兩者相加永遠是連續、方向正確的值，不會有這個問題。
+ * 這樣做才安全：如果改成真的去捲動週分頁器本身來做這個轉場，就會撞上
+ * [WeekRow] 文件裡記的那個問題 —— 一個分頁器的畫面位置被日分頁器的即時拖曳
+ * 值驅動，等於又造出一條「靠即時值決定分頁器狀態」的路，那正是前面兩個
+ * bug 共同的根源。純粹疊一層借位的畫面、不碰任何分頁器的滾動狀態，
+ * 才不會重蹈覆轍。
+ *
+ * 借位的距離頂多一整頁寬（`overflowBefore`／`overflowAfter` 都夾在 0..1），
+ * 單一次連續拖曳正常不會超過這個範圍。
+ */
+@Composable
+private fun WeekPageContent(
+    weekStart: LocalDate,
+    weekTotalsFlow: (LocalDate) -> Flow<List<DayTotal>>,
+    today: LocalDate,
+    target: Int,
+    dayPagerState: PagerState,
+    dayPageOf: (LocalDate) -> Int,
+    onPickDay: (LocalDate) -> Unit,
+) {
+    val weekStartPage = dayPageOf(weekStart)
+    val pillPosition = (dayPagerState.currentPage + dayPagerState.currentPageOffsetFraction) - weekStartPage
+    val overflowAfter = (pillPosition - 6f).coerceIn(0f, 1f)
+    val overflowBefore = (-pillPosition).coerceIn(0f, 1f)
+
+    BoxWithConstraints(Modifier.fillMaxWidth().clipToBounds()) {
+        val rowWidthPx = with(LocalDensity.current) { maxWidth.toPx() }
+
+        Box(Modifier.graphicsLayer { translationX = (overflowBefore - overflowAfter) * rowWidthPx }) {
+            WeekRow(weekStart, weekTotalsFlow, today, target, dayPagerState, dayPageOf, onPickDay)
+        }
+        if (overflowAfter > 0f) {
+            Box(Modifier.graphicsLayer { translationX = (1f - overflowAfter) * rowWidthPx }) {
+                WeekRow(weekStart.plusWeeks(1), weekTotalsFlow, today, target, dayPagerState, dayPageOf, onPickDay)
+            }
+        }
+        if (overflowBefore > 0f) {
+            Box(Modifier.graphicsLayer { translationX = (overflowBefore - 1f) * rowWidthPx }) {
+                WeekRow(weekStart.minusWeeks(1), weekTotalsFlow, today, target, dayPagerState, dayPageOf, onPickDay)
+            }
+        }
+    }
+}
+
+/**
+ * 一週長條裡的七個 [DayColumn]，資料是這一週自己的 Flow，跟目前選到哪一週無關。
+ * [WeekPageContent] 借位畫鄰週時也是呼叫這個函式。
+ *
+ * 選取底色與粗體的連續位置**只從 [dayPagerState] 自己的一組數字算**（`currentPage`
+ * 加 `currentPageOffsetFraction`），不要混用 settle 後才變的已選日期。這兩個來源
+ * 更新的時間點不一樣：`currentPage` 拖過半頁那一刻就會先跳，settle 後的日期要等
+ * 整個手勢結束才變 —— 拖過半頁但手指還沒放開的那個瞬間，`currentPageOffsetFraction`
+ * 已經是相對於 *新* 的 `currentPage` 在算，如果拿它去配舊的已選日期算出來的鄰居，
+ * 方向會對不上，於是出現「明明往前一天拖，結果亮了後一天」這種瞬間錯亂（實測過）；
+ * 或是底色跟上了但文字粗體卻慢半拍才變（也實測過）。`currentPage` 和
+ * `currentPageOffsetFraction` 是同一個 pager 在同一瞬間讀出來的一組數字，
+ * 兩者相加永遠是連續、方向正確的值，[DayColumn] 內部的粗體/文字色判斷也是從這組
+ * 數字（`pillAlpha`）算，不會有這問題。
  *
  * 這裡只**讀** dayPagerState 拿來畫畫面，不會拿它去 commit 新日期或驅動別的
  * 分頁器滾動 —— 那條路線之前踩過真的會壞的 bug（見上面 TodayScreen 裡的長註解），
  * 純讀取當渲染參數才是安全的用法。
- *
- * 連續位置落在 0..6 之外代表拖過了這一週的邊界，選取底色會往邊緣淡出；
- * 週長條本身換成鄰週那一頁，靠既有的 animateScrollToPage 補上轉場，
- * 不是整排跟著連續滑過去。
  */
 @Composable
 private fun WeekRow(
     weekStart: LocalDate,
     weekTotalsFlow: (LocalDate) -> Flow<List<DayTotal>>,
-    selected: LocalDate,
     today: LocalDate,
     target: Int,
     dayPagerState: PagerState,
@@ -405,7 +453,6 @@ private fun WeekRow(
                 day = day,
                 kcal = byDate[day.toString()]?.kcal ?: 0.0,
                 target = target,
-                isSelected = day == selected,
                 isFuture = day.isAfter(today),
                 overColor = over,
                 pillAlpha = (1f - abs(pillPosition - index)).coerceIn(0f, 1f),
@@ -421,7 +468,6 @@ private fun DayColumn(
     day: LocalDate,
     kcal: Double,
     target: Int,
-    isSelected: Boolean,
     isFuture: Boolean,
     overColor: Color,
     pillAlpha: Float,
@@ -432,6 +478,10 @@ private fun DayColumn(
     val isOver = target > 0 && kcal > target
     val fraction = if (target > 0) (kcal / target).coerceIn(0.0, 1.0).toFloat() else 0f
     val weekday = day.dayOfWeek.value % 7
+    // 粗體、文字色、指示條都跟著 pillAlpha 這個連續值切換（過半才算選到），
+    // 不要用外面 settle 才會變的已選日期 —— 不然拖動時底色已經跟到新的一天，
+    // 文字卻要等放開手指才變粗，兩者步調對不上，使用者會覺得「反應慢半拍」。
+    val isSelected = pillAlpha > 0.5f
 
     Column(
         modifier
@@ -522,12 +572,19 @@ private fun DayPage(
             }
             item(key = "header-" + meal.name) { MealHeader(meal, ofMeal) }
             if (ofMeal.isEmpty()) {
+                // key 跟有紀錄時的 items 不同，所以「刪到剩空」那一刻在 LazyColumn
+                // 眼中是舊 key 消失、新 key 出現，animateItem() 兩邊都套了才會
+                // 接成一個連續的淡入淡出，不是硬切。
                 item(key = "empty-" + meal.name) {
-                    EmptyMealRow(onClick = { onAddForMeal(meal) })
+                    Box(Modifier.animateItem()) {
+                        EmptyMealRow(onClick = { onAddForMeal(meal) })
+                    }
                 }
             } else {
                 items(ofMeal, key = { it.id }) { entry ->
-                    EntryRow(entry, onClick = { onOpenEntry(entry) })
+                    Box(Modifier.animateItem()) {
+                        EntryRow(entry, onClick = { onOpenEntry(entry) })
+                    }
                 }
             }
         }
