@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -89,7 +90,12 @@ fun NutriLogApp(viewModel: NutriViewModel) {
 
     // Crossfade 而不是直接 when：原本畫面切換是硬切，Today 開設定/歷史等
     // 附屬畫面時整個畫面瞬間跳掉，跟其他地方陸續做掉的動畫比起來特別突兀。
-    Crossfade(targetState = viewModel.screen, label = "screen") { screen ->
+    // 預設 300ms 太快、人眼幾乎看不出有淡入淡出，拉到 500ms 才看得明顯。
+    Crossfade(
+        targetState = viewModel.screen,
+        animationSpec = tween(durationMillis = 500),
+        label = "screen",
+    ) { screen ->
     when (screen) {
         Screen.Today -> TodayScreen(
             date = viewModel.selectedDate,

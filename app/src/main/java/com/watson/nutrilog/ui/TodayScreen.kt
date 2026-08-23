@@ -1,5 +1,6 @@
 package com.watson.nutrilog.ui
 
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -66,6 +67,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.watson.nutrilog.R
@@ -578,6 +580,11 @@ private fun DayPage(
     val entries by remember(date) { entriesFlow(date) }.collectAsState(initial = emptyList())
     val totals = remember(entries) { entries.totals() }
 
+    // animateItem() 預設是 Spring.StiffnessMediumLow，時間很短、肉眼幾乎看不出
+    // 有淡入淡出，拉成 400ms 的 tween 才看得明顯。
+    val itemFade = tween<Float>(400)
+    val itemPlacement = tween<IntOffset>(400)
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 22.dp),
@@ -601,13 +608,13 @@ private fun DayPage(
                 // 眼中是舊 key 消失、新 key 出現，animateItem() 兩邊都套了才會
                 // 接成一個連續的淡入淡出，不是硬切。
                 item(key = "empty-" + meal.name) {
-                    Box(Modifier.animateItem()) {
+                    Box(Modifier.animateItem(fadeInSpec = itemFade, placementSpec = itemPlacement, fadeOutSpec = itemFade)) {
                         EmptyMealRow(onClick = { onAddForMeal(meal) })
                     }
                 }
             } else {
                 items(ofMeal, key = { it.id }) { entry ->
-                    Box(Modifier.animateItem()) {
+                    Box(Modifier.animateItem(fadeInSpec = itemFade, placementSpec = itemPlacement, fadeOutSpec = itemFade)) {
                         EntryRow(entry, onClick = { onOpenEntry(entry) })
                     }
                 }
