@@ -82,16 +82,29 @@ Material3 預設 baseline 是紫色系。**新增顏色角色時整族都要蓋*
 它們是 `@Composable` getter 而不是常數 —— 深淺兩套的值不一樣（深色底上要提亮），
 正確的那一套只有在 composition 裡讀得到，所以**不能**在 top-level `val` 用它們。
 
-字體全部用無襯線（`Base = Typography()` 沒覆寫 `fontFamily`，Roboto + 中文落到
-Noto Sans CJK）。原本數字與食物名稱刻意用系統襯線，但中文襯線在大部分裝置上
-讀起來像新細明體，不是想要的柔和感，改回無襯線就沒這問題，也不用為了避開它
-另外去接 Downloadable Fonts 或打包字型檔。
+預設字體是無襯線（`Base = Typography()` 沒覆寫 `fontFamily`，Roboto + 中文落到
+Noto Sans CJK）。純數字／英文（大熱量數字、目標欄位、紀錄與搜尋的熱量、日期格、
+月曆）另外套 `theme/NumberFontFamily`（系統襯線別名 `FontFamily.Serif`），
+跟中文字做出區隔。**這個字體只能套在確定不含中文的 `Text` 上**——早期版本把
+`FontFamily.Serif` 套進整個 `Typography`，連食物名稱這種中文字串也一起吃到，
+中文襯線在大部分裝置上會落到偏傳統印刷體的字重，讀起來像新細明體，
+才會改成現在「逐一挑純數字/英文的 `Text` 套用」的做法。中西文混排在同一句
+（例如「目標 2000 · 還有 200 的空間」）要用 `buildAnnotatedString` 只框住
+數字部分，不能整個 `Text` 一起套。
+
+所有輸入框共用 `theme/NutriFieldShape` + `theme/nutriFieldColors()`（圓角頂角＋
+下橫線，聚焦時線變粗變綠）——這是取代 `OutlinedTextField` 整圈外框的統一樣式，
+新畫面要加輸入框直接套這兩個，不要自己疊 `OutlinedTextField` 或另外設計一套外框。
+
+熱量／蛋白質／脂肪／碳水的超標顏色一律用 `overSeverity()`（`Common.kt`）：
+超過目標 10% 以內是 `NutrientColors.Warning`（橘），超過 10% 才是
+`NutrientColors.Over`（紅）。不要自己寫 `value > target` 的二分法紅／不紅。
 
 **自己拼的 `topBar` / `bottomBar` 要自己加 `statusBarsPadding()` / `navigationBarsPadding()`。**
 `MainActivity` 開了 `enableEdgeToEdge()`，M3 的 `TopAppBar` 會自己處理，
 但用 `Column`/`Row` 拼的不會 —— 標題會直接畫到狀態列的時鐘上面。
 
-**今日頁的日／週分頁器有兩個好踩的坑：**
+**今日頁的日／週分頁器有三個好踩的坑：**
 
 - `HorizontalPager` 的預設 fling 行為會看滑動速度決定跳幾頁，快速一撥可能
   一次跳十幾頁 —— 完全違反「一次滑動＝換一天／一週」的直覺。兩個分頁器都要用
@@ -104,6 +117,15 @@ Noto Sans CJK）。原本數字與食物名稱刻意用系統襯線，但中文�
   觸發換日／換週，一路滾雪球疊加下去。要用 `rememberUpdatedState` 包起來，
   每次比對才會拿到當下真正的值。這個 bug 曾經真實發生過：從今天單純滑一次
   「前一天」，會直接跳掉十幾天。
+- 日分頁拖過週界時，`WeekPageContent` 會用借位 overlay（純視覺，讀
+  `dayPagerState.currentPage`/`currentPageOffsetFraction` 但不拿去 commit）把新的
+  一週滑到畫面上；放開手指、`weekStart` 真的改變後，如果又讓 `weekPagerState`
+  自己 `animateScrollToPage` 一次，等於把使用者剛看過的位移動畫重播一次，
+  肉眼是「換了兩次週」。要用一個旗標記住「這次 `weekStart` 改變是不是日分頁器
+  拖曳造成的」——是的話 `weekPagerState` 只要 `scrollToPage`（不動畫）悄悄接上
+  真正狀態；其他來源（週橫條箭頭、回到今天、月曆跳頁）事前沒有 overlay 動畫
+  可看，才需要保留 `animateScrollToPage`。細節見 `TodayScreen.kt` 裡
+  `weekChangeFromDaySwipe` 那段的長註解。
 
 ## 改動慣例
 
