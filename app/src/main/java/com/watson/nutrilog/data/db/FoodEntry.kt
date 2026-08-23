@@ -34,6 +34,7 @@ data class FoodEntry(
     val satFatG: Double? = null,
     val source: String = EntrySource.MANUAL.name,
     val barcode: String? = null,
+    val portionMultiplier: Double = 1.0,
 ) {
     // 沒有 backing field 的 getter，Room 不會把它當成欄位
     val mealType: Meal get() = Meal.from(meal)

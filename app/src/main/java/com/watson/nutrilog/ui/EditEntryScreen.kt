@@ -93,9 +93,17 @@ fun EditEntryScreen(
     // 現在的數字（多半是 AI 估的），接在後面幾乎永遠是錯的。
     var fresh by remember { mutableStateOf(false) }
 
-    // 份數縮放基準值與倍率
-    var baseDraft by remember(draft.id) { mutableStateOf(draft) }
-    var multiplier by remember(draft.id) { mutableStateOf(1.0) }
+    // 份數縮放基準值與倍率：若草稿本身有儲存倍率（例如 2.0x），則自動還原出 1.0x 基準草稿
+    var multiplier by remember(draft.id) { mutableStateOf(if (draft.portionMultiplier > 0) draft.portionMultiplier else 1.0) }
+    var baseDraft by remember(draft.id) {
+        mutableStateOf(
+            if (draft.portionMultiplier > 0 && draft.portionMultiplier != 1.0) {
+                draft.deriveBase(draft.portionMultiplier)
+            } else {
+                draft
+            }
+        )
+    }
 
     val scheme = MaterialTheme.colorScheme
 
@@ -128,6 +136,8 @@ fun EditEntryScreen(
         }
         if (multiplier == 1.0) {
             baseDraft = updated
+        } else {
+            baseDraft = updated.deriveBase(multiplier)
         }
         onDraftChange(updated)
     }
@@ -213,7 +223,7 @@ fun EditEntryScreen(
                 value = draft.name,
                 onValueChange = {
                     onDraftChange(draft.copy(name = it))
-                    if (multiplier == 1.0) baseDraft = baseDraft.copy(name = it)
+                    baseDraft = baseDraft.copy(name = it)
                 },
                 placeholder = stringResource(R.string.entry_name),
                 textStyle = MaterialTheme.typography.titleLarge,
@@ -223,7 +233,7 @@ fun EditEntryScreen(
 
             MealPicker(draft.meal, Modifier.padding(vertical = 14.dp)) {
                 onDraftChange(draft.copy(meal = it))
-                if (multiplier == 1.0) baseDraft = baseDraft.copy(meal = it)
+                baseDraft = baseDraft.copy(meal = it)
             }
 
             FieldLabel(stringResource(R.string.entry_serving))
@@ -231,7 +241,11 @@ fun EditEntryScreen(
                 value = draft.servingText,
                 onValueChange = {
                     onDraftChange(draft.copy(servingText = it))
-                    if (multiplier == 1.0) baseDraft = baseDraft.copy(servingText = it)
+                    if (multiplier == 1.0) {
+                        baseDraft = baseDraft.copy(servingText = it)
+                    } else {
+                        baseDraft = baseDraft.copy(servingText = scaleServingText(it, 1.0 / multiplier))
+                    }
                 },
                 placeholder = stringResource(R.string.entry_serving_hint),
                 textStyle = MaterialTheme.typography.bodyLarge,

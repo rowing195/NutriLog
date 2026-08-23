@@ -119,6 +119,7 @@ data class EntryDraft(
     val satFat: String = "",
     val source: EntrySource = EntrySource.MANUAL,
     val barcode: String? = null,
+    val portionMultiplier: Double = 1.0,
 ) {
     val isValid: Boolean get() = name.isNotBlank()
 
@@ -139,10 +140,34 @@ data class EntryDraft(
         satFatG = satFat.toNumberOrNull(),
         source = source.name,
         barcode = barcode,
+        portionMultiplier = portionMultiplier,
     )
 
+    /** 從已縮放的草稿中精確反推回 1.0x 基準草稿 */
+    fun deriveBase(currentMultiplier: Double): EntryDraft {
+        if (currentMultiplier <= 0.0 || currentMultiplier == 1.0) return copy(portionMultiplier = 1.0)
+        fun unscale(raw: String, isInt: Boolean = false): String {
+            val num = raw.toDoubleOrNull() ?: return ""
+            val baseVal = num / currentMultiplier
+            return if (isInt) Math.round(baseVal).toString() else baseVal.roundTo1().asInputValue()
+        }
+        return copy(
+            servingText = scaleServingText(servingText, 1.0 / currentMultiplier),
+            calories = unscale(calories, isInt = true),
+            protein = unscale(protein),
+            fat = unscale(fat),
+            carbs = unscale(carbs),
+            sugar = unscale(sugar),
+            sodium = unscale(sodium, isInt = true),
+            fiber = unscale(fiber),
+            satFat = unscale(satFat),
+            portionMultiplier = 1.0,
+        )
+    }
+
     fun scaleFromBase(base: EntryDraft, multiplier: Double): EntryDraft {
-        if (multiplier == 1.0) {
+        val mult = (multiplier * 10.0).roundToInt() / 10.0
+        if (mult == 1.0) {
             return copy(
                 servingText = base.servingText,
                 calories = base.calories,
@@ -153,9 +178,9 @@ data class EntryDraft(
                 sodium = base.sodium,
                 fiber = base.fiber,
                 satFat = base.satFat,
+                portionMultiplier = 1.0,
             )
         }
-        val mult = (multiplier * 10.0).roundToInt() / 10.0
         fun scaleVal(raw: String, isInt: Boolean = false): String {
             val num = raw.toDoubleOrNull() ?: return ""
             val scaled = num * mult
@@ -171,6 +196,7 @@ data class EntryDraft(
             sodium = scaleVal(base.sodium, isInt = true),
             fiber = scaleVal(base.fiber),
             satFat = scaleVal(base.satFat),
+            portionMultiplier = mult,
         )
     }
 
@@ -190,6 +216,7 @@ data class EntryDraft(
             satFat = entry.satFatG.asInput(),
             source = runCatching { EntrySource.valueOf(entry.source) }.getOrDefault(EntrySource.MANUAL),
             barcode = entry.barcode,
+            portionMultiplier = entry.portionMultiplier,
         )
     }
 }
@@ -520,7 +547,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         val meal = analysisMeal
         val now = System.currentTimeMillis()
         viewModelScope.launch {
-            dao.insertAll(chosen.map { it.food.toEntry(selectedDate, meal, now) })
+            dao.insertAll(chosen.map { it.food.toEntry(selectedDate, meal, now, portionMultiplier = it.multiplier) })
             analysisState = null
             screen = Screen.Today
         }
@@ -590,7 +617,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
 }
 
 /** 模型的估算值 -> 可以入庫的一筆紀錄。 */
-private fun DetectedFood.toEntry(date: LocalDate, meal: Meal, loggedAt: Long) = FoodEntry(
+private fun DetectedFood.toEntry(date: LocalDate, meal: Meal, loggedAt: Long, portionMultiplier: Double = 1.0) = FoodEntry(
     date = date.toString(),
     loggedAt = loggedAt,
     meal = meal.name,
@@ -605,6 +632,7 @@ private fun DetectedFood.toEntry(date: LocalDate, meal: Meal, loggedAt: Long) = 
     fiberG = fiberG,
     satFatG = satFatG,
     source = EntrySource.PHOTO.name,
+    portionMultiplier = portionMultiplier,
 )
 
 /**

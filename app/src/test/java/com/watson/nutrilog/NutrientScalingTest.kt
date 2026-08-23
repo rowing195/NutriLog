@@ -1,5 +1,6 @@
 package com.watson.nutrilog
 
+import com.watson.nutrilog.data.db.FoodEntry
 import com.watson.nutrilog.data.net.DetectedFood
 import com.watson.nutrilog.ui.EntryDraft
 import com.watson.nutrilog.ui.scale
@@ -7,6 +8,7 @@ import com.watson.nutrilog.ui.scaleServingText
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import java.time.LocalDate
 
 class NutrientScalingTest {
 
@@ -15,7 +17,9 @@ class NutrientScalingTest {
         assertEquals("300g", scaleServingText("200g", 1.5))
         assertEquals("100g", scaleServingText("200g", 0.5))
         assertEquals("200g", scaleServingText("200g", 1.0))
+        assertEquals("400g", scaleServingText("200g", 2.0))
         assertEquals("1050ml", scaleServingText("700ml", 1.5))
+        assertEquals("1400ml", scaleServingText("700ml", 2.0))
         assertEquals("350ml", scaleServingText("700ml", 0.5))
     }
 
@@ -23,7 +27,9 @@ class NutrientScalingTest {
     fun `scaleServingText scales bowls and complex quantities`() {
         assertEquals("1.5 碗", scaleServingText("1 碗", 1.5))
         assertEquals("0.5 碗", scaleServingText("1 碗", 0.5))
+        assertEquals("2 碗", scaleServingText("1 碗", 2.0))
         assertEquals("1.5 碗 (375g)", scaleServingText("1 碗 (250g)", 1.5))
+        assertEquals("2 碗 (500g)", scaleServingText("1 碗 (250g)", 2.0))
         assertEquals("半碗 (1.5x)", scaleServingText("半碗", 1.5))
         assertEquals("1.5 份", scaleServingText("", 1.5))
         assertEquals("", scaleServingText("", 1.0))
@@ -72,13 +78,13 @@ class NutrientScalingTest {
             sodiumMg = null,
         )
 
-        val scaled = base.scale(1.5)
+        val scaled = base.scale(2.0)
 
-        assertEquals("1050ml", scaled.servingText)
-        assertEquals(270.0, scaled.calories, 0.001)
-        assertEquals(22.8, scaled.proteinG, 0.001)
-        assertEquals(10.5, scaled.fatG, 0.001)
-        assertEquals(21.0, scaled.carbsG, 0.001)
+        assertEquals("1400ml", scaled.servingText)
+        assertEquals(360.0, scaled.calories, 0.001)
+        assertEquals(30.4, scaled.proteinG, 0.001)
+        assertEquals(14.0, scaled.fatG, 0.001)
+        assertEquals(28.0, scaled.carbsG, 0.001)
         assertNull(scaled.sugarG)
         assertNull(scaled.sodiumMg)
     }
@@ -111,5 +117,60 @@ class NutrientScalingTest {
         assertEquals("18.0", restored.fat)
         assertEquals("0", restored.carbs)
         assertEquals("350", restored.sodium)
+    }
+
+    @Test
+    fun `Baseline Persistence Bug Fix - Reopening 2x entry derives original base and allows restoring to 1x by subtracting 1`() {
+        // 1. Initial 1x Food Entry saved as 2x
+        val savedEntry = FoodEntry(
+            id = 42L,
+            date = "2026-08-23",
+            loggedAt = 1000L,
+            meal = "LUNCH",
+            name = "舒肥雞胸肉便當",
+            servingText = "2 份 (760g)",
+            calories = 1040.0,
+            proteinG = 84.0,
+            fatG = 24.0,
+            carbsG = 116.0,
+            portionMultiplier = 2.0,
+        )
+
+        // 2. User opens entry to edit
+        val draft = EntryDraft.of(savedEntry)
+        assertEquals(2.0, draft.portionMultiplier, 0.001)
+        assertEquals("1040", draft.calories)
+
+        // 3. System derives exact 1.0x baseline draft
+        val baseDraft = draft.deriveBase(draft.portionMultiplier)
+        assertEquals(1.0, baseDraft.portionMultiplier, 0.001)
+        assertEquals("520", baseDraft.calories)
+        assertEquals("42", baseDraft.protein)
+        assertEquals("12", baseDraft.fat)
+        assertEquals("58", baseDraft.carbs)
+        assertEquals("1 份 (380g)", baseDraft.servingText)
+
+        // 4. User steps down by 1.0 (from 2.0x to 1.0x) -> Restores exact original 1x base!
+        val backTo1x = draft.scaleFromBase(baseDraft, 1.0)
+        assertEquals(1.0, backTo1x.portionMultiplier, 0.001)
+        assertEquals("520", backTo1x.calories)
+        assertEquals("42", backTo1x.protein)
+        assertEquals("12", backTo1x.fat)
+        assertEquals("58", backTo1x.carbs)
+        assertEquals("1 份 (380g)", backTo1x.servingText)
+
+        // 5. User steps up by 1.0 (to 3.0x)
+        val upTo3x = draft.scaleFromBase(baseDraft, 3.0)
+        assertEquals(3.0, upTo3x.portionMultiplier, 0.001)
+        assertEquals("1560", upTo3x.calories)
+        assertEquals("126", upTo3x.protein)
+        assertEquals("36", upTo3x.fat)
+        assertEquals("174", upTo3x.carbs)
+        assertEquals("3 份 (1140g)", upTo3x.servingText)
+
+        // 6. Saving as toEntry preserves new portionMultiplier
+        val updatedEntry = upTo3x.toEntry(LocalDate.of(2026, 8, 23))
+        assertEquals(3.0, updatedEntry.portionMultiplier, 0.001)
+        assertEquals(1560.0, updatedEntry.calories, 0.001)
     }
 }
