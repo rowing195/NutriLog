@@ -166,15 +166,40 @@ fun TodayScreen(
     // settledPage 保證整個動畫完全停下來才觸發，不會有中繼頁被誤認成
     // 終點的問題。之後如果要做即時跟隨，得改成只用來畫視覺效果
     // （例如選取框的位置），不能拿去當作「這就是新日期」去 commit。
+    // 拖曳跨週時，WeekPageContent 的借位 overlay 已經把新的一週滑到畫面上了
+    // （純視覺，見那個函式的文件）；如果放開手指後 weekStart 真的改變，又讓
+    // weekPagerState 自己 animateScrollToPage 一次，等於把使用者剛看過的
+    // 位移動畫再演一次，肉眼看起來像「換了兩次週」（實測過）。這個旗標記
+    // 「這次的 weekStart 變化是不是日分頁器拖曳造成的」，是的話畫面早就在
+    // 對的位置，週分頁器只要悄悄 scrollToPage 把真正的狀態接上，不必再動畫；
+    // 其他來源（週長條箭頭、回到今天、月曆跳頁…）事前沒有 overlay 動畫可看，
+    // 要保留 animateScrollToPage 才看得出「跳到哪裡去了」。
+    // 用 remember 而不是普通 var：LaunchedEffect(dayPagerState) 只在第一次組成時
+    // 啟動一次，它的協程閉包永遠指著那次組成當下的變數；LaunchedEffect(weekStart)
+    // 每次 weekStart 變都會重啟，用的是重啟當下那次組成的閉包 —— 兩個閉包如果各自
+    // 指著普通 var，其實是兩個互不相通的變數，寫的那個跟讀的那個對不上。
+    // remember 回傳同一個物件的 identity 不會變，兩邊閉包才能真的共用同一格狀態。
+    val weekChangeFromDaySwipe = remember { mutableStateOf(false) }
     LaunchedEffect(dayPagerState) {
         snapshotFlow { dayPagerState.settledPage }.collect { page ->
             val d = dayOfPage(page)
-            if (d != currentDate.value) onPickDay(d)
+            if (d != currentDate.value) {
+                val newWeekStart = d.minusDays((d.dayOfWeek.value % 7).toLong())
+                weekChangeFromDaySwipe.value = newWeekStart != currentWeekStart.value
+                onPickDay(d)
+            }
         }
     }
     LaunchedEffect(weekStart) {
         val target = weekPageOf(weekStart)
-        if (weekPagerState.currentPage != target) weekPagerState.animateScrollToPage(target)
+        if (weekPagerState.currentPage != target) {
+            if (weekChangeFromDaySwipe.value) {
+                weekPagerState.scrollToPage(target)
+            } else {
+                weekPagerState.animateScrollToPage(target)
+            }
+        }
+        weekChangeFromDaySwipe.value = false
     }
     LaunchedEffect(weekPagerState) {
         snapshotFlow { weekPagerState.settledPage }.collect { page ->
