@@ -42,6 +42,15 @@ fun Double.fmt(): String =
 
 fun Double.fmtInt(): String = roundToInt().toString()
 
+/** 熱量超標的嚴重程度：超過目標 10% 以內用橘色警示，超過 10% 才轉紅。 */
+enum class OverSeverity { NORMAL, WARNING, OVER }
+
+fun overSeverity(kcal: Double, target: Int): OverSeverity {
+    if (target <= 0 || kcal <= target) return OverSeverity.NORMAL
+    val excessRatio = (kcal - target) / target
+    return if (excessRatio > 0.10) OverSeverity.OVER else OverSeverity.WARNING
+}
+
 /** 「今天 8月19日（週三）」。有「今天／昨天」就不必自己數日期。 */
 fun LocalDate.displayLabel(today: LocalDate = LocalDate.now()): String {
     val prefix = when (this) {

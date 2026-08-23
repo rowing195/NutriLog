@@ -50,6 +50,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.watson.nutrilog.R
+import com.watson.nutrilog.ui.theme.NumberFontFamily
 import com.watson.nutrilog.ui.theme.NutrientColors
 
 /** 表單裡正在填的那個數字欄位。null 代表沒有，鍵盤收起來、儲存鈕露出來。 */
@@ -424,16 +425,18 @@ private fun NumberCell(
                 // 空值顯示破折號而不是 0 ——「沒填」和「真的是 0」必須分得開
                 value.ifBlank { "—" },
                 style = if (big) {
-                    MaterialTheme.typography.headlineSmall
+                    MaterialTheme.typography.headlineSmall.copy(fontFamily = NumberFontFamily)
                 } else {
-                    MaterialTheme.typography.headlineSmall.copy(fontSize = 20.sp, lineHeight = 26.sp)
+                    MaterialTheme.typography.headlineSmall.copy(
+                        fontSize = 20.sp, lineHeight = 26.sp, fontFamily = NumberFontFamily,
+                    )
                 },
                 color = if (value.isBlank()) scheme.outline.copy(alpha = 0.5f) else scheme.onSurface,
                 maxLines = 1,
             )
             Text(
                 spec.unit,
-                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
+                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp, fontFamily = NumberFontFamily),
                 color = scheme.outline,
                 modifier = Modifier.padding(bottom = 4.dp),
             )

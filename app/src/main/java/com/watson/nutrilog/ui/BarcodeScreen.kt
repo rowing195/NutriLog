@@ -20,11 +20,12 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -39,6 +40,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.db.CachedProduct
+import com.watson.nutrilog.ui.theme.NumberFontFamily
+import com.watson.nutrilog.ui.theme.NutriFieldShape
+import com.watson.nutrilog.ui.theme.nutriFieldColors
 
 /**
  * 條碼查詢。
@@ -84,12 +88,15 @@ fun BarcodeScreen(
                 Text(stringResource(R.string.add_barcode))
             }
 
-            OutlinedTextField(
+            TextField(
                 value = code,
                 onValueChange = { raw -> code = raw.filter { it.isDigit() }.take(14) },
                 label = { Text(stringResource(R.string.barcode_input)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                textStyle = LocalTextStyle.current.copy(fontFamily = NumberFontFamily),
+                shape = NutriFieldShape,
+                colors = nutriFieldColors(),
                 modifier = Modifier.fillMaxWidth(),
             )
             OutlinedButton(
@@ -167,12 +174,15 @@ private fun FoundCard(state: BarcodeState.Found, onUseProduct: (CachedProduct, D
                 per100gSummary(product),
                 style = MaterialTheme.typography.bodyMedium,
             )
-            OutlinedTextField(
+            TextField(
                 value = grams,
                 onValueChange = { raw -> grams = raw.filter { it.isDigit() || it == '.' }.take(6) },
                 label = { Text(stringResource(R.string.barcode_grams)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                textStyle = LocalTextStyle.current.copy(fontFamily = NumberFontFamily),
+                shape = NutriFieldShape,
+                colors = nutriFieldColors(),
                 modifier = Modifier.fillMaxWidth(),
             )
             Button(

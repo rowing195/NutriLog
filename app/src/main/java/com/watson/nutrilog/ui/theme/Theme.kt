@@ -1,7 +1,10 @@
 package com.watson.nutrilog.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.TextFieldColors
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -10,7 +13,10 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
@@ -64,6 +70,8 @@ data class NutriPalette(
     val fat: Color,
     val carbs: Color,
     val over: Color,
+    /** 熱量超標但還在目標 10% 以內：橘色警示，比 [over] 溫和 */
+    val warning: Color,
     /** 早／午／晚／點心，依序漸深（深色模式反過來漸亮），額度條靠它分段 */
     val meals: List<Color>,
     val keypad: Color,
@@ -75,6 +83,7 @@ private val LightNutri = NutriPalette(
     fat = Color(0xFFD98324),
     carbs = Color(0xFF9B5DE5),
     over = Color(0xFFC0392B),
+    warning = Color(0xFFDB8A12),
     meals = listOf(Color(0xFFA8D9BE), Color(0xFF7FC8A2), Color(0xFF4E9E77), Color(0xFF2E7D5B)),
     keypad = Paper.Keypad,
 )
@@ -85,6 +94,7 @@ private val DarkNutri = NutriPalette(
     fat = Color(0xFFE8A860),
     carbs = Color(0xFFBC9AF0),
     over = Color(0xFFFF8A7A),
+    warning = Color(0xFFF0B84A),
     meals = listOf(Color(0xFF3E6B54), Color(0xFF4E8E6B), Color(0xFF62B189), Color(0xFF7FC8A2)),
     keypad = Paper.DarkKeypad,
 )
@@ -103,8 +113,11 @@ object NutrientColors {
     val Fat: Color @Composable get() = LocalNutriPalette.current.fat
     val Carbs: Color @Composable get() = LocalNutriPalette.current.carbs
 
-    /** 超過每日目標時轉這個顏色，一眼看得出來吃過頭 */
+    /** 超過每日目標超過 10% 時轉這個顏色，一眼看得出來吃過頭 */
     val Over: Color @Composable get() = LocalNutriPalette.current.over
+
+    /** 超過目標但還在 10% 以內，橘色警示 */
+    val Warning: Color @Composable get() = LocalNutriPalette.current.warning
 
     /** 早／午／晚／點心依序的色，額度條分段與餐別標記共用 */
     val Meals: List<Color> @Composable get() = LocalNutriPalette.current.meals
@@ -181,13 +194,17 @@ private val DarkColors = darkColorScheme(
 )
 
 /**
- * 全部用預設無襯線字（Roboto + 中文落到 Noto Sans CJK）。
+ * 中文全部用無襯線（Roboto + 落到 Noto Sans CJK）。
  *
- * 原本數字與食物名稱刻意用系統襯線（`FontFamily.Serif`），
- * 但中文襯線在大部分裝置上會落到偏傳統印刷體的字重，讀起來像新細明體，
- * 不是想要的柔和感。改回無襯線之後兩邊字重才統一，也不用為了避開它
- * 而額外去下載字型檔。
+ * 純數字／英文字元不會觸發 CJK 字型 fallback，所以 [NumberFontFamily] 可以
+ * 放心用系統襯線別名 `FontFamily.Serif`，不會重演「中文襯線讀起來像新細明體」
+ * 的問題——那個問題是之前把 serif 套在整個 Typography（連食物名稱這種中文
+ * 字串也一起套到）才出現的。現在只在確定是純數字/英文的 Text() 上單獨套用，
+ * 例如 [NutriLog/app/src/main/java/com/watson/nutrilog/ui/TodayScreen.kt] 裡
+ * 「已經吃」旁邊的大數字，中文文字（食物名稱、標題、標籤）維持無襯線不動。
  */
+val NumberFontFamily = FontFamily.Serif
+
 private val Base = Typography()
 
 private val NutriTypography = Typography(
@@ -223,6 +240,27 @@ private val NutriTypography = Typography(
     labelMedium = Base.labelMedium.copy(fontSize = 11.sp, lineHeight = 15.sp),
     labelSmall = Base.labelSmall.copy(fontSize = 10.sp, lineHeight = 14.sp, letterSpacing = 1.sp),
 )
+
+/**
+ * 全 app 輸入框共用的樣式：拿掉整圈外框，只留一條聚焦時會變粗變綠的底線，
+ * 跟 [Hairline] 分隔線是同一套邏輯 —— 比 OutlinedTextField 的滿框更貼近
+ * 「不填色只畫線」的頁面語言。頂角保留圓角、底角不圓，呼應底線是唯一邊界。
+ */
+val NutriFieldShape: Shape = RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp)
+
+@Composable
+fun nutriFieldColors(): TextFieldColors {
+    val scheme = MaterialTheme.colorScheme
+    return TextFieldDefaults.colors(
+        focusedContainerColor = scheme.primary.copy(alpha = 0.06f),
+        unfocusedContainerColor = Color.Transparent,
+        disabledContainerColor = Color.Transparent,
+        errorContainerColor = Color.Transparent,
+        focusedIndicatorColor = scheme.primary,
+        unfocusedIndicatorColor = scheme.outlineVariant,
+        cursorColor = scheme.primary,
+    )
+}
 
 @Composable
 fun NutriLogTheme(

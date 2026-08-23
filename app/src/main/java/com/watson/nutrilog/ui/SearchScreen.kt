@@ -23,11 +23,11 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
@@ -48,6 +48,9 @@ import androidx.compose.ui.unit.dp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.db.FoodEntry
 import com.watson.nutrilog.data.db.FoodSuggestion
+import com.watson.nutrilog.ui.theme.NumberFontFamily
+import com.watson.nutrilog.ui.theme.NutriFieldShape
+import com.watson.nutrilog.ui.theme.nutriFieldColors
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -95,7 +98,7 @@ fun SearchScreen(
                 .padding(inner)
                 .imePadding(),
         ) {
-            OutlinedTextField(
+            TextField(
                 value = query,
                 onValueChange = onQueryChange,
                 label = { Text(stringResource(R.string.search_label)) },
@@ -110,6 +113,8 @@ fun SearchScreen(
                 },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                shape = NutriFieldShape,
+                colors = nutriFieldColors(),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -334,7 +339,7 @@ private fun SuggestionRow(
         }
         Text(
             suggestion.calories.fmtInt(),
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.titleMedium.copy(fontFamily = NumberFontFamily),
             fontWeight = FontWeight.Medium,
         )
     }
@@ -423,7 +428,7 @@ private fun ResultRow(entry: FoodEntry, onClick: () -> Unit, onReuse: () -> Unit
                 }
                 Text(
                     entry.calories.fmtInt() + " " + stringResource(R.string.unit_kcal),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = NumberFontFamily),
                     color = MaterialTheme.colorScheme.outline,
                     maxLines = 1,
                 )

@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.NutriSettings
 import com.watson.nutrilog.data.db.DayTotal
+import com.watson.nutrilog.ui.theme.NumberFontFamily
 import com.watson.nutrilog.ui.theme.NutrientColors
 import java.time.LocalDate
 import java.time.YearMonth
@@ -204,14 +205,19 @@ private fun DayCell(
     modifier: Modifier = Modifier,
 ) {
     val kcal = total?.kcal ?: 0.0
-    val over = settings.calorieTarget > 0 && kcal > settings.calorieTarget
+    val severity = overSeverity(kcal, settings.calorieTarget)
+    val severityColor = when (severity) {
+        OverSeverity.OVER -> NutrientColors.Over
+        OverSeverity.WARNING -> NutrientColors.Warning
+        OverSeverity.NORMAL -> null
+    }
     val scheme = MaterialTheme.colorScheme
 
     // 底色深淺代表「吃了多少」，讓整個月一眼看得出鬆緊；
-    // 超標另外用紅色，因為那是不同性質的資訊，不是「更多一點」而已。
+    // 超標另外用紅／橘，因為那是不同性質的資訊，不是「更多一點」而已。
     val fill = when {
         total == null -> Color.Transparent
-        over -> NutrientColors.Over.copy(alpha = 0.18f)
+        severityColor != null -> severityColor.copy(alpha = 0.18f)
         else -> {
             val ratio = if (settings.calorieTarget > 0) {
                 (kcal / settings.calorieTarget).coerceIn(0.0, 1.0).toFloat()
@@ -240,7 +246,7 @@ private fun DayCell(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 date.dayOfMonth.toString(),
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelLarge.copy(fontFamily = NumberFontFamily),
                 fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
                 // 未來的日期壓淡：它們永遠是空的，不該看起來像「忘了記錄」
                 color = when {
@@ -252,9 +258,9 @@ private fun DayCell(
             if (total != null) {
                 Text(
                     kcal.fmtInt(),
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = NumberFontFamily),
                     fontSize = 10.sp,
-                    color = if (over) NutrientColors.Over else scheme.onSurfaceVariant,
+                    color = severityColor ?: scheme.onSurfaceVariant,
                 )
             }
         }

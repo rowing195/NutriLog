@@ -65,6 +65,8 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -77,6 +79,7 @@ import com.watson.nutrilog.data.db.FoodEntry
 import com.watson.nutrilog.data.db.Meal
 import com.watson.nutrilog.data.db.Totals
 import com.watson.nutrilog.data.db.totals
+import com.watson.nutrilog.ui.theme.NumberFontFamily
 import com.watson.nutrilog.ui.theme.NutrientColors
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
@@ -503,6 +506,11 @@ private fun DayColumn(
 ) {
     val scheme = MaterialTheme.colorScheme
     val isOver = target > 0 && kcal > target
+    val severityColor = when (overSeverity(kcal, target)) {
+        OverSeverity.OVER -> NutrientColors.Over
+        OverSeverity.WARNING -> NutrientColors.Warning
+        OverSeverity.NORMAL -> null
+    }
     val fraction = if (target > 0) (kcal / target).coerceIn(0.0, 1.0).toFloat() else 0f
     val weekday = day.dayOfWeek.value % 7
     // 粗體、文字色、指示條都跟著 pillAlpha 這個連續值切換（過半才算選到），
@@ -532,7 +540,7 @@ private fun DayColumn(
         )
         Text(
             day.dayOfMonth.toString(),
-            style = MaterialTheme.typography.titleSmall.copy(letterSpacing = 0.sp),
+            style = MaterialTheme.typography.titleSmall.copy(letterSpacing = 0.sp, fontFamily = NumberFontFamily),
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
             // 未來的日期壓淡：它們永遠是空的，不該看起來像「忘了記錄」
             color = when {
@@ -557,7 +565,7 @@ private fun DayColumn(
                         .clip(RoundedCornerShape(3.dp))
                         .background(
                             when {
-                                isOver -> overColor
+                                severityColor != null -> severityColor
                                 isSelected -> scheme.primary
                                 else -> NutrientColors.Meals[1]
                             }
@@ -642,7 +650,13 @@ private fun Budget(entries: List<FoodEntry>, totals: Totals, settings: NutriSett
     val consumed = totals.calories
     val remaining = target - consumed
     val over = remaining < 0
-    val overColor = NutrientColors.Over
+    // 超標 10% 以內是橘色警示、超過 10% 才轉紅；severityColor 是 null 代表沒超標，
+    // 沿用原本的中性色。
+    val severityColor = when (overSeverity(consumed, target)) {
+        OverSeverity.OVER -> NutrientColors.Over
+        OverSeverity.WARNING -> NutrientColors.Warning
+        OverSeverity.NORMAL -> null
+    }
 
     Column(
         Modifier.padding(top = 16.dp, bottom = 14.dp),
@@ -658,8 +672,8 @@ private fun Budget(entries: List<FoodEntry>, totals: Totals, settings: NutriSett
             Spacer(Modifier.width(9.dp))
             Text(
                 consumed.fmtInt(),
-                style = MaterialTheme.typography.displayLarge,
-                color = if (over) overColor else scheme.onSurface,
+                style = MaterialTheme.typography.displayLarge.copy(fontFamily = NumberFontFamily),
+                color = severityColor ?: scheme.onSurface,
                 modifier = Modifier.alignByBaseline(),
             )
             Spacer(Modifier.width(6.dp))
@@ -673,28 +687,50 @@ private fun Budget(entries: List<FoodEntry>, totals: Totals, settings: NutriSett
 
         // 目標為 0 等於關掉這條線的意義，就不要講「還有 2000 的空間」
         if (target > 0) {
+            val targetStr = target.toString()
+            val amountStr = if (over) abs(remaining).fmtInt() else remaining.fmtInt()
+            val full = if (over) {
+                stringResource(R.string.calories_budget_over, target, amountStr)
+            } else {
+                stringResource(R.string.calories_budget_left, target, amountStr)
+            }
+            // 數字（純阿拉伯數字，不含中文）套襯線，其餘中文字維持無襯線 —— 用
+            // indexOf 找數字在句子裡的實際位置，不硬拆字串免得跟字串資源的用字脫鉤。
+            val annotated = remember(full, targetStr, amountStr) {
+                buildAnnotatedString {
+                    append(full)
+                    val targetStart = full.indexOf(targetStr)
+                    if (targetStart >= 0) {
+                        addStyle(SpanStyle(fontFamily = NumberFontFamily), targetStart, targetStart + targetStr.length)
+                    }
+                    val amountStart = full.indexOf(amountStr, targetStart + targetStr.length)
+                    if (amountStart >= 0) {
+                        addStyle(SpanStyle(fontFamily = NumberFontFamily), amountStart, amountStart + amountStr.length)
+                    }
+                }
+            }
             Text(
-                if (over) {
-                    stringResource(R.string.calories_budget_over, target, abs(remaining).fmtInt())
-                } else {
-                    stringResource(R.string.calories_budget_left, target, remaining.fmtInt())
-                },
+                annotated,
                 style = MaterialTheme.typography.bodySmall,
-                color = if (over) overColor else scheme.onSurfaceVariant,
+                color = severityColor ?: scheme.onSurfaceVariant,
             )
         }
 
-        MealSegmentBar(entries = entries, target = target, over = over)
+        MealSegmentBar(entries = entries, target = target)
     }
 }
 
 @Composable
-private fun MealSegmentBar(entries: List<FoodEntry>, target: Int, over: Boolean) {
+private fun MealSegmentBar(entries: List<FoodEntry>, target: Int) {
     val scheme = MaterialTheme.colorScheme
     val mealColors = NutrientColors.Meals
-    val overColor = NutrientColors.Over
     val consumed = entries.sumOf { it.calories }
     val remainder = (target - consumed).coerceAtLeast(0.0)
+    val severityColor = when (overSeverity(consumed, target)) {
+        OverSeverity.OVER -> NutrientColors.Over
+        OverSeverity.WARNING -> NutrientColors.Warning
+        OverSeverity.NORMAL -> null
+    }
 
     Row(
         Modifier
@@ -711,7 +747,7 @@ private fun MealSegmentBar(entries: List<FoodEntry>, target: Int, over: Boolean)
                 Modifier
                     .weight(kcal.toFloat())
                     .fillMaxHeight()
-                    .background(if (over) overColor else mealColors[index])
+                    .background(severityColor ?: mealColors[index])
             )
         }
         if (remainder > 0.0) {
@@ -821,7 +857,7 @@ private fun MacroLegend(label: String, value: Double, target: Int, color: Color)
         Row {
             Text(
                 value.fmtInt(),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodySmall.copy(fontFamily = NumberFontFamily),
                 fontWeight = FontWeight.Bold,
                 color = if (over) NutrientColors.Over else scheme.onSurface,
             )
@@ -872,7 +908,7 @@ private fun MealHeader(meal: Meal, ofMeal: List<FoodEntry>) {
         Text(meal.label(), style = MaterialTheme.typography.titleSmall, color = color)
         Text(
             if (empty) "—" else ofMeal.totals().calories.fmtInt() + " " + stringResource(R.string.unit_kcal),
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodySmall.copy(fontFamily = NumberFontFamily),
             color = if (empty) scheme.outline else scheme.onSurfaceVariant,
         )
     }
@@ -904,7 +940,7 @@ private fun EntryRow(entry: FoodEntry, onClick: () -> Unit) {
         }
         Text(
             entry.calories.fmtInt(),
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.titleMedium.copy(fontFamily = NumberFontFamily),
             fontWeight = FontWeight.Medium,
         )
     }

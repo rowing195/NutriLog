@@ -16,9 +16,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,6 +32,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.db.FoodSuggestion
+import com.watson.nutrilog.ui.theme.NutriFieldShape
+import com.watson.nutrilog.ui.theme.nutriFieldColors
 import java.time.LocalDate
 
 /**
@@ -108,7 +110,7 @@ fun TextLookupScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
-                OutlinedTextField(
+                TextField(
                     value = query,
                     onValueChange = { query = it },
                     label = { Text(stringResource(R.string.text_lookup_label)) },
@@ -117,6 +119,8 @@ fun TextLookupScreen(
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = { submit() }),
+                    shape = NutriFieldShape,
+                    colors = nutriFieldColors(),
                     modifier = Modifier.fillMaxWidth(),
                 )
 

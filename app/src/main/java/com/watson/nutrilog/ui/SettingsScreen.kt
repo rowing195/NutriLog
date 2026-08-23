@@ -14,13 +14,17 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -28,8 +32,13 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -40,6 +49,9 @@ import androidx.compose.ui.unit.dp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.DarkModePreference
 import com.watson.nutrilog.data.NutriSettings
+import com.watson.nutrilog.ui.theme.NumberFontFamily
+import com.watson.nutrilog.ui.theme.NutriFieldShape
+import com.watson.nutrilog.ui.theme.nutriFieldColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -138,7 +150,7 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            OutlinedTextField(
+            TextField(
                 value = settings.geminiApiKey,
                 onValueChange = { onChange(settings.copy(geminiApiKey = it.trim())) },
                 label = { Text(stringResource(R.string.settings_api_key)) },
@@ -146,6 +158,8 @@ fun SettingsScreen(
                 singleLine = true,
                 // key 不該直接顯示在畫面上 —— 截圖或旁人看到就等於外流
                 visualTransformation = PasswordVisualTransformation(),
+                shape = NutriFieldShape,
+                colors = nutriFieldColors(),
                 modifier = Modifier.fillMaxWidth(),
             )
             TextButton(onClick = {
@@ -153,12 +167,9 @@ fun SettingsScreen(
             }) {
                 Text(stringResource(R.string.settings_paste))
             }
-            OutlinedTextField(
+            ModelField(
                 value = settings.geminiModel,
-                onValueChange = { onChange(settings.copy(geminiModel = it.trim())) },
-                label = { Text(stringResource(R.string.settings_model)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
+                onChange = { onChange(settings.copy(geminiModel = it)) },
             )
             Text(
                 stringResource(R.string.settings_model_help),
@@ -208,7 +219,7 @@ private fun DarkModePreference.label(): String = stringResource(
  */
 @Composable
 private fun TargetField(label: String, value: Int, max: Int, onChange: (Int) -> Unit) {
-    OutlinedTextField(
+    TextField(
         value = if (value == 0) "" else value.toString(),
         onValueChange = { raw ->
             val digits = raw.filter { it.isDigit() }.take(5)
@@ -217,8 +228,47 @@ private fun TargetField(label: String, value: Int, max: Int, onChange: (Int) -> 
         label = { Text(label) },
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        // 輸入的內容一定是純數字，套襯線不會碰到中文 label（label 是另一個 Text，不吃這個 textStyle）
+        textStyle = LocalTextStyle.current.copy(fontFamily = NumberFontFamily),
+        shape = NutriFieldShape,
+        colors = nutriFieldColors(),
         modifier = Modifier.fillMaxWidth(),
     )
+}
+
+/** 目前只有這三個模型能用，改下拉選單就不會再有「名稱打錯」這種輸入錯誤。 */
+private val GEMINI_MODELS = listOf("gemini-3.6-flash", "gemini-3.7-flash", "gemini-3.5-flash-lite")
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ModelField(value: String, onChange: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+        TextField(
+            value = value,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(stringResource(R.string.settings_model)) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            textStyle = LocalTextStyle.current.copy(fontFamily = NumberFontFamily),
+            shape = NutriFieldShape,
+            colors = nutriFieldColors(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable, true),
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            GEMINI_MODELS.forEach { model ->
+                DropdownMenuItem(
+                    text = { Text(model, fontFamily = NumberFontFamily) },
+                    onClick = {
+                        onChange(model)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
 }
 
 private fun clipboardText(context: Context): String? {

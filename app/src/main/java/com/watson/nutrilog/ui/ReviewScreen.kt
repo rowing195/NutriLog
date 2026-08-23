@@ -30,6 +30,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.db.Meal
+import com.watson.nutrilog.ui.theme.NumberFontFamily
 import kotlin.math.roundToInt
 
 /**
@@ -196,7 +197,7 @@ private fun ItemRow(item: AnalysisItem, onToggle: () -> Unit) {
             }
             Text(
                 food.calories.fmtInt(),
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleMedium.copy(fontFamily = NumberFontFamily),
             )
         }
         Hairline()
