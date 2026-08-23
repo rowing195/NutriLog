@@ -802,9 +802,12 @@ private fun Macros(totals: Totals, settings: NutriSettings) {
                 )
             }
         }
+        // 原本是 spacedBy，三項只會從最左邊開始堆、右邊留一大片空白，
+        // 內容窄的時候（例如「67/60 脂肪」比另外兩項短）看起來歪一邊、不整齊。
+        // SpaceBetween 讓三項把整行寬度平均撐開，不管內容多寬都對齊到同一組位置。
         Row(
             Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             MacroLegend(stringResource(R.string.nutrient_protein), totals.proteinG, settings.proteinTargetG, protein)
             MacroLegend(stringResource(R.string.nutrient_fat), totals.fatG, settings.fatTargetG, fat)
@@ -862,18 +865,23 @@ private fun MacroLegend(label: String, value: Double, target: Int, color: Color)
                 .clip(RoundedCornerShape(4.dp))
                 .background(color)
         )
+        // Row 預設用 Top 對齊子項，襯線數字跟中西文混排的「/目標 單位」字體
+        // 量測出來的行高不一樣，Top 對齊會讓兩個 Text 底部對不齊、看起來歪一邊；
+        // alignByBaseline() 才是真的照文字基線對齊，跟 Budget() 那排數字同一招。
         Row {
             Text(
                 value.fmtInt(),
                 style = MaterialTheme.typography.bodySmall.copy(fontFamily = NumberFontFamily),
                 fontWeight = FontWeight.Bold,
                 color = severityColor ?: scheme.onSurface,
+                modifier = Modifier.alignByBaseline(),
             )
             Text(
                 buildAnnotatedString {
                     withStyle(SpanStyle(fontFamily = NumberFontFamily)) { append(targetPart) }
                     append(" $label")
                 },
+                modifier = Modifier.alignByBaseline(),
                 style = MaterialTheme.typography.bodySmall,
                 color = scheme.onSurfaceVariant,
             )

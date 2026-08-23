@@ -51,6 +51,9 @@
     <string name="keypad_done">完成</string>
     <string name="entry_serving">份量</string>
     <string name="entry_serving_hint">例如 1 碗 (250 g)</string>
+    <string name="portion_multiplier_label">份數倍率</string>
+    <string name="portion_decrease">減少份數</string>
+    <string name="portion_increase">增加份數</string>
     <string name="entry_advanced">進階營養素</string>
     <string name="save">儲存</string>
     <string name="cancel">取消</string>

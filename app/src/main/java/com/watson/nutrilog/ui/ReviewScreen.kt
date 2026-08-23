@@ -47,6 +47,7 @@ fun ReviewScreen(
     meal: Meal,
     onMealChange: (Meal) -> Unit,
     onToggle: (Int) -> Unit,
+    onMultiplierChange: (Int, Double) -> Unit,
     onSave: () -> Unit,
     onRetry: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -112,6 +113,7 @@ fun ReviewScreen(
                         meal = meal,
                         onMealChange = onMealChange,
                         onToggle = onToggle,
+                        onMultiplierChange = onMultiplierChange,
                         onSave = onSave,
                     )
                 }
@@ -126,6 +128,7 @@ private fun ReadyBody(
     meal: Meal,
     onMealChange: (Meal) -> Unit,
     onToggle: (Int) -> Unit,
+    onMultiplierChange: (Int, Double) -> Unit,
     onSave: () -> Unit,
 ) {
     val selectedCount = state.items.count { it.selected }
@@ -151,7 +154,11 @@ private fun ReadyBody(
             }
             item { MealPicker(meal, onSelect = onMealChange) }
             itemsIndexed(state.items) { index, item ->
-                ItemRow(item, onToggle = { onToggle(index) })
+                ItemRow(
+                    item = item,
+                    onToggle = { onToggle(index) },
+                    onMultiplierChange = { mult -> onMultiplierChange(index, mult) },
+                )
             }
         }
         Button(
@@ -167,14 +174,22 @@ private fun ReadyBody(
 }
 
 @Composable
-private fun ItemRow(item: AnalysisItem, onToggle: () -> Unit) {
+private fun ItemRow(
+    item: AnalysisItem,
+    onToggle: () -> Unit,
+    onMultiplierChange: (Double) -> Unit,
+) {
     val food = item.food
-    Column {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+    ) {
         Row(
             Modifier
                 .fillMaxWidth()
                 .clickable(onClick = onToggle)
-                .padding(vertical = 8.dp),
+                .padding(vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -198,6 +213,14 @@ private fun ItemRow(item: AnalysisItem, onToggle: () -> Unit) {
             Text(
                 food.calories.fmtInt(),
                 style = MaterialTheme.typography.titleMedium.copy(fontFamily = NumberFontFamily),
+            )
+        }
+        if (item.selected) {
+            PortionMultiplierBar(
+                multiplier = item.multiplier,
+                onMultiplierChange = onMultiplierChange,
+                compact = true,
+                modifier = Modifier.padding(start = 40.dp, end = 4.dp, top = 2.dp, bottom = 6.dp),
             )
         }
         Hairline()

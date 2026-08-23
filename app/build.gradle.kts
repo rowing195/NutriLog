@@ -107,4 +107,6 @@ dependencies {
     implementation(libs.okhttp)
     // 條碼掃描：UI 跑在 Play 服務裡，因此不需要 CAMERA 權限也不用自己寫 CameraX 預覽
     implementation(libs.play.services.code.scanner)
+
+    testImplementation(libs.junit)
 }

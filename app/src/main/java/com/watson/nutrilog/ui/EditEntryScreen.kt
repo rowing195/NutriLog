@@ -93,6 +93,10 @@ fun EditEntryScreen(
     // 現在的數字（多半是 AI 估的），接在後面幾乎永遠是錯的。
     var fresh by remember { mutableStateOf(false) }
 
+    // 份數縮放基準值與倍率
+    var baseDraft by remember(draft.id) { mutableStateOf(draft) }
+    var multiplier by remember(draft.id) { mutableStateOf(1.0) }
+
     val scheme = MaterialTheme.colorScheme
 
     // 鍵盤開著時返回鍵先收鍵盤，而不是直接把整張表單關掉
@@ -112,18 +116,20 @@ fun EditEntryScreen(
     }
 
     fun setValue(field: NumField, raw: String) {
-        onDraftChange(
-            when (field) {
-                NumField.CALORIES -> draft.copy(calories = raw)
-                NumField.PROTEIN -> draft.copy(protein = raw)
-                NumField.FAT -> draft.copy(fat = raw)
-                NumField.CARBS -> draft.copy(carbs = raw)
-                NumField.SUGAR -> draft.copy(sugar = raw)
-                NumField.SODIUM -> draft.copy(sodium = raw)
-                NumField.FIBER -> draft.copy(fiber = raw)
-                NumField.SATFAT -> draft.copy(satFat = raw)
-            }
-        )
+        val updated = when (field) {
+            NumField.CALORIES -> draft.copy(calories = raw)
+            NumField.PROTEIN -> draft.copy(protein = raw)
+            NumField.FAT -> draft.copy(fat = raw)
+            NumField.CARBS -> draft.copy(carbs = raw)
+            NumField.SUGAR -> draft.copy(sugar = raw)
+            NumField.SODIUM -> draft.copy(sodium = raw)
+            NumField.FIBER -> draft.copy(fiber = raw)
+            NumField.SATFAT -> draft.copy(satFat = raw)
+        }
+        if (multiplier == 1.0) {
+            baseDraft = updated
+        }
+        onDraftChange(updated)
     }
 
     Scaffold(
@@ -205,7 +211,10 @@ fun EditEntryScreen(
             FieldLabel(stringResource(R.string.entry_name_label))
             PlainTextField(
                 value = draft.name,
-                onValueChange = { onDraftChange(draft.copy(name = it)) },
+                onValueChange = {
+                    onDraftChange(draft.copy(name = it))
+                    if (multiplier == 1.0) baseDraft = baseDraft.copy(name = it)
+                },
                 placeholder = stringResource(R.string.entry_name),
                 textStyle = MaterialTheme.typography.titleLarge,
                 onFocus = { focused = null },
@@ -214,17 +223,31 @@ fun EditEntryScreen(
 
             MealPicker(draft.meal, Modifier.padding(vertical = 14.dp)) {
                 onDraftChange(draft.copy(meal = it))
+                if (multiplier == 1.0) baseDraft = baseDraft.copy(meal = it)
             }
 
             FieldLabel(stringResource(R.string.entry_serving))
             PlainTextField(
                 value = draft.servingText,
-                onValueChange = { onDraftChange(draft.copy(servingText = it)) },
+                onValueChange = {
+                    onDraftChange(draft.copy(servingText = it))
+                    if (multiplier == 1.0) baseDraft = baseDraft.copy(servingText = it)
+                },
                 placeholder = stringResource(R.string.entry_serving_hint),
                 textStyle = MaterialTheme.typography.bodyLarge,
                 onFocus = { focused = null },
             )
-            Hairline(Modifier.padding(top = 12.dp))
+
+            PortionMultiplierBar(
+                multiplier = multiplier,
+                onMultiplierChange = { newMult ->
+                    multiplier = newMult
+                    onDraftChange(draft.scaleFromBase(baseDraft, newMult))
+                },
+                modifier = Modifier.padding(top = 10.dp, bottom = 4.dp),
+            )
+
+            Hairline(Modifier.padding(top = 10.dp))
 
             NumberGrid(
                 cells = listOf(

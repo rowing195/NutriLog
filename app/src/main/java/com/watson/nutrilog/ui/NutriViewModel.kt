@@ -33,6 +33,7 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.YearMonth
+import kotlin.math.roundToInt
 
 /**
  * 畫面。沿用 LocalReader 的做法：sealed interface + when 分派，不引入導航函式庫。
@@ -59,8 +60,15 @@ sealed interface AnalysisState {
     data class Failed(val reason: String) : AnalysisState
 }
 
-/** 確認畫面裡的一列：模型認出來的東西，加上「要不要記錄」。 */
-data class AnalysisItem(val food: DetectedFood, val selected: Boolean = true)
+/** 確認畫面裡的一列：模型認出來的東西，加上「要不要記錄」與「份數倍率」。 */
+data class AnalysisItem(
+    val baseFood: DetectedFood,
+    val multiplier: Double = 1.0,
+    val selected: Boolean = true,
+) {
+    /** 依照目前設定的倍率等比縮放後的營養素 */
+    val food: DetectedFood get() = baseFood.scale(multiplier)
+}
 
 /**
  * 這次辨識是從哪裡來的。
@@ -132,6 +140,39 @@ data class EntryDraft(
         source = source.name,
         barcode = barcode,
     )
+
+    fun scaleFromBase(base: EntryDraft, multiplier: Double): EntryDraft {
+        if (multiplier == 1.0) {
+            return copy(
+                servingText = base.servingText,
+                calories = base.calories,
+                protein = base.protein,
+                fat = base.fat,
+                carbs = base.carbs,
+                sugar = base.sugar,
+                sodium = base.sodium,
+                fiber = base.fiber,
+                satFat = base.satFat,
+            )
+        }
+        val mult = (multiplier * 10.0).roundToInt() / 10.0
+        fun scaleVal(raw: String, isInt: Boolean = false): String {
+            val num = raw.toDoubleOrNull() ?: return ""
+            val scaled = num * mult
+            return if (isInt) Math.round(scaled).toString() else scaled.roundTo1().asInputValue()
+        }
+        return copy(
+            servingText = scaleServingText(base.servingText, mult),
+            calories = scaleVal(base.calories, isInt = true),
+            protein = scaleVal(base.protein),
+            fat = scaleVal(base.fat),
+            carbs = scaleVal(base.carbs),
+            sugar = scaleVal(base.sugar),
+            sodium = scaleVal(base.sodium, isInt = true),
+            fiber = scaleVal(base.fiber),
+            satFat = scaleVal(base.satFat),
+        )
+    }
 
     companion object {
         fun of(entry: FoodEntry) = EntryDraft(
@@ -444,7 +485,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
                         }
             }
             analysisState = result.fold(
-                onSuccess = { AnalysisState.Ready(it.map(::AnalysisItem)) },
+                onSuccess = { AnalysisState.Ready(it.map { food -> AnalysisItem(baseFood = food) }) },
                 onFailure = { AnalysisState.Failed(it.message ?: "unknown") },
             )
         }
@@ -457,6 +498,16 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         analysisState = AnalysisState.Ready(
             current.items.mapIndexed { i, item ->
                 if (i == index) item.copy(selected = !item.selected) else item
+            }
+        )
+    }
+
+    fun updateAnalysisMultiplier(index: Int, multiplier: Double) {
+        val current = analysisState as? AnalysisState.Ready ?: return
+        val clamped = (multiplier.coerceIn(0.1, 5.0) * 10.0).roundToInt() / 10.0
+        analysisState = AnalysisState.Ready(
+            current.items.mapIndexed { i, item ->
+                if (i == index) item.copy(multiplier = clamped) else item
             }
         )
     }
@@ -588,9 +639,59 @@ fun CachedProduct.defaultGrams(): Double =
         ?.takeIf { it > 0 }
         ?: 100.0
 
-private fun Double.roundTo1(): Double = Math.round(this * 10.0) / 10.0
+/** 依照倍率等比縮放食物營養素。 */
+fun DetectedFood.scale(multiplier: Double): DetectedFood {
+    if (multiplier == 1.0) return this
+    val mult = (multiplier * 10.0).roundToInt() / 10.0
+    return copy(
+        servingText = scaleServingText(servingText, mult),
+        calories = Math.round(calories * mult).toDouble(),
+        proteinG = (proteinG * mult).roundTo1(),
+        fatG = (fatG * mult).roundTo1(),
+        carbsG = (carbsG * mult).roundTo1(),
+        sugarG = sugarG?.let { (it * mult).roundTo1() },
+        sodiumMg = sodiumMg?.let { Math.round(it * mult).toDouble() },
+        fiberG = fiberG?.let { (it * mult).roundTo1() },
+        satFatG = satFatG?.let { (it * mult).roundTo1() },
+    )
+}
 
-private fun Double.asInputValue(): String =
+/** 智慧份量文字縮放：數值（如 200g, 700ml, 1 碗）等比縮放，無數值則附加倍數標記。 */
+fun scaleServingText(text: String, multiplier: Double): String {
+    val trimmed = text.trim()
+    val mult = (multiplier * 10.0).roundToInt() / 10.0
+    if (trimmed.isEmpty()) {
+        return if (mult == 1.0) "" else "${mult.asInputValue()} 份"
+    }
+    if (mult == 1.0) return trimmed
+
+    val numberRegex = Regex("[0-9]+(?:\\.[0-9]+)?")
+    val matches = numberRegex.findAll(trimmed).toList()
+    if (matches.isNotEmpty()) {
+        val sb = StringBuilder()
+        var lastIndex = 0
+        for (match in matches) {
+            sb.append(trimmed.substring(lastIndex, match.range.first))
+            val origVal = match.value.toDoubleOrNull()
+            if (origVal != null && origVal > 0) {
+                val scaled = (origVal * mult).roundTo1()
+                sb.append(scaled.asInputValue())
+            } else {
+                sb.append(match.value)
+            }
+            lastIndex = match.range.last + 1
+        }
+        sb.append(trimmed.substring(lastIndex))
+        return sb.toString()
+    } else {
+        val clean = trimmed.replace(Regex("\\s*\\([0-9.]*x\\)"), "")
+        return "$clean (${mult.asInputValue()}x)"
+    }
+}
+
+fun Double.roundTo1(): Double = Math.round(this * 10.0) / 10.0
+
+fun Double.asInputValue(): String =
     if (this % 1.0 == 0.0) toLong().toString() else toString()
 
 /**

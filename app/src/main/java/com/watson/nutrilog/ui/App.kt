@@ -165,6 +165,7 @@ fun NutriLogApp(viewModel: NutriViewModel) {
                 meal = viewModel.analysisMeal,
                 onMealChange = viewModel::updateAnalysisMeal,
                 onToggle = viewModel::toggleAnalysisItem,
+                onMultiplierChange = viewModel::updateAnalysisMultiplier,
                 onSave = viewModel::saveAnalysisSelection,
                 onRetry = viewModel::retryAnalysis,
                 onOpenSettings = { viewModel.goTo(Screen.Settings) },
