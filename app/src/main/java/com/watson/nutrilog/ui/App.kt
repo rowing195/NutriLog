@@ -89,12 +89,10 @@ fun NutriLogApp(viewModel: NutriViewModel) {
     when (viewModel.screen) {
         Screen.Today -> TodayScreen(
             date = viewModel.selectedDate,
-            entries = viewModel.entries,
-            totals = viewModel.totals,
             settings = viewModel.settings,
             weekStart = viewModel.weekStart,
-            weekTotals = viewModel.weekTotals,
-            frequent = viewModel.frequentFoods,
+            entriesFlow = viewModel::entriesFlow,
+            weekTotalsFlow = viewModel::weekTotalsFlow,
             onPickDay = viewModel::showDate,
             // 一週長條只走得到同一週，跨週靠這兩顆；再遠就開月曆
             onShiftWeek = { weeks -> viewModel.shiftDay(weeks * 7) },
@@ -102,7 +100,6 @@ fun NutriLogApp(viewModel: NutriViewModel) {
             onOpenEntry = viewModel::startEdit,
             onAddManual = { viewModel.startNewEntry() },
             onAddForMeal = { meal -> viewModel.startNewEntry(meal) },
-            onQuickAdd = viewModel::quickAdd,
             onAddPhoto = startCamera,
             onAddFromGallery = startGallery,
             // 這個畫面同時是常吃清單，不需要 key 也能用，

@@ -283,7 +283,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/TodayScreen.kt'>TodayScreen.kt</a></b></td>
-					<td style='padding: 8px;'>主畫面：一週長條、已吃熱量、依餐別分段的額度條、三大營養素組成、常吃快捷，以及固定四餐的紀錄清單。</td>
+					<td style='padding: 8px;'>主畫面：可左右滑動的一週長條與日紀錄、已吃熱量、依餐別分段的額度條、三大營養素組成，以及固定四餐的紀錄清單。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/EditEntryScreen.kt'>EditEntryScreen.kt</a></b></td>
@@ -311,7 +311,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/SettingsScreen.kt'>SettingsScreen.kt</a></b></td>
-					<td style='padding: 8px;'>Gemini API key、模型名稱、每日四項目標、進階營養素開關，以及 CSV 匯出。key 用密碼樣式顯示，截圖或旁人看到就等於外流。</td>
+					<td style='padding: 8px;'>外觀（跟隨系統／淺色／深色）、Gemini API key、模型名稱、每日四項目標、進階營養素開關，以及 CSV 匯出。key 用密碼樣式顯示，截圖或旁人看到就等於外流。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/Common.kt'>Common.kt</a></b></td>
@@ -335,7 +335,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 			</thead>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/theme/Theme.kt'>Theme.kt</a></b></td>
-					<td style='padding: 8px;'>「紙與墨」色票（明／暗）、襯線字階，以及三大營養素的語意色 `NutriPalette`。表面之間刻意幾乎沒有對比 —— 版面靠細線分隔而不是卡片色塊。</td>
+					<td style='padding: 8px;'>「紙與墨」色票（明／暗）、字階，以及三大營養素的語意色 `NutriPalette`。表面之間刻意幾乎沒有對比 —— 版面靠細線分隔而不是卡片色塊，深色不是純黑而是暖灰。</td>
 				</tr>
 			</table>
 		</blockquote>
@@ -491,9 +491,12 @@ Windows 上可以用附的腳本一次開模擬器並部署：
 
 ### 今日
 
-- 上方是**一週長條**：換日和「這幾天吃得鬆或緊」用同一個元件解決。
-  長條高度是當天熱量佔目標的比例，超標整條轉紅，空白的那幾天一眼看得出來。
-  兩側的箭頭跨週，再遠就開月曆。
+- 上方是**一週長條**，中下方是**當天的內容**，兩者都可以左右滑動換日／換週，
+  滑動跨到別週時上方長條會自己跟著換頁，不用另外點箭頭。長條高度是當天熱量
+  佔目標的比例，超標整條轉紅，空白的那幾天一眼看得出來。兩側箭頭做一樣的事，
+  滑動與點按共用同一條路徑。
+  （分頁器鎖了「每次滑動最多換一頁」——Compose 的分頁器預設看滑動速度決定
+  跳幾頁，手快一點一次滑動可能直接跳十幾天，跟日記本翻頁的直覺完全不符。）
 - 主數字是**已經吃多少**，目標與剩餘額度退到下面一行。
   （早期版本主打「還可以吃」，但實際用下來，打開 app 最先想確認的
   是「我今天吃了什麼程度」——剩餘是從那個數字推出來的第二個問題。）
@@ -501,9 +504,8 @@ Windows 上可以用附的腳本一次開模擬器並部署：
   和「三餐平均」是完全不同的一天，看形狀就分得出來 —— 這是環做不到的。
 - 三大營養素畫成**組成**（三者換算成熱量後的佔比），圖例才講目標達成率。
   兩個問題一個元件回答：今天吃的結構長怎樣、以及蛋白質夠不夠。
-- **常吃快捷**：忘了拍照、事後才想補登時最短的一條路，一點就記進今天。
-  這裡不繞確認畫面 —— 數字是使用者自己吃過、自己存過的，不是模型估的。
-- **早／午／晚／點心四格一律都顯示**，空的也留著。
+  下面的進階營養素（糖／鈉／膳食纖維／飽和脂肪）擠不下就橫向捲動，不硬塞成一行小字。
+- **早／午／晚／點心四格一律都顯示**，餐與餐之間用細線隔開，空的也留著。
   只列有紀錄的餐別時，「今天還沒吃早餐」和「今天忘了記早餐」在畫面上
   長得一模一樣（兩者都是不存在）。固定四格之後空的那格本身就是提醒，
   點下去還能直接補登該餐、餐別已預選好。
@@ -544,8 +546,11 @@ AI 估的數字最常在這裡出錯。不擋儲存，真實食物本來就有�
 
 ### 搜尋與個人食物庫
 
-右上角放大鏡打開。同一份食物庫也出現在新增選單的「常吃／文字輸入」上半，
-以及今日頁的常吃快捷 —— 三個入口，同一份從你自己的紀錄長出來的清單。
+右上角放大鏡打開。同一份食物庫也出現在新增選單的「常吃／文字輸入」上半 ——
+兩個入口，同一份從你自己的紀錄長出來的清單。
+
+（今日頁原本另外有一排「常吃」快捷 chip，可以不進表單直接記一筆，但因為
+太容易點錯、跟這裡功能重複，已經拿掉。）
 
 **沒輸入時**是食物庫，兩頁可左右滑動切換：
 
@@ -613,12 +618,12 @@ Manifest 裡**只有 `INTERNET` 一個權限**：
 
 ### 配色：用線分隔，不用色塊
 
-視覺基底是「紙與墨」：暖中性底色、襯線給數字與食物名稱。有兩件事會咬人：
+視覺基底是「紙與墨」：暖中性底色、全部用無襯線字。有兩件事會咬人：
 
 - **表面之間幾乎沒有對比**（底 `#F8F7F2` vs 浮起 `#FDFCF9` 只差 3%）。
   這是故意的 —— 版面靠**細線**分隔，不是靠卡片色塊。不要為了「看得出是一張卡」
   去加深 `surfaceContainer`，那會把整個設計拉回舊樣子。要分隔就畫線。
-- **深色不是純黑而是暖灰 `#191813`**。純黑會讓襯線字看起來發灰，細線也會整條消失。
+- **深色不是純黑而是暖灰 `#191813`**。純黑會讓文字看起來發灰，細線也會整條消失。
 
 Material3 的預設 baseline 是紫色系，**新增顏色角色時整族都要蓋**
 （`surfaceContainer*`、`surfaceVariant`、`outline*`），少蓋一個就會有元件固執地維持預設紫。
@@ -627,15 +632,15 @@ Material3 的預設 baseline 是紫色系，**新增顏色角色時整族都要�
 超標轉紅），讓桌布決定色相會直接破壞那層意義。三大營養素的色是
 `@Composable` getter 而不是常數 —— 深淺兩套的值不一樣（深色底上要提亮）。
 
-字體用系統的 `FontFamily.Serif` 而不是打包字型檔：中文會落到 Noto Serif CJK，
-而打包一套中文襯線要多好幾 MB，這支 app 的 APK 是直接分享給人裝的，不值得。
+數字與食物名稱原本刻意用系統襯線（`FontFamily.Serif`），但中文襯線在大部分裝置上
+會落到偏傳統印刷體的字重，讀起來像新細明體而不是想要的柔和感，所以全部改回無襯線
+（Roboto + 中文落到 Noto Sans CJK）—— 沒有額外打包字型檔，也不用為了避開襯線而
+另外去接 Downloadable Fonts。
 
 ### 為什麼模型結果一定要經過確認畫面
 
 Gemini 給的是**估算值**。直接寫進資料庫等於在使用者的飲食紀錄裡塞模型自己編的數字。
 確認畫面會顯示每一項的把握度，可以逐項取消勾選；存進去之後仍然可以點進去逐欄修改。
-
-常吃快捷是**唯一**不繞確認畫面的路徑，因為那組數字是使用者自己吃過、自己存過的。
 
 ### 為什麼手動輸入條碼是必要功能而不是備案
 

@@ -22,6 +22,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -35,6 +38,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.watson.nutrilog.R
+import com.watson.nutrilog.data.DarkModePreference
 import com.watson.nutrilog.data.NutriSettings
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -69,6 +73,20 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            SectionTitle(stringResource(R.string.settings_appearance))
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                DarkModePreference.entries.forEachIndexed { index, option ->
+                    SegmentedButton(
+                        selected = settings.darkMode == option,
+                        onClick = { onChange(settings.copy(darkMode = option)) },
+                        shape = SegmentedButtonDefaults.itemShape(index, DarkModePreference.entries.size),
+                        label = { Text(option.label()) },
+                    )
+                }
+            }
+
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
             SectionTitle(stringResource(R.string.settings_targets))
             TargetField(
                 label = stringResource(R.string.nutrient_calories) + "（" + stringResource(R.string.unit_kcal) + "）",
@@ -174,6 +192,15 @@ fun SettingsScreen(
 private fun SectionTitle(text: String) {
     Text(text, style = MaterialTheme.typography.titleMedium)
 }
+
+@Composable
+private fun DarkModePreference.label(): String = stringResource(
+    when (this) {
+        DarkModePreference.SYSTEM -> R.string.dark_mode_system
+        DarkModePreference.LIGHT -> R.string.dark_mode_light
+        DarkModePreference.DARK -> R.string.dark_mode_dark
+    }
+)
 
 /**
  * 目標值欄位。空字串當 0（等於關掉那條進度條的意義），

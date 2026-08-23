@@ -19,8 +19,6 @@ import com.watson.nutrilog.data.db.FoodEntry
 import com.watson.nutrilog.data.db.FoodSuggestion
 import com.watson.nutrilog.data.db.Meal
 import com.watson.nutrilog.data.db.NutriDatabase
-import com.watson.nutrilog.data.db.Totals
-import com.watson.nutrilog.data.db.totals
 import com.watson.nutrilog.data.net.DetectedFood
 import com.watson.nutrilog.data.net.GeminiClient
 import com.watson.nutrilog.data.net.ImageCompressor
@@ -169,23 +167,11 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         private set
     var selectedDate by mutableStateOf(LocalDate.now())
         private set
-    var entries by mutableStateOf<List<FoodEntry>>(emptyList())
-        private set
     /** 月曆目前顯示的月份 */
     var visibleMonth by mutableStateOf(YearMonth.now())
         private set
     /** 該月每一天的合計，key 是 "yyyy-MM-dd"。沒紀錄的日子不會出現在 map 裡。 */
     var monthTotals by mutableStateOf<Map<String, DayTotal>>(emptyMap())
-        private set
-
-    /**
-     * 今日頁上方那條一週長條要的合計，key 同樣是 "yyyy-MM-dd"。
-     *
-     * 和 [monthTotals] 分開存而不是共用一份：月曆看的是 [visibleMonth]，
-     * 一週長條看的是 [selectedDate] 所在的那一週，兩者會落在不同月份
-     * （月初往前翻一天就跨月），硬要共用就得先算聯集，得不償失。
-     */
-    var weekTotals by mutableStateOf<Map<String, DayTotal>>(emptyMap())
         private set
 
     /** 一週的第一天。星期日起算，和月曆的排法一致（台灣的日曆慣例）。 */
@@ -222,7 +208,15 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     var exportMessage by mutableStateOf<String?>(null)
         private set
 
-    val totals: Totals get() = entries.totals()
+    /**
+     * 今日頁的日／週分頁各自訂閱自己那天／那週的資料，不跟著 [selectedDate] 走 ——
+     * 分頁滑動時左右兩頁都要能各自顯示正確內容，不能只有目前選到的那頁有資料。
+     * 本機 SQLite 查詢近乎零成本，每頁各開一條 Flow 沒有問題。
+     */
+    fun entriesFlow(date: LocalDate) = dao.observeDay(date.toString())
+
+    fun weekTotalsFlow(weekStart: LocalDate) =
+        dao.observeRange(weekStart.toString(), weekStart.plusDays(6).toString())
 
     init {
         viewModelScope.launch { settingsStore.settingsFlow.collect { settings = it } }
@@ -233,20 +227,6 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
                     dao.observeRange(month.atDay(1).toString(), month.atEndOfMonth().toString())
                 }
                 .collect { totals -> monthTotals = totals.associateBy { it.date } }
-        }
-        // 換日期就要換一條 Flow。用 snapshotFlow 把 Compose state 轉成 Flow，
-        // flatMapLatest 會自動取消上一天的訂閱，不會累積。
-        viewModelScope.launch {
-            snapshotFlow { selectedDate }
-                .flatMapLatest { dao.observeDay(it.toString()) }
-                .collect { entries = it }
-        }
-        // 換到別週才換一條 Flow。weekStart 是從 selectedDate 推出來的，
-        // snapshotFlow 讀得到，所以換日跨週時會自己跟上。
-        viewModelScope.launch {
-            snapshotFlow { weekStart }
-                .flatMapLatest { start -> dao.observeRange(start.toString(), start.plusDays(6).toString()) }
-                .collect { totals -> weekTotals = totals.associateBy { it.date } }
         }
         viewModelScope.launch {
             dao.observeFrequentFoods(
@@ -314,20 +294,6 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
 
     /** 從食物庫或搜尋結果再記一筆：填好草稿丟進編輯表單，份量與餐別都還能改。 */
     fun reuse(suggestion: FoodSuggestion) = startPrefilled(suggestion.toDraft())
-
-    /**
-     * 今日頁「常吃」快捷：直接記進目前這天，不繞編輯表單。
-     *
-     * 這裡不走確認畫面是有意的，而且和「AI 的數字一定要確認」並不衝突 ——
-     * 這組數字是使用者自己吃過、自己存過的，不是模型估的。整條路的價值
-     * 就在於一次點擊，多一張表單等於把它變回原本那條路。
-     *
-     * 記錯了也看得見：新的一筆會立刻出現在下面該餐的清單裡，點進去就能改或刪。
-     */
-    fun quickAdd(suggestion: FoodSuggestion) {
-        val entry = suggestion.toDraft().toEntry(selectedDate)
-        viewModelScope.launch { dao.upsert(entry) }
-    }
 
     fun reuse(entry: FoodEntry) = startPrefilled(EntryDraft.of(entry).copy(id = null))
 

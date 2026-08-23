@@ -76,19 +76,34 @@ Material3 預設 baseline 是紫色系。**新增顏色角色時整族都要蓋*
   這是故意的：版面靠**細線**（`Hairline()` / `outlineVariant`）分隔，不是靠卡片色塊。
   不要為了「看得出是一張卡」去加深 `surfaceContainer` —— 那會把整個設計拉回舊樣子。
   **要分隔就畫線，不要填色。** 新畫面請直接用 `Hairline()`，不要用 `Card`。
-- **深色不是純黑而是暖灰** `#191813`。純黑會讓襯線字看起來發灰，細線也會整條消失。
+- **深色不是純黑而是暖灰** `#191813`。純黑會讓文字看起來發灰，細線也會整條消失。
 
 三大營養素的固定色放在 `theme/NutrientColors`，不要在各畫面自己寫死色碼。
 它們是 `@Composable` getter 而不是常數 —— 深淺兩套的值不一樣（深色底上要提亮），
 正確的那一套只有在 composition 裡讀得到，所以**不能**在 top-level `val` 用它們。
 
-字體：襯線（`FontFamily.Serif`）給數字與食物名稱，無襯線給介面文字。
-用系統襯線而不是打包字型檔 —— 中文會落到 Noto Serif CJK，而打包一套中文襯線
-要多好幾 MB，這支 app 的 APK 是直接分享給人裝的，不值得。
+字體全部用無襯線（`Base = Typography()` 沒覆寫 `fontFamily`，Roboto + 中文落到
+Noto Sans CJK）。原本數字與食物名稱刻意用系統襯線，但中文襯線在大部分裝置上
+讀起來像新細明體，不是想要的柔和感，改回無襯線就沒這問題，也不用為了避開它
+另外去接 Downloadable Fonts 或打包字型檔。
 
 **自己拼的 `topBar` / `bottomBar` 要自己加 `statusBarsPadding()` / `navigationBarsPadding()`。**
 `MainActivity` 開了 `enableEdgeToEdge()`，M3 的 `TopAppBar` 會自己處理，
 但用 `Column`/`Row` 拼的不會 —— 標題會直接畫到狀態列的時鐘上面。
+
+**今日頁的日／週分頁器有兩個好踩的坑：**
+
+- `HorizontalPager` 的預設 fling 行為會看滑動速度決定跳幾頁，快速一撥可能
+  一次跳十幾頁 —— 完全違反「一次滑動＝換一天／一週」的直覺。兩個分頁器都要用
+  `PagerDefaults.flingBehavior(state, pagerSnapDistance = PagerSnapDistance.atMost(1))`
+  鎖成最多一頁，不管滑多快。
+- `LaunchedEffect(pagerState) { snapshotFlow { pagerState.settledPage }.collect { ... } }`
+  這個 collector 只在第一次組成時啟動一次（`pagerState`這個 key 整個生命週期
+  都不會變），裡面**不能**直接讀外面會變動的 `date`/`weekStart` 參數 —— 抓到的
+  永遠是啟動當下那個舊值，之後即使外部真的變了也不會更新，會造成錯誤地重複
+  觸發換日／換週，一路滾雪球疊加下去。要用 `rememberUpdatedState` 包起來，
+  每次比對才會拿到當下真正的值。這個 bug 曾經真實發生過：從今天單純滑一次
+  「前一天」，會直接跳掉十幾天。
 
 ## 改動慣例
 
@@ -99,5 +114,8 @@ Material3 預設 baseline 是紫色系。**新增顏色角色時整族都要蓋*
 - 營養素缺資料一律 `null`，不要補 0 ——「沒標示」和「真的是 0」必須分得開。
 - 模型或外部 API 回來的數字**永遠要經過使用者確認畫面**才入庫。
 - 解析外部資料（OFF、Gemini、DataStore）一律 `runCatching` 包起來給安全退路。
-- 動到閱讀以外的畫面後，回歸這三項：**手動新增→編輯→刪除**、
+- 動到閱讀以外的畫面後，回歸這幾項：**手動新增→編輯→刪除**、
   **換日**（前一天應為空、回今天資料還在）、**force-stop 後資料與設定都還在**。
+  動到今日頁的分頁器另外要測**單純滑動一次剛好只換一天／一週**，而不是只看
+  「滑得動」就算過——上面記的那個滾雪球 bug 連滑一次、滑完等它完全 settle
+  再檢查畫面都會重現，光看有沒有反應看不出來，要對日期數字。

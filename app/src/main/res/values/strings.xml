@@ -31,7 +31,6 @@
     <!-- 今日頁 -->
     <string name="prev_week">上一週</string>
     <string name="next_week">下一週</string>
-    <string name="quick_add_label">常吃 · 一點就記</string>
 
     <!-- 新增入口 -->
     <string name="add_entry">記一筆</string>
@@ -89,6 +88,10 @@
 
     <!-- 設定 -->
     <string name="settings_title">設定</string>
+    <string name="settings_appearance">外觀</string>
+    <string name="dark_mode_system">跟隨系統</string>
+    <string name="dark_mode_light">淺色</string>
+    <string name="dark_mode_dark">深色</string>
     <string name="settings_targets">每日目標</string>
     <string name="settings_gemini">AI 影像辨識</string>
     <string name="settings_api_key">Gemini API key</string>

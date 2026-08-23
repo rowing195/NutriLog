@@ -10,7 +10,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
@@ -182,40 +181,39 @@ private val DarkColors = darkColorScheme(
 )
 
 /**
- * 襯線給數字與食物名稱，無襯線給介面文字。
+ * 全部用預設無襯線字（Roboto + 中文落到 Noto Sans CJK）。
  *
- * 用系統的 [FontFamily.Serif] 而不是打包字型檔：Android 內建的襯線在中文會落到
- * Noto Serif CJK，看起來正是要的樣子，而打包一套中文襯線要多好幾 MB
- * ——這支 app 的 APK 是直接分享給人裝的，不值得為字型胖那麼多。
+ * 原本數字與食物名稱刻意用系統襯線（`FontFamily.Serif`），
+ * 但中文襯線在大部分裝置上會落到偏傳統印刷體的字重，讀起來像新細明體，
+ * 不是想要的柔和感。改回無襯線之後兩邊字重才統一，也不用為了避開它
+ * 而額外去下載字型檔。
  */
-private val Serif = FontFamily.Serif
-
 private val Base = Typography()
 
 private val NutriTypography = Typography(
     // 主數字（還可以吃 490）
     displayLarge = Base.displayLarge.copy(
-        fontFamily = Serif, fontSize = 46.sp, lineHeight = 50.sp,
+        fontSize = 46.sp, lineHeight = 50.sp,
         fontWeight = FontWeight.SemiBold, letterSpacing = (-1.5).sp,
     ),
     // 表單裡 2×2 的數字
     headlineSmall = Base.headlineSmall.copy(
-        fontFamily = Serif, fontSize = 26.sp, lineHeight = 32.sp,
+        fontSize = 26.sp, lineHeight = 32.sp,
         fontWeight = FontWeight.SemiBold, letterSpacing = (-0.5).sp,
     ),
     // 名稱輸入
     titleLarge = Base.titleLarge.copy(
-        fontFamily = Serif, fontSize = 22.sp, lineHeight = 30.sp,
+        fontSize = 22.sp, lineHeight = 30.sp,
         fontWeight = FontWeight.Medium,
     ),
     // 紀錄列的食物名稱與熱量
     titleMedium = Base.titleMedium.copy(
-        fontFamily = Serif, fontSize = 16.sp, lineHeight = 21.sp,
+        fontSize = 16.sp, lineHeight = 21.sp,
         fontWeight = FontWeight.Normal,
     ),
     // 餐別標題（早餐／午餐…），字距拉開當作小標
     titleSmall = Base.titleSmall.copy(
-        fontFamily = Serif, fontSize = 14.sp, lineHeight = 19.sp,
+        fontSize = 14.sp, lineHeight = 19.sp,
         fontWeight = FontWeight.SemiBold, letterSpacing = 3.sp,
     ),
     bodyLarge = Base.bodyLarge.copy(fontSize = 15.sp, lineHeight = 21.sp),

@@ -29,6 +29,7 @@ data class NutriSettings(
     val carbsTargetG: Int = 250,
     /** 關掉時，輸入表單的進階營養素區塊預設收合 */
     val showExtendedNutrients: Boolean = false,
+    val darkMode: DarkModePreference = DarkModePreference.SYSTEM,
 ) {
     companion object {
         // 模型會改朝換代，所以設定頁可以改。注意 gemini-2.0-flash 已經下架，別填。
@@ -42,6 +43,10 @@ data class NutriSettings(
         const val MAX_MACRO_TARGET = 800
     }
 }
+
+/** 深色模式要不要跟系統走。獨立成 enum 而不是單一 boolean，因為「跟系統」本身是第三種狀態。 */
+@Serializable
+enum class DarkModePreference { SYSTEM, LIGHT, DARK }
 
 // 必須是「每個檔名只有一個」的頂層委派，重複建立會在執行期直接拋例外
 private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "nutri_prefs")

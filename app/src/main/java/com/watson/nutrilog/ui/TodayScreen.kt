@@ -1,8 +1,8 @@
 package com.watson.nutrilog.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +19,12 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerDefaults
+import androidx.compose.foundation.pager.PagerSnapDistance
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -37,10 +43,14 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,33 +64,38 @@ import com.watson.nutrilog.R
 import com.watson.nutrilog.data.NutriSettings
 import com.watson.nutrilog.data.db.DayTotal
 import com.watson.nutrilog.data.db.FoodEntry
-import com.watson.nutrilog.data.db.FoodSuggestion
 import com.watson.nutrilog.data.db.Meal
 import com.watson.nutrilog.data.db.Totals
 import com.watson.nutrilog.data.db.totals
 import com.watson.nutrilog.ui.theme.NutrientColors
+import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import kotlin.math.abs
 
-/** 常吃快捷最多擺幾個。再多就會擠成兩行，那就不是「一眼看到、一次點到」了。 */
-private const val QUICK_ADD_COUNT = 3
+/**
+ * 日分頁的頁碼半徑。以「開啟這個畫面那一刻」為基準日，左右各留這麼多天，
+ * 換算成頁碼給 [HorizontalPager]。用得到的範圍遠小於這個數字，
+ * 但頁碼只是個 Int，留寬一點不花任何成本。
+ */
+private const val DAY_RADIUS = 36_500
+private const val DAY_PAGE_COUNT = DAY_RADIUS * 2 + 1
+private const val WEEK_RADIUS = 5_200
+private const val WEEK_PAGE_COUNT = WEEK_RADIUS * 2 + 1
 
 @Composable
 fun TodayScreen(
     date: LocalDate,
-    entries: List<FoodEntry>,
-    totals: Totals,
     settings: NutriSettings,
     weekStart: LocalDate,
-    weekTotals: Map<String, DayTotal>,
-    frequent: List<FoodSuggestion>,
+    entriesFlow: (LocalDate) -> Flow<List<FoodEntry>>,
+    weekTotalsFlow: (LocalDate) -> Flow<List<DayTotal>>,
     onPickDay: (LocalDate) -> Unit,
     onShiftWeek: (Long) -> Unit,
     onBackToToday: () -> Unit,
     onOpenEntry: (FoodEntry) -> Unit,
     onAddManual: () -> Unit,
     onAddForMeal: (Meal) -> Unit,
-    onQuickAdd: (FoodSuggestion) -> Unit,
     onAddPhoto: () -> Unit,
     onAddFromGallery: () -> Unit,
     onAddText: () -> Unit,
@@ -91,7 +106,63 @@ fun TodayScreen(
 ) {
     val today = LocalDate.now()
     var showAddSheet by remember { mutableStateOf(false) }
-    val quick = frequent.take(QUICK_ADD_COUNT)
+
+    // 兩個分頁器共用同一個基準日：day pager 一頁一天，week pager 一頁一週，
+    // 頁碼都是「離基準日差幾天／幾週」換算出來的，換日或換週時互相同步。
+    val epoch = remember { LocalDate.now() }
+    val epochWeekStart = remember(epoch) { epoch.minusDays((epoch.dayOfWeek.value % 7).toLong()) }
+
+    fun dayPageOf(d: LocalDate) = DAY_RADIUS + ChronoUnit.DAYS.between(epoch, d).toInt()
+    fun dayOfPage(page: Int) = epoch.plusDays((page - DAY_RADIUS).toLong())
+    fun weekPageOf(ws: LocalDate) = WEEK_RADIUS + ChronoUnit.WEEKS.between(epochWeekStart, ws).toInt()
+    fun weekOfPage(page: Int) = epochWeekStart.plusWeeks((page - WEEK_RADIUS).toLong())
+
+    val dayPagerState = rememberPagerState(
+        initialPage = dayPageOf(date),
+        pageCount = { DAY_PAGE_COUNT },
+    )
+    val weekPagerState = rememberPagerState(
+        initialPage = weekPageOf(weekStart),
+        pageCount = { WEEK_PAGE_COUNT },
+    )
+
+    // LaunchedEffect(pagerState) 只在第一次組成時啟動一次（pagerState 這個 key
+    // 整個生命週期都不會變），裡面的協程若直接讀外面的 date/weekStart，抓到的
+    // 會是「第一次組成當下」那個值，之後永遠不會更新 —— 用 rememberUpdatedState
+    // 包起來，每次比對才會用當下真正的值，而不是啟動當下的舊值。
+    //
+    // 這裡曾經漏了這一步：分頁器自己滑動觸發 onPickDay，selectedDate 真的變了，
+    // 但這條 collector 手上的 weekStart 還停在剛開啟畫面時的那個舊值，算出來的
+    // 週數差就是錯的，於是又呼叫一次 onShiftWeek 疊加上去，一路滾雪球下去。
+    // 實測過：從今天單純滑一次「前一天」，會直接跳掉十幾天。
+    val currentDate = rememberUpdatedState(date)
+    val currentWeekStart = rememberUpdatedState(weekStart)
+
+    // 外部改變日期（開別的畫面回來、月曆跳頁、「回到今天」…）就把分頁器滑過去；
+    // 使用者自己滑出來的頁碼在呼叫 onPickDay 之前就已經跟 date 一致，這裡是 no-op。
+    // Compose 的 Pager 對距離很遠的目標會先跳近再補一段動畫，所以「回到今天」
+    // 這種一次跳一年的情況也不會真的把中間每一頁都劃過去。
+    LaunchedEffect(date) {
+        val target = dayPageOf(date)
+        if (dayPagerState.currentPage != target) dayPagerState.animateScrollToPage(target)
+    }
+    LaunchedEffect(dayPagerState) {
+        snapshotFlow { dayPagerState.settledPage }.collect { page ->
+            val d = dayOfPage(page)
+            if (d != currentDate.value) onPickDay(d)
+        }
+    }
+    LaunchedEffect(weekStart) {
+        val target = weekPageOf(weekStart)
+        if (weekPagerState.currentPage != target) weekPagerState.animateScrollToPage(target)
+    }
+    LaunchedEffect(weekPagerState) {
+        snapshotFlow { weekPagerState.settledPage }.collect { page ->
+            val ws = weekOfPage(page)
+            val deltaWeeks = ChronoUnit.WEEKS.between(currentWeekStart.value, ws)
+            if (deltaWeeks != 0L) onShiftWeek(deltaWeeks)
+        }
+    }
 
     Scaffold(
         // 標頭和一週長條不進捲動區：換日是隨時要按得到的，
@@ -109,8 +180,9 @@ fun TodayScreen(
                     onOpenSettings = onOpenSettings,
                 )
                 WeekStrip(
-                    weekStart = weekStart,
-                    weekTotals = weekTotals,
+                    pagerState = weekPagerState,
+                    weekOfPage = ::weekOfPage,
+                    weekTotalsFlow = weekTotalsFlow,
                     selected = date,
                     today = today,
                     target = settings.calorieTarget,
@@ -131,37 +203,26 @@ fun TodayScreen(
             }
         },
     ) { inner ->
-        LazyColumn(
+        HorizontalPager(
+            state = dayPagerState,
+            // Compose 的 fling 預設看滑動速度決定要跳幾頁，快速一撥可能一次跳十幾天
+            // ——完全違反「一次滑動＝換一天」的直覺（實測過，真的會發生）。
+            // 鎖成最多一頁，不管滑多快都只換一天，跟日記本翻頁的手感一致。
+            flingBehavior = PagerDefaults.flingBehavior(
+                state = dayPagerState,
+                pagerSnapDistance = PagerSnapDistance.atMost(1),
+            ),
             modifier = Modifier
                 .fillMaxSize()
                 .padding(inner),
-            contentPadding = PaddingValues(horizontal = 22.dp),
-        ) {
-            item { Hairline() }
-            item { Budget(entries, totals, settings) }
-            item { Hairline() }
-            item { Macros(totals, settings) }
-            if (quick.isNotEmpty()) {
-                item { Hairline() }
-                item { QuickAdd(quick, onQuickAdd) }
-            }
-            item { Hairline() }
-
-            Meal.entries.forEach { meal ->
-                val ofMeal = entries.filter { it.mealType == meal }
-                item(key = "header-" + meal.name) { MealHeader(meal, ofMeal) }
-                if (ofMeal.isEmpty()) {
-                    item(key = "empty-" + meal.name) {
-                        EmptyMealRow(onClick = { onAddForMeal(meal) })
-                    }
-                } else {
-                    items(ofMeal, key = { it.id }) { entry ->
-                        EntryRow(entry, onClick = { onOpenEntry(entry) })
-                    }
-                }
-            }
-            // 最後一筆不要被 FAB 蓋住
-            item { Spacer(Modifier.height(80.dp)) }
+        ) { page ->
+            DayPage(
+                date = dayOfPage(page),
+                entriesFlow = entriesFlow,
+                settings = settings,
+                onOpenEntry = onOpenEntry,
+                onAddForMeal = onAddForMeal,
+            )
         }
     }
 
@@ -221,12 +282,14 @@ private fun HeaderRow(
  * 原本那一列只顯示一天，佔掉整整一列卻只講一個日期。
  *
  * 長條高度是當天熱量佔目標的比例，超標整條轉紅。空白的那幾天
- * 一眼就看得出是漏記還是真的沒吃。
+ * 一眼就看得出是漏記還是真的沒吃。中間那排日期本身是 [HorizontalPager]
+ * 的一頁，可以左右滑動換週，兩側箭頭做一樣的事，滑動與點按共用同一條路徑。
  */
 @Composable
 private fun WeekStrip(
-    weekStart: LocalDate,
-    weekTotals: Map<String, DayTotal>,
+    pagerState: PagerState,
+    weekOfPage: (Int) -> LocalDate,
+    weekTotalsFlow: (LocalDate) -> Flow<List<DayTotal>>,
     selected: LocalDate,
     today: LocalDate,
     target: Int,
@@ -234,7 +297,6 @@ private fun WeekStrip(
     onShiftWeek: (Long) -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val over = NutrientColors.Over
     Row(
         Modifier
             .fillMaxWidth()
@@ -249,24 +311,23 @@ private fun WeekStrip(
                 tint = scheme.onSurfaceVariant,
             )
         }
-        Row(
-            Modifier.weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(3.dp),
-        ) {
-            repeat(7) { index ->
-                val day = weekStart.plusDays(index.toLong())
-                val kcal = weekTotals[day.toString()]?.kcal ?: 0.0
-                DayColumn(
-                    day = day,
-                    kcal = kcal,
-                    target = target,
-                    isSelected = day == selected,
-                    isFuture = day.isAfter(today),
-                    overColor = over,
-                    onClick = { onPickDay(day) },
-                    modifier = Modifier.weight(1f),
-                )
-            }
+        HorizontalPager(
+            state = pagerState,
+            // 跟日分頁同一個理由：一次滑動最多只換一週，不管滑多快。
+            flingBehavior = PagerDefaults.flingBehavior(
+                state = pagerState,
+                pagerSnapDistance = PagerSnapDistance.atMost(1),
+            ),
+            modifier = Modifier.weight(1f),
+        ) { page ->
+            WeekRow(
+                weekStart = weekOfPage(page),
+                weekTotalsFlow = weekTotalsFlow,
+                selected = selected,
+                today = today,
+                target = target,
+                onPickDay = onPickDay,
+            )
         }
         IconButton(onClick = { onShiftWeek(1) }, modifier = Modifier.size(28.dp)) {
             Icon(
@@ -274,6 +335,37 @@ private fun WeekStrip(
                 stringResource(R.string.next_week),
                 Modifier.size(18.dp),
                 tint = scheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/** 一週長條裡的一頁：七個 [DayColumn]，資料是這一週自己的 Flow，跟目前選到哪一週無關。 */
+@Composable
+private fun WeekRow(
+    weekStart: LocalDate,
+    weekTotalsFlow: (LocalDate) -> Flow<List<DayTotal>>,
+    selected: LocalDate,
+    today: LocalDate,
+    target: Int,
+    onPickDay: (LocalDate) -> Unit,
+) {
+    val totals by remember(weekStart) { weekTotalsFlow(weekStart) }.collectAsState(initial = emptyList())
+    val byDate = remember(totals) { totals.associateBy { it.date } }
+    val over = NutrientColors.Over
+
+    Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+        repeat(7) { index ->
+            val day = weekStart.plusDays(index.toLong())
+            DayColumn(
+                day = day,
+                kcal = byDate[day.toString()]?.kcal ?: 0.0,
+                target = target,
+                isSelected = day == selected,
+                isFuture = day.isAfter(today),
+                overColor = over,
+                onClick = { onPickDay(day) },
+                modifier = Modifier.weight(1f),
             )
         }
     }
@@ -350,6 +442,51 @@ private fun DayColumn(
                 )
             }
         }
+    }
+}
+
+/** 日分頁的一頁：這一天自己的紀錄，資料是這一天自己的 Flow，跟目前選到哪天無關。 */
+@Composable
+private fun DayPage(
+    date: LocalDate,
+    entriesFlow: (LocalDate) -> Flow<List<FoodEntry>>,
+    settings: NutriSettings,
+    onOpenEntry: (FoodEntry) -> Unit,
+    onAddForMeal: (Meal) -> Unit,
+) {
+    val entries by remember(date) { entriesFlow(date) }.collectAsState(initial = emptyList())
+    val totals = remember(entries) { entries.totals() }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 22.dp),
+    ) {
+        item { Hairline() }
+        item { Budget(entries, totals, settings) }
+        item { Hairline() }
+        item { Macros(totals, settings) }
+        item { Hairline() }
+
+        Meal.entries.forEachIndexed { index, meal ->
+            val ofMeal = entries.filter { it.mealType == meal }
+            // 每一餐前面都加一條線，跟上一餐隔開 —— 不然固定顯示的四餐
+            // 只靠標題的 padding 分隔，看起來像同一塊區域，早午晚點心之間沒有間隔。
+            if (index > 0) {
+                item(key = "sep-" + meal.name) { Hairline(Modifier.padding(top = 10.dp, bottom = 2.dp)) }
+            }
+            item(key = "header-" + meal.name) { MealHeader(meal, ofMeal) }
+            if (ofMeal.isEmpty()) {
+                item(key = "empty-" + meal.name) {
+                    EmptyMealRow(onClick = { onAddForMeal(meal) })
+                }
+            } else {
+                items(ofMeal, key = { it.id }) { entry ->
+                    EntryRow(entry, onClick = { onOpenEntry(entry) })
+                }
+            }
+        }
+        // 最後一筆不要被 FAB 蓋住
+        item { Spacer(Modifier.height(80.dp)) }
     }
 }
 
@@ -502,9 +639,13 @@ private fun Macros(totals: Totals, settings: NutriSettings) {
             MacroLegend(stringResource(R.string.nutrient_carbs), totals.carbsG, settings.carbsTargetG, carbs)
         }
 
+        // 橫向捲動：窄螢幕四個 chip 排一列會被裁掉，捲動比自動換行更符合
+        // 這排「順手看一眼」的定位，不需要為了塞進一行而把字縮更小。
         if (settings.showExtendedNutrients) {
             Row(
-                Modifier.fillMaxWidth(),
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
             ) {
                 ExtraChip(stringResource(R.string.nutrient_sugar), totals.sugarG.fmt(), "g")
@@ -558,46 +699,6 @@ private fun ExtraChip(label: String, value: String, unit: String) {
             .background(scheme.surfaceContainerHigh)
             .padding(horizontal = 7.dp, vertical = 3.dp),
     )
-}
-
-/** 常吃：忘了拍照、事後才想補登時最短的一條路，一點就記進今天。 */
-@Composable
-private fun QuickAdd(items: List<FoodSuggestion>, onQuickAdd: (FoodSuggestion) -> Unit) {
-    val scheme = MaterialTheme.colorScheme
-    Column(
-        Modifier.padding(vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        SectionLabel(stringResource(R.string.quick_add_label))
-        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            items.forEach { suggestion ->
-                Row(
-                    Modifier
-                        .weight(1f, fill = false)
-                        .clip(PillShape)
-                        .border(1.dp, scheme.outlineVariant, PillShape)
-                        .background(scheme.surfaceContainerLow)
-                        .clickable { onQuickAdd(suggestion) }
-                        .padding(horizontal = 13.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Text(
-                        suggestion.name,
-                        style = MaterialTheme.typography.titleMedium.copy(fontSize = 13.sp),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                    Text(
-                        suggestion.calories.fmtInt(),
-                        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
-                        color = scheme.outline,
-                    )
-                }
-            }
-        }
-    }
 }
 
 /**
