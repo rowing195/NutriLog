@@ -232,7 +232,7 @@ MaterialTheme.typography.headlineSmall.numeric().copy(fontSize = 20.sp)
 `MainActivity` 開了 `enableEdgeToEdge()`，M3 的 `TopAppBar` 會自己處理，
 但用 `Column`/`Row` 拼的不會 —— 標題會直接畫到狀態列的時鐘上面。
 
-**今日頁的日／週分頁器有三個好踩的坑：**
+**今日頁的日／週分頁器有四個好踩的坑：**
 
 - `HorizontalPager` 的預設 fling 行為會看滑動速度決定跳幾頁，快速一撥可能
   一次跳十幾頁 —— 完全違反「一次滑動＝換一天／一週」的直覺。兩個分頁器都要用
@@ -254,6 +254,21 @@ MaterialTheme.typography.headlineSmall.numeric().copy(fontSize = 20.sp)
   真正狀態；其他來源（週橫條箭頭、回到今天、月曆跳頁）事前沒有 overlay 動畫
   可看，才需要保留 `animateScrollToPage`。細節見 `TodayScreen.kt` 裡
   `weekChangeFromDaySwipe` 那段的長註解。
+- **兩個分頁器都預設 `beyondViewportPageCount = 0`**，滑到還沒保留住的頁面
+  就是全新的 composable。`DayPage`／`WeekRow` 讀資料庫的那行如果直接寫
+  `collectAsState(initial = emptyList())`，每次重建都會先畫空狀態、等 Room
+  的 Flow 真正吐出資料才跳回正確畫面——肉眼看就是換頁閃一下（`DayPage` 那邊
+  還會因為 `LazyColumn` 的 `animateItem()` 把「空狀態換成真資料」誤判成新增，
+  多播一次不該出現的淡入動畫）。修法是在**比分頁頁面長壽的那一層**
+  （`TodayScreen` 對 `entriesCache`、`WeekStrip` 對 `weekTotalsCache`）養一個
+  `mutableStateMapOf<LocalDate, T>()`，`DayPage`／`WeekRow` 改用
+  `produceState(initialValue = cache[key] ?: emptyList())` 讀快取當第一畫面，
+  收到新資料才更新快取——同一天／同一週只要被看過一次，之後不管從哪個角落
+  （包含 `WeekPageContent` 借位畫的鄰週預覽）重新進來都不用再等資料庫。真正
+  第一次看到的日期／週還是會空一下，那是誠實的「還沒查到」，不用修。
+  這個快取只影響第一畫面，不是凍結的唯讀快照——底下的 Flow 訂閱照樣即時反映
+  新增／編輯／刪除，改這段之後要跟著測「加一筆／刪一筆之後數字有沒有立刻更新」，
+  不能只測「換頁不閃了」就算過。
 
 ## 改動慣例
 
