@@ -37,7 +37,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -133,6 +132,13 @@ fun TodayScreen(
         animationSpec = tween(220),
         label = "backdropBlur",
     )
+
+    // 每一天的紀錄快取，活得比任何一個日分頁的頁面都久（只要 TodayScreen 本身
+    // 沒被收掉）—— 跟 WeekStrip 那份 weekTotalsCache 同一個理由，見 DayPage 用它
+    // 的地方。day pager 一樣是預設 beyondViewportPageCount=0，滑到還沒保留住的
+    // 日期就整頁重建，不加這層會先閃空清單，而且因為 LazyColumn 的 animateItem()
+    // 把「空狀態換成真資料」誤判成新增，還會多播一次不該出現的淡入動畫。
+    val entriesCache = remember { mutableStateMapOf<LocalDate, List<FoodEntry>>() }
 
     // 兩個分頁器共用同一個基準日：day pager 一頁一天，week pager 一頁一週，
     // 頁碼都是「離基準日差幾天／幾週」換算出來的，換日或換週時互相同步。
@@ -279,6 +285,7 @@ fun TodayScreen(
             DayPage(
                 date = dayOfPage(page),
                 entriesFlow = entriesFlow,
+                entriesCache = entriesCache,
                 settings = settings,
                 onOpenEntry = onOpenEntry,
                 // 「還沒記」開的是同一個新增選單，不是直接跳空白表單 ——
@@ -637,16 +644,37 @@ private fun DayColumn(
     }
 }
 
-/** 日分頁的一頁：這一天自己的紀錄，資料是這一天自己的 Flow，跟目前選到哪天無關。 */
+/**
+ * 日分頁的一頁：這一天自己的紀錄，資料是這一天自己的 Flow，跟目前選到哪天無關。
+ *
+ * **資料讀 [entriesCache] 而不是直接 `collectAsState(initial = emptyList())`**：
+ * day pager 預設 `beyondViewportPageCount` 是 0，滑到還沒保留住的日期這個
+ * composable 就是全新建立，直接用空清單當初始值會先畫出「今天 0 kcal、四餐
+ * 都還沒記」，等 Room 的 Flow 真正吐出資料才跳回正確畫面——比週長條那個閃爍
+ * 更明顯，因為連大熱量數字、三大營養素都會跟著空一下，而且下面清單裡
+ * `animateItem()` 的淡入動畫會把「空狀態換成真資料」誤判成使用者新增了紀錄，
+ * 多播一次不該出現的動畫。快取活在 [TodayScreen]，比任何一個日分頁的頁面都
+ * 長壽，同一天只要被看過一次，之後從哪裡重新滑進來都能立刻拿上次的值當第一
+ * 畫面。真正第一次看到的那天還是會空一下，那是誠實的「還沒查到」。
+ */
 @Composable
 private fun DayPage(
     date: LocalDate,
     entriesFlow: (LocalDate) -> Flow<List<FoodEntry>>,
+    entriesCache: MutableMap<LocalDate, List<FoodEntry>>,
     settings: NutriSettings,
     onOpenEntry: (FoodEntry) -> Unit,
     onAddForMeal: (Meal) -> Unit,
 ) {
-    val entries by remember(date) { entriesFlow(date) }.collectAsState(initial = emptyList())
+    val entries by produceState(
+        initialValue = entriesCache[date] ?: emptyList(),
+        key1 = date,
+    ) {
+        entriesFlow(date).collect { fresh ->
+            entriesCache[date] = fresh
+            value = fresh
+        }
+    }
     val totals = remember(entries) { entries.totals() }
 
     // animateItem() 預設是 Spring.StiffnessMediumLow，時間很短、肉眼幾乎看不出
