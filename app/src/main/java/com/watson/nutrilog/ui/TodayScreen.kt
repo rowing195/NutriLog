@@ -1,9 +1,13 @@
 package com.watson.nutrilog.ui
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.updateTransition
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -26,24 +30,11 @@ import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.PagerSnapDistance
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -55,22 +46,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.watson.nutrilog.R
@@ -109,7 +101,8 @@ fun TodayScreen(
     onBackToToday: () -> Unit,
     onOpenEntry: (FoodEntry) -> Unit,
     onAddManual: () -> Unit,
-    onAddForMeal: (Meal) -> Unit,
+    /** 告訴 ViewModel「接下來這一筆要記進哪一餐」。null＝沒指定，照時間猜。 */
+    onTargetMeal: (Meal?) -> Unit,
     onAddPhoto: () -> Unit,
     onAddFromGallery: () -> Unit,
     onAddText: () -> Unit,
@@ -120,6 +113,24 @@ fun TodayScreen(
 ) {
     val today = LocalDate.now()
     var showAddSheet by remember { mutableStateOf(false) }
+    // 只拿來在選單抬頭顯示「記一筆 · 晚餐」。真正決定記到哪一餐的是 ViewModel 那份
+    // pendingMeal —— 這裡再存一份是為了讓使用者看得到「我點的那一餐有被記住」，
+    // 不然從某一餐的「還沒記」點進來，跳出的選單跟從角落點進來一模一樣。
+    var addMenuMeal by remember { mutableStateOf<Meal?>(null) }
+
+    fun openAddMenu(meal: Meal?) {
+        addMenuMeal = meal
+        onTargetMeal(meal)
+        showAddSheet = true
+    }
+
+    // 選單展開時把後面整片模糊掉。Modifier.blur 只在 API 31+ 有效，minSdk 是 26 ——
+    // 舊機器上這行等於沒作用，所以遮罩那層一定要留著，那才是共通的退路。
+    val backdropBlur by animateDpAsState(
+        targetValue = if (showAddSheet) 16.dp else 0.dp,
+        animationSpec = tween(220),
+        label = "backdropBlur",
+    )
 
     // 兩個分頁器共用同一個基準日：day pager 一頁一天，week pager 一頁一週，
     // 頁碼都是「離基準日差幾天／幾週」換算出來的，換日或換週時互相同步。
@@ -215,7 +226,13 @@ fun TodayScreen(
         }
     }
 
+    // 整頁包一層 Box：角落那顆章與它展開的選單要蓋在 Scaffold 之上，
+    // 又要能自己吃掉導覽列的 inset，所以不走 Scaffold 的 floatingActionButton 槽。
+    Box(Modifier.fillMaxSize()) {
     Scaffold(
+        // 只在真的要模糊時才掛上去：blur 會多開一層離屏合成，
+        // 沒展開選單的時候不需要一直付這個成本。
+        modifier = if (backdropBlur > 0.dp) Modifier.blur(backdropBlur) else Modifier,
         // 標頭和一週長條不進捲動區：換日是隨時要按得到的，
         // 捲到下面才發現要先捲回去才能換天很煩。
         topBar = {
@@ -243,15 +260,6 @@ fun TodayScreen(
                 )
             }
         },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAddSheet = true },
-                containerColor = MaterialTheme.colorScheme.inverseSurface,
-                contentColor = MaterialTheme.colorScheme.inverseOnSurface,
-            ) {
-                Icon(Icons.Default.Add, stringResource(R.string.add_entry))
-            }
-        },
     ) { inner ->
         HorizontalPager(
             state = dayPagerState,
@@ -271,14 +279,18 @@ fun TodayScreen(
                 entriesFlow = entriesFlow,
                 settings = settings,
                 onOpenEntry = onOpenEntry,
-                onAddForMeal = onAddForMeal,
+                // 「還沒記」開的是同一個新增選單，不是直接跳空白表單 ——
+                // 那個 ＋ 跟角落那顆章長得像，就該做一樣的事，只是多帶了一個餐別。
+                onAddForMeal = { meal -> openAddMenu(meal) },
             )
         }
     }
 
-    if (showAddSheet) {
-        AddEntrySheet(
-            onDismiss = { showAddSheet = false },
+        AddMenu(
+            expanded = showAddSheet,
+            mealLabel = addMenuMeal?.label(),
+            // 從角落那顆章開的沒有指定餐別，要把上一次記住的那一餐清掉
+            onToggle = { if (showAddSheet) showAddSheet = false else openAddMenu(null) },
             onPick = { action -> showAddSheet = false; action() },
             onAddManual = onAddManual,
             onAddPhoto = onAddPhoto,
@@ -298,33 +310,59 @@ private fun HeaderRow(
     onOpenHistory: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(start = 22.dp, end = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        SectionLabel(
-            date.year.toString() + " 年 " + date.monthValue + " 月",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.weight(1f))
-        // 只有離開今天才出現：在今天的時候它是一顆永遠沒作用的按鈕
-        if (!isToday) {
-            TextButton(onClick = onBackToToday) {
-                Text(stringResource(R.string.back_to_today), style = MaterialTheme.typography.bodyMedium)
+    val scheme = MaterialTheme.colorScheme
+    Column(Modifier.padding(horizontal = 22.dp)) {
+        Row(
+            Modifier.fillMaxWidth().padding(top = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // 報頭。App 名稱擺在這裡而不是只有日期 —— 這一頁是整個 app 的封面。
+            Text(
+                stringResource(R.string.app_name),
+                style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp, letterSpacing = 1.sp),
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.weight(1f))
+            // 只有離開今天才出現：在今天的時候它是一顆永遠沒作用的按鈕
+            if (!isToday) {
+                Text(
+                    stringResource(R.string.back_to_today),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = scheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .clickable(onClick = onBackToToday)
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                )
+            } else {
+                // 純數字加斜線，套襯線不會碰到中文
+                Text(
+                    date.year.toString() + " / " + "%02d".format(date.monthValue),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = NumberFontFamily, letterSpacing = 1.6.sp,
+                    ),
+                    color = scheme.onSurfaceVariant,
+                    modifier = Modifier.padding(end = 4.dp),
+                )
+            }
+            HeaderIcon(onClick = onOpenSearch) { SearchMark(scheme.onSurface) }
+            HeaderIcon(onClick = onOpenHistory) { CalendarMark(scheme.onSurfaceVariant) }
+            HeaderIcon(onClick = onOpenSettings) {
+                SlidersMark(scheme.onSurfaceVariant, background = scheme.background)
             }
         }
-        IconButton(onClick = onOpenSearch) {
-            Icon(Icons.Default.Search, stringResource(R.string.search_title), Modifier.size(20.dp))
-        }
-        IconButton(onClick = onOpenHistory) {
-            Icon(Icons.Default.DateRange, stringResource(R.string.history_title), Modifier.size(20.dp))
-        }
-        IconButton(onClick = onOpenSettings) {
-            Icon(Icons.Default.Settings, stringResource(R.string.settings_title), Modifier.size(20.dp))
-        }
+        Rule(Modifier.padding(top = 8.dp))
     }
+}
+
+/** 報頭上的圖示不加框（一排框會把報頭壓死），但可點區要墊到 44dp。 */
+@Composable
+private fun HeaderIcon(onClick: () -> Unit, content: @Composable () -> Unit) {
+    Box(
+        Modifier
+            .size(44.dp)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { content() }
 }
 
 /**
@@ -354,14 +392,10 @@ private fun WeekStrip(
             .padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = { onShiftWeek(-1) }, modifier = Modifier.size(28.dp)) {
-            Icon(
-                Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                stringResource(R.string.prev_week),
-                Modifier.size(18.dp),
-                tint = scheme.onSurfaceVariant,
-            )
-        }
+        Box(
+            Modifier.size(28.dp).clickable { onShiftWeek(-1) },
+            contentAlignment = Alignment.Center,
+        ) { ChevronMark(scheme.outline, pointsLeft = true) }
         HorizontalPager(
             state = pagerState,
             // 跟日分頁同一個理由：一次滑動最多只換一週，不管滑多快。
@@ -381,14 +415,10 @@ private fun WeekStrip(
                 onPickDay = onPickDay,
             )
         }
-        IconButton(onClick = { onShiftWeek(1) }, modifier = Modifier.size(28.dp)) {
-            Icon(
-                Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                stringResource(R.string.next_week),
-                Modifier.size(18.dp),
-                tint = scheme.onSurfaceVariant,
-            )
-        }
+        Box(
+            Modifier.size(28.dp).clickable { onShiftWeek(1) },
+            contentAlignment = Alignment.Center,
+        ) { ChevronMark(scheme.outline, pointsLeft = false) }
     }
 }
 
@@ -521,41 +551,29 @@ private fun DayColumn(
 
     Column(
         modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(scheme.primaryContainer.copy(alpha = pillAlpha))
             .clickable(onClick = onClick)
-            .padding(vertical = 6.dp, horizontal = 2.dp),
+            .padding(vertical = 4.dp, horizontal = 1.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Text(
             WEEKDAYS[weekday],
-            style = MaterialTheme.typography.labelSmall,
+            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
             color = when {
-                isSelected -> scheme.primary
-                // 週末用淡一點的紅，跟平日區隔但不搶戲
+                isSelected -> scheme.onSurface
+                // 週末用淡一點的朱紅，跟平日區隔但不搶戲
                 weekday == 0 || weekday == 6 -> overColor.copy(alpha = if (isFuture) 0.3f else 0.7f)
                 else -> scheme.outline
             },
         )
-        Text(
-            day.dayOfMonth.toString(),
-            style = MaterialTheme.typography.titleSmall.copy(letterSpacing = 0.sp, fontFamily = NumberFontFamily),
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-            // 未來的日期壓淡：它們永遠是空的，不該看起來像「忘了記錄」
-            color = when {
-                isSelected -> scheme.onSurface
-                isFuture -> scheme.outline.copy(alpha = 0.45f)
-                else -> scheme.onSurfaceVariant
-            },
-        )
+        // 柱子佔滿整格寬。原本是 5dp 的小藥丸，那個寬度看不出高度差，
+        // 「這幾天吃得鬆或緊」是這條長條唯一存在的理由，柱子就該粗到看得出來。
         Box(
             Modifier
-                .width(5.dp)
-                .height(24.dp)
-                .clip(RoundedCornerShape(3.dp))
-                .background(if (isSelected) scheme.surfaceContainerLowest else scheme.surfaceContainerHigh),
+                .fillMaxWidth()
+                .height(26.dp)
+                .background(if (isFuture) scheme.surfaceVariant else scheme.surfaceContainerHigh),
             contentAlignment = Alignment.BottomCenter,
         ) {
             if (kcal > 0) {
@@ -563,17 +581,36 @@ private fun DayColumn(
                     Modifier
                         .fillMaxWidth()
                         .fillMaxHeight(if (isOver) 1f else fraction)
-                        .clip(RoundedCornerShape(3.dp))
                         .background(
                             when {
                                 severityColor != null -> severityColor
-                                isSelected -> scheme.primary
-                                else -> NutrientColors.Meals[1]
+                                isSelected -> scheme.onSurface
+                                else -> scheme.outline
                             }
                         )
                 )
             }
         }
+        Text(
+            day.dayOfMonth.toString(),
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontSize = 15.sp, letterSpacing = 0.sp, fontFamily = NumberFontFamily,
+            ),
+            // 未來的日期壓淡：它們永遠是空的，不該看起來像「忘了記錄」
+            color = when {
+                isSelected -> scheme.onSurface
+                isFuture -> scheme.outline.copy(alpha = 0.45f)
+                else -> scheme.onSurfaceVariant
+            },
+        )
+        // 選取記號用 pillAlpha 這個連續值畫，拖曳時才會跟著手指平滑移動，
+        // 不是放開手指才「啪」地跳過去。
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(2.dp)
+                .background(scheme.onSurface.copy(alpha = pillAlpha))
+        )
     }
 }
 
@@ -604,13 +641,10 @@ private fun DayPage(
         item { Macros(totals, settings) }
         item { Hairline() }
 
-        Meal.entries.forEachIndexed { index, meal ->
+        // 餐別之間不再另外畫線：每一列自己帶上緣細線之後，餐別標題上方那段空白
+        // 本身就是分隔，再加一條會變成「標題被夾在兩條線中間」。
+        Meal.entries.forEach { meal ->
             val ofMeal = entries.filter { it.mealType == meal }
-            // 每一餐前面都加一條線，跟上一餐隔開 —— 不然固定顯示的四餐
-            // 只靠標題的 padding 分隔，看起來像同一塊區域，早午晚點心之間沒有間隔。
-            if (index > 0) {
-                item(key = "sep-" + meal.name) { Hairline(Modifier.padding(top = 10.dp, bottom = 2.dp)) }
-            }
             item(key = "header-" + meal.name) { MealHeader(meal, ofMeal) }
             if (ofMeal.isEmpty()) {
                 // key 跟有紀錄時的 items 不同，所以「刪到剩空」那一刻在 LazyColumn
@@ -629,8 +663,9 @@ private fun DayPage(
                 }
             }
         }
-        // 最後一筆不要被 FAB 蓋住
-        item { Spacer(Modifier.height(80.dp)) }
+        // 角落那顆章是浮在內容之上的，不佔 Scaffold 的 innerPadding，
+        // 所以最後一筆要自己留出它的高度，不然會被蓋住。
+        item { Spacer(Modifier.height(92.dp)) }
     }
 }
 
@@ -660,64 +695,108 @@ private fun Budget(entries: List<FoodEntry>, totals: Totals, settings: NutriSett
     }
 
     Column(
-        Modifier.padding(top = 16.dp, bottom = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        Modifier.padding(top = 18.dp, bottom = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(13.dp),
     ) {
-        Row(Modifier.fillMaxWidth()) {
-            Text(
-                stringResource(R.string.calories_eaten),
-                style = MaterialTheme.typography.bodyMedium,
-                color = scheme.onSurfaceVariant,
-                modifier = Modifier.alignByBaseline(),
-            )
-            Spacer(Modifier.width(9.dp))
-            Text(
-                consumed.fmtInt(),
-                style = MaterialTheme.typography.displayLarge.copy(fontFamily = NumberFontFamily),
-                color = severityColor ?: scheme.onSurface,
-                modifier = Modifier.alignByBaseline(),
-            )
-            Spacer(Modifier.width(6.dp))
-            Text(
-                stringResource(R.string.unit_kcal),
-                style = MaterialTheme.typography.bodyMedium,
-                color = scheme.onSurfaceVariant,
-                modifier = Modifier.alignByBaseline(),
-            )
-        }
-
-        // 目標為 0 等於關掉這條線的意義，就不要講「還有 2000 的空間」
-        if (target > 0) {
-            val targetStr = target.toString()
-            val amountStr = if (over) abs(remaining).fmtInt() else remaining.fmtInt()
-            val full = if (over) {
-                stringResource(R.string.calories_budget_over, target, amountStr)
-            } else {
-                stringResource(R.string.calories_budget_left, target, amountStr)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+            // 大數字不掛「已經吃」的標籤：旁邊就是目標與剩餘，讀起來已經夠清楚，
+            // 而標籤會把版面上最大的那個字往右擠掉一截。
+            Row {
+                Text(
+                    consumed.fmtInt(),
+                    style = MaterialTheme.typography.displayLarge.copy(fontFamily = NumberFontFamily),
+                    color = severityColor ?: scheme.onSurface,
+                    modifier = Modifier.alignByBaseline(),
+                )
+                Spacer(Modifier.width(7.dp))
+                Text(
+                    stringResource(R.string.unit_kcal),
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontSize = 17.sp,
+                        fontFamily = NumberFontFamily,
+                        fontStyle = FontStyle.Italic,
+                    ),
+                    color = scheme.onSurfaceVariant,
+                    modifier = Modifier.alignByBaseline(),
+                )
             }
-            // 數字（純阿拉伯數字，不含中文）套襯線，其餘中文字維持無襯線 —— 用
-            // indexOf 找數字在句子裡的實際位置，不硬拆字串免得跟字串資源的用字脫鉤。
-            val annotated = remember(full, targetStr, amountStr) {
-                buildAnnotatedString {
-                    append(full)
-                    val targetStart = full.indexOf(targetStr)
-                    if (targetStart >= 0) {
-                        addStyle(SpanStyle(fontFamily = NumberFontFamily), targetStart, targetStart + targetStr.length)
-                    }
-                    val amountStart = full.indexOf(amountStr, targetStart + targetStr.length)
-                    if (amountStart >= 0) {
-                        addStyle(SpanStyle(fontFamily = NumberFontFamily), amountStart, amountStart + amountStr.length)
-                    }
+            Spacer(Modifier.weight(1f))
+            // 目標為 0 等於關掉額度的意義，就不要講「還有 2000 的空間」
+            if (target > 0) {
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                    modifier = Modifier.padding(bottom = 5.dp),
+                ) {
+                    LabelledNumber(
+                        label = stringResource(R.string.budget_target),
+                        number = target.toString(),
+                        labelColor = scheme.onSurfaceVariant,
+                        numberColor = scheme.onSurfaceVariant,
+                        numberSize = 14.sp,
+                    )
+                    LabelledNumber(
+                        label = stringResource(
+                            if (over) R.string.budget_over else R.string.budget_left
+                        ),
+                        number = abs(remaining).fmtInt(),
+                        labelColor = severityColor ?: scheme.onSurfaceVariant,
+                        numberColor = severityColor ?: scheme.onSurface,
+                        numberSize = 18.sp,
+                    )
                 }
             }
-            Text(
-                annotated,
-                style = MaterialTheme.typography.bodySmall,
-                color = severityColor ?: scheme.onSurfaceVariant,
-            )
         }
 
         MealSegmentBar(entries = entries, target = target)
+
+        // 額度條下面補一行小計。條子講的是形狀（哪一餐吃掉一大半），
+        // 這一行才回答「所以早餐到底幾大卡」——兩個問題不必各佔一塊版面。
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Meal.entries.forEach { meal ->
+                val kcal = entries.filter { it.mealType == meal }.sumOf { it.calories }
+                LabelledNumber(
+                    label = meal.shortLabel(),
+                    number = if (kcal > 0) kcal.fmtInt() else "—",
+                    labelColor = if (kcal > 0) scheme.onSurfaceVariant else scheme.outline,
+                    numberColor = if (kcal > 0) scheme.onSurfaceVariant else scheme.outline,
+                    numberSize = 13.sp,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 「目標 2000」這種中文標籤配數字。
+ *
+ * 拆成兩個 Text 而不是一句話套 buildAnnotatedString：襯線字型沒有中文字符，
+ * 整句一起套會 fallback 到系統襯線，那正是要避開的東西。分開排也比在字串裡
+ * 用 indexOf 找數字位置可靠 —— 那招在數字剛好等於年份之類的巧合下會框錯段。
+ */
+@Composable
+private fun LabelledNumber(
+    label: String,
+    number: String,
+    labelColor: Color,
+    numberColor: Color,
+    numberSize: androidx.compose.ui.unit.TextUnit,
+) {
+    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodySmall,
+            color = labelColor,
+            modifier = Modifier.alignByBaseline(),
+        )
+        Text(
+            number,
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontSize = numberSize, fontFamily = NumberFontFamily,
+            ),
+            color = numberColor,
+            modifier = Modifier.alignByBaseline(),
+        )
     }
 }
 
@@ -733,11 +812,11 @@ private fun MealSegmentBar(entries: List<FoodEntry>, target: Int) {
         OverSeverity.NORMAL -> null
     }
 
+    // 方角、8dp。圓角在這個尺寸只會把兩端的分段啃掉一截，看起來像沒對齊。
     Row(
         Modifier
             .fillMaxWidth()
-            .height(12.dp)
-            .clip(RoundedCornerShape(6.dp))
+            .height(8.dp)
             .background(scheme.surfaceContainerHigh),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
@@ -771,139 +850,125 @@ private fun MealSegmentBar(entries: List<FoodEntry>, target: Int) {
  */
 @Composable
 private fun Macros(totals: Totals, settings: NutriSettings) {
-    val scheme = MaterialTheme.colorScheme
     val protein = NutrientColors.Protein
     val fat = NutrientColors.Fat
     val carbs = NutrientColors.Carbs
 
-    // 蛋白質與碳水 4 kcal/g、脂肪 9 kcal/g
-    val pKcal = totals.proteinG * 4
-    val fKcal = totals.fatG * 9
-    val cKcal = totals.carbsG * 4
-
     Column(
         Modifier.padding(vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(9.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .height(9.dp)
-                .clip(RoundedCornerShape(5.dp))
-                .background(scheme.surfaceContainerHigh),
-        ) {
-            listOf(pKcal to protein, fKcal to fat, cKcal to carbs).forEach { (kcal, color) ->
-                if (kcal <= 0.0) return@forEach
-                Box(
-                    Modifier
-                        .weight(kcal.toFloat())
-                        .fillMaxHeight()
-                        .background(color)
-                )
-            }
-        }
-        // 原本是 spacedBy，三項只會從最左邊開始堆、右邊留一大片空白，
-        // 內容窄的時候（例如「67/60 脂肪」比另外兩項短）看起來歪一邊、不整齊。
-        // SpaceBetween 讓三項把整行寬度平均撐開，不管內容多寬都對齊到同一組位置。
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            MacroLegend(stringResource(R.string.nutrient_protein), totals.proteinG, settings.proteinTargetG, protein)
-            MacroLegend(stringResource(R.string.nutrient_fat), totals.fatG, settings.fatTargetG, fat)
-            MacroLegend(stringResource(R.string.nutrient_carbs), totals.carbsG, settings.carbsTargetG, carbs)
+        // 三欄各自一條「離目標多遠」的進度，取代原本那條「三者佔比」的組成條。
+        //
+        // 組成條回答的是「今天吃的結構長怎樣」，但那個問題上面那條依餐別分段的
+        // 額度條已經回答過一次了（而且分得更細）。真正每天會問的是「蛋白質夠了沒」，
+        // 那是達成率，組成條答不出來 —— 三者佔比一樣時，可能三個都不足也可能三個都爆。
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            MacroColumn(stringResource(R.string.nutrient_protein), totals.proteinG, settings.proteinTargetG, protein, Modifier.weight(1f))
+            MacroColumn(stringResource(R.string.nutrient_fat), totals.fatG, settings.fatTargetG, fat, Modifier.weight(1f))
+            MacroColumn(stringResource(R.string.nutrient_carbs), totals.carbsG, settings.carbsTargetG, carbs, Modifier.weight(1f))
         }
 
-        // 橫向捲動：窄螢幕四個 chip 排一列會被裁掉，捲動比自動換行更符合
-        // 這排「順手看一眼」的定位，不需要為了塞進一行而把字縮更小。
-        //
-        // 這排能捲的範圍很小（頂多幾十 dp），手指很難剛好停在那個幅度內，
-        // 稍微多滑一點，捲動吃不完的位移會照 nested scroll 往上傳給外層的日分頁器，
-        // 變成不小心換了一天。用 nestedScroll 把「捲不動之後剩下的位移」整個吃掉，
-        // 不讓它傳出去，這排就完全獨立於整頁的左右滑動。
         if (settings.showExtendedNutrients) {
-            val consumeOverscroll = remember {
-                object : NestedScrollConnection {
-                    override fun onPostScroll(
-                        consumed: Offset,
-                        available: Offset,
-                        source: NestedScrollSource,
-                    ): Offset = available
-                }
-            }
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .nestedScroll(consumeOverscroll)
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
-            ) {
-                ExtraChip(stringResource(R.string.nutrient_sugar), totals.sugarG.fmt(), "g")
-                ExtraChip(stringResource(R.string.nutrient_sodium), totals.sodiumMg.fmtInt(), "mg")
-                ExtraChip(stringResource(R.string.nutrient_fiber), totals.fiberG.fmt(), "g")
-                ExtraChip(stringResource(R.string.nutrient_satfat), totals.satFatG.fmt(), "g")
-            }
+            ExtraLine(totals)
         }
     }
 }
 
+/**
+ * 一個營養素一欄：標籤、數值／目標、一條達成率。
+ *
+ * 標籤是中文所以維持無襯線，數值與「/目標」是純數字才套襯線 —— 兩者分成
+ * 不同的 Text，中文絕對不會吃到那套沒有中文字符的襯線字型。
+ */
 @Composable
-private fun MacroLegend(label: String, value: Double, target: Int, color: Color) {
+private fun MacroColumn(
+    label: String,
+    value: Double,
+    target: Int,
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
     val scheme = MaterialTheme.colorScheme
-    val severityColor = when (overSeverity(value, target)) {
-        OverSeverity.OVER -> NutrientColors.Over
-        OverSeverity.WARNING -> NutrientColors.Warning
-        OverSeverity.NORMAL -> null
-    }
-    // 「/目標」的斜線跟數字也套襯線，不然「49」是襯線、緊接著的「/100」是無襯線，
-    // 同一個分數兩種字體很突兀；後面的中文單位字維持無襯線。
-    val targetPart = "/$target"
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-        Box(
-            Modifier
-                .size(7.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(color)
-        )
-        // Row 預設用 Top 對齊子項，襯線數字跟中西文混排的「/目標 單位」字體
-        // 量測出來的行高不一樣，Top 對齊會讓兩個 Text 底部對不齊、看起來歪一邊；
-        // alignByBaseline() 才是真的照文字基線對齊，跟 Budget() 那排數字同一招。
+    val tint = severityTint(value, target)
+    val fraction = if (target > 0) (value / target).coerceIn(0.0, 1.0).toFloat() else 0f
+
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        SectionLabel(label)
         Row {
             Text(
                 value.fmtInt(),
-                style = MaterialTheme.typography.bodySmall.copy(fontFamily = NumberFontFamily),
-                fontWeight = FontWeight.Bold,
-                color = severityColor ?: scheme.onSurface,
+                style = MaterialTheme.typography.headlineSmall.copy(fontFamily = NumberFontFamily),
+                color = tint ?: scheme.onSurface,
                 modifier = Modifier.alignByBaseline(),
             )
             Text(
-                buildAnnotatedString {
-                    withStyle(SpanStyle(fontFamily = NumberFontFamily)) { append(targetPart) }
-                    append(" $label")
-                },
+                "/$target",
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 12.sp, fontFamily = NumberFontFamily,
+                ),
+                color = scheme.outline,
                 modifier = Modifier.alignByBaseline(),
-                style = MaterialTheme.typography.bodySmall,
-                color = scheme.onSurfaceVariant,
+            )
+        }
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(3.dp)
+                .background(scheme.surfaceContainerHigh)
+        ) {
+            Box(
+                Modifier
+                    .fillMaxWidth(fraction)
+                    .height(3.dp)
+                    .background(tint ?: color)
             )
         }
     }
 }
 
-/** 進階營養素。原本是一串用全形空白隔開的長句，那讀起來像一個句子而不是四個數值。 */
+/**
+ * 進階營養素。
+ *
+ * 原本是四個有底色的 chip，還為了窄螢幕加了橫向捲動 —— 而那排能捲的幅度只有
+ * 幾十 dp，手指很容易滑過頭把位移傳給外層的日分頁器，變成不小心換了一天，
+ * 所以又補了一個 nestedScroll 去吃掉溢出的捲動。整串工程是為了「四個色塊要排一列」
+ * 而長出來的。這裡改成一行純文字：不捲動，就沒有那條路徑，那些程式碼一起消失。
+ */
 @Composable
-private fun ExtraChip(label: String, value: String, unit: String) {
+private fun ExtraLine(totals: Totals) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        ExtraItem(stringResource(R.string.nutrient_sugar), totals.sugarG.fmt(), "g")
+        ExtraItem(stringResource(R.string.nutrient_sodium), totals.sodiumMg.fmtInt(), "mg")
+        ExtraItem(stringResource(R.string.nutrient_fiber), totals.fiberG.fmt(), "g")
+        ExtraItem(stringResource(R.string.nutrient_satfat), totals.satFatG.fmt(), "g")
+    }
+}
+
+@Composable
+private fun ExtraItem(label: String, value: String, unit: String) {
     val scheme = MaterialTheme.colorScheme
-    Text(
-        label + " " + value + " " + unit,
-        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
-        color = scheme.onSurfaceVariant,
-        maxLines = 1,
-        overflow = TextOverflow.Clip,
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(scheme.surfaceContainerHigh)
-            .padding(horizontal = 7.dp, vertical = 3.dp),
-    )
+    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
+            color = scheme.outline,
+            maxLines = 1,
+            modifier = Modifier.alignByBaseline(),
+        )
+        Text(
+            "$value $unit",
+            style = MaterialTheme.typography.labelSmall.copy(
+                letterSpacing = 0.sp, fontSize = 12.sp, fontFamily = NumberFontFamily,
+            ),
+            color = scheme.onSurfaceVariant,
+            maxLines = 1,
+            modifier = Modifier.alignByBaseline(),
+        )
+    }
 }
 
 /**
@@ -925,9 +990,12 @@ private fun MealHeader(meal: Meal, ofMeal: List<FoodEntry>) {
         verticalAlignment = Alignment.Bottom,
     ) {
         Text(meal.label(), style = MaterialTheme.typography.titleSmall, color = color)
+        // 只放數字，不重複 kcal —— 上面那個大數字已經講過單位了
         Text(
-            if (empty) "—" else ofMeal.totals().calories.fmtInt() + " " + stringResource(R.string.unit_kcal),
-            style = MaterialTheme.typography.bodySmall.copy(fontFamily = NumberFontFamily),
+            if (empty) "—" else ofMeal.totals().calories.fmtInt(),
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontSize = 14.sp, fontFamily = NumberFontFamily,
+            ),
             color = if (empty) scheme.outline else scheme.onSurfaceVariant,
         )
     }
@@ -935,70 +1003,99 @@ private fun MealHeader(meal: Meal, ofMeal: List<FoodEntry>) {
 
 @Composable
 private fun EntryRow(entry: FoodEntry, onClick: () -> Unit) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Column(Modifier.weight(1f)) {
+    Column {
+        // 每一列自己帶一條上緣細線，餐別標題和第一筆之間也就有了分隔。
+        Hairline()
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(vertical = 7.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    entry.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    detailLine(entry.servingText, entry.proteinG, entry.fatG, entry.carbsG),
+                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
+                    color = MaterialTheme.colorScheme.outline,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             Text(
-                entry.name,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                detailLine(entry.servingText, entry.proteinG, entry.fatG, entry.carbsG),
-                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
-                color = MaterialTheme.colorScheme.outline,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                entry.calories.fmtInt(),
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontSize = 20.sp, fontFamily = NumberFontFamily,
+                ),
             )
         }
-        Text(
-            entry.calories.fmtInt(),
-            style = MaterialTheme.typography.titleMedium.copy(fontFamily = NumberFontFamily),
-            fontWeight = FontWeight.Medium,
-        )
     }
 }
 
 @Composable
 private fun EmptyMealRow(onClick: () -> Unit) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(top = 4.dp, bottom = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Icon(
-            Icons.Default.Add,
-            null,
-            Modifier.size(13.dp),
-            tint = MaterialTheme.colorScheme.outline,
-        )
-        Text(
-            stringResource(R.string.meal_empty),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.outline,
-        )
+    val scheme = MaterialTheme.colorScheme
+    Column {
+        Hairline()
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            // 最淡的一圈：只是提示這裡可以點，不搶戲。
+            Box(
+                Modifier
+                    .size(22.dp)
+                    .clip(CircleShape)
+                    .border(1.dp, scheme.outlineVariant, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) { PlusMark(scheme.outline, size = 10.dp, stroke = 1.4.dp) }
+            Text(
+                stringResource(R.string.meal_empty),
+                style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
+                color = scheme.outline,
+            )
+        }
     }
 }
 
+private class AddOption(
+    val label: String,
+    val icon: @Composable () -> Unit,
+    val action: () -> Unit,
+)
+
 /**
- * 所有輸入方式的入口。
+ * 所有輸入方式的入口：角落一顆印章，點下去把五個入口攤開。
  *
- * 用 bottom sheet 而不是展開式 FAB：選項有文字說明，
- * 而展開的小 FAB 只有圖示，第一次用的人猜不出哪個是哪個。
+ * 收成角落而不是滿版一條，是為了不吃掉捲動區的高度；但**不能退回舊版那顆
+ * 只有一個 ＋ 的 FAB** —— 那顆 ＋ 同時是五件事，畫面上完全看不出來。
+ * 所以角落這顆長得是印章的樣子（實心墨底＋內縮一圈細框），跟它展開後的面板
+ * 是同一個東西的兩個狀態，而不是「一顆按鈕」加「一張不相干的 sheet」。
+ *
+ * 展開不是整塊淡入：五列**由下往上逐列滑進來**（每列差 45ms），角落那顆章同時
+ * 轉 45 度把 ＋ 變成 ✕。這樣「這張面板是從那顆章長出來的」才看得出來，
+ * 而不是憑空蓋上一層。
+ *
+ * 不用 ModalBottomSheet：它自帶圓角、拖曳把手與 M3 的容器色，
+ * 在這套方角紙面上是唯一一個圓角的東西，看起來像貼錯的元件。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AddEntrySheet(
-    onDismiss: () -> Unit,
+private fun AddMenu(
+    expanded: Boolean,
+    /** 從某一餐的「還沒記」開進來時，把那一餐寫在抬頭上讓使用者知道有被記住。 */
+    mealLabel: String?,
+    onToggle: () -> Unit,
     onPick: (() -> Unit) -> Unit,
     onAddManual: () -> Unit,
     onAddPhoto: () -> Unit,
@@ -1006,29 +1103,148 @@ private fun AddEntrySheet(
     onAddText: () -> Unit,
     onAddBarcode: () -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.padding(bottom = 32.dp)) {
-            // 「常吃／文字輸入」擺第一個：多半是忘記拍照事後補登，
-            // 這時通常會先想到「這不是常吃的那個嗎」，該畫面同時給了常吃清單。
-            SheetRow(stringResource(R.string.add_text)) { onPick(onAddText) }
-            SheetRow(stringResource(R.string.add_manual)) { onPick(onAddManual) }
-            SheetRow(stringResource(R.string.add_photo)) { onPick(onAddPhoto) }
-            SheetRow(stringResource(R.string.add_photo_gallery)) { onPick(onAddFromGallery) }
-            SheetRow(stringResource(R.string.add_barcode)) { onPick(onAddBarcode) }
+    val scheme = MaterialTheme.colorScheme
+    if (expanded) BackHandler { onToggle() }
+
+    // 「常吃／文字輸入」擺第一個：多半是忘記拍照事後補登，
+    // 這時通常會先想到「這不是常吃的那個嗎」，該畫面同時給了常吃清單。
+    val options = listOf(
+        AddOption(stringResource(R.string.add_text), { ListMark(scheme.onSurface) }, onAddText),
+        AddOption(stringResource(R.string.add_manual), { GridMark(scheme.onSurface) }, onAddManual),
+        AddOption(stringResource(R.string.add_photo), { CameraMark(scheme.onSurface) }, onAddPhoto),
+        AddOption(stringResource(R.string.add_photo_gallery), { ImageMark(scheme.onSurface) }, onAddFromGallery),
+        AddOption(stringResource(R.string.add_barcode), { BarcodeMark(scheme.onSurface) }, onAddBarcode),
+    )
+
+    val transition = updateTransition(expanded, label = "addMenu")
+    val cover by transition.animateFloat(
+        transitionSpec = { tween(if (targetState) 220 else 170) },
+        label = "cover",
+    ) { if (it) 1f else 0f }
+    val plusRotation by transition.animateFloat(
+        transitionSpec = { tween(300, easing = FastOutSlowInEasing) },
+        label = "plus",
+    ) { if (it) 45f else 0f }
+
+    Box(Modifier.fillMaxSize()) {
+        // 收完就整塊不畫，才不會擋住底下的點擊。判斷式要把 expanded 也算進去 ——
+        // 只看動畫值的話，展開那一幀 cover 還是 0，內容永遠不會被組出來。
+        if (expanded || cover > 0.004f) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = cover }
+                    .background(scheme.inverseSurface.copy(alpha = 0.32f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onToggle,
+                    )
+            )
+            Column(
+                Modifier
+                    .align(Alignment.BottomEnd)
+                    .navigationBarsPadding()
+                    // 讓出角落那顆章的位置，面板不要壓在它上面
+                    .padding(bottom = 92.dp)
+                    .fillMaxWidth()
+                    .graphicsLayer {
+                        alpha = cover
+                        translationY = (1f - cover) * 20.dp.toPx()
+                    }
+                    .background(scheme.background)
+                    // 吸收落在面板空白處的點擊，不要穿透到下面的遮罩去關掉自己
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) {}
+            ) {
+                Rule()
+                SectionLabel(
+                    stringResource(R.string.add_entry) +
+                        (mealLabel?.let { "　·　" + it } ?: ""),
+                    Modifier.padding(start = 22.dp, top = 14.dp, bottom = 10.dp),
+                    color = if (mealLabel != null) scheme.onSurface else scheme.onSurfaceVariant,
+                )
+                options.forEachIndexed { index, option ->
+                    val slide by transition.animateFloat(
+                        transitionSpec = {
+                            if (targetState) {
+                                tween(260, delayMillis = 70 + index * 45, easing = FastOutSlowInEasing)
+                            } else {
+                                tween(120)
+                            }
+                        },
+                        label = "row",
+                    ) { if (it) 1f else 0f }
+
+                    Hairline()
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .graphicsLayer {
+                                alpha = slide
+                                translationX = (1f - slide) * 64.dp.toPx()
+                            }
+                            .clickable { onPick(option.action) }
+                            .padding(horizontal = 22.dp, vertical = 15.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        // 序號是純排版的裝飾，不多講任何一句話 —— 這排本來就只有
+                        // 五個選項，需要的是節奏感，不是再多五行說明文字。
+                        Text(
+                            "%02d".format(index + 1),
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = 15.sp, fontFamily = NumberFontFamily,
+                            ),
+                            color = scheme.outline,
+                        )
+                        Text(
+                            option.label,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Box(
+                            Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .border(1.dp, scheme.outlineVariant, CircleShape),
+                            contentAlignment = Alignment.Center,
+                        ) { option.icon() }
+                    }
+                }
+            }
+        }
+
+        // 角落的章。跟滿版那顆是同一個元件的收合狀態：實心墨底、內縮 4dp 一圈細框。
+        //
+        // 這顆按鈕整個是畫出來的、沒有任何文字節點，所以一定要自己掛
+        // contentDescription —— 不然讀螢幕的人和 UI 測試都摸不到它。
+        val addLabel = stringResource(R.string.add_entry)
+        Box(
+            Modifier
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding()
+                .padding(20.dp)
+                .size(60.dp)
+                .background(scheme.inverseSurface)
+                .clickable(onClick = onToggle)
+                .semantics { contentDescription = addLabel }
+                .padding(4.dp),
+        ) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .border(1.dp, scheme.onSurfaceVariant),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(Modifier.graphicsLayer { rotationZ = plusRotation }) {
+                    PlusMark(scheme.inverseOnSurface, size = 22.dp, stroke = 1.8.dp)
+                }
+            }
         }
     }
-}
-
-@Composable
-private fun SheetRow(text: String, onClick: () -> Unit) {
-    Text(
-        text,
-        style = MaterialTheme.typography.bodyLarge,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 24.dp, vertical = 18.dp),
-    )
 }
 
 private val WEEKDAYS = listOf("日", "一", "二", "三", "四", "五", "六")

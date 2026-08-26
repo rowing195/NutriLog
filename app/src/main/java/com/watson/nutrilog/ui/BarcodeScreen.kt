@@ -1,6 +1,8 @@
 package com.watson.nutrilog.ui
 
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,22 +13,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,8 +31,6 @@ import androidx.compose.ui.unit.dp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.db.CachedProduct
 import com.watson.nutrilog.ui.theme.NumberFontFamily
-import com.watson.nutrilog.ui.theme.NutriFieldShape
-import com.watson.nutrilog.ui.theme.nutriFieldColors
 
 /**
  * 條碼查詢。
@@ -65,13 +53,10 @@ fun BarcodeScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.barcode_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onClose) {
-                        Icon(Icons.Default.Close, stringResource(R.string.close))
-                    }
-                },
+            ScreenTopBar(
+                title = stringResource(R.string.barcode_title),
+                closeLabel = stringResource(R.string.close),
+                onClose = onClose,
             )
         },
     ) { inner ->
@@ -81,42 +66,40 @@ fun BarcodeScreen(
                 .padding(inner)
                 .imePadding()
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+                .padding(start = 22.dp, end = 22.dp, top = 18.dp, bottom = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Button(onClick = onScan, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.add_barcode))
-            }
+            StampButton(label = stringResource(R.string.add_barcode), onClick = onScan)
 
-            TextField(
+            NutriTextField(
                 value = code,
                 onValueChange = { raw -> code = raw.filter { it.isDigit() }.take(14) },
-                label = { Text(stringResource(R.string.barcode_input)) },
-                singleLine = true,
+                label = stringResource(R.string.barcode_input),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                textStyle = LocalTextStyle.current.copy(fontFamily = NumberFontFamily),
-                shape = NutriFieldShape,
-                colors = nutriFieldColors(),
+                numeric = true,
                 modifier = Modifier.fillMaxWidth(),
             )
-            OutlinedButton(
-                onClick = { onLookup(code) },
-                enabled = code.isNotBlank() && state !is BarcodeState.Loading,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(stringResource(R.string.barcode_lookup))
+            // 次要動作用藥丸靠右擺：這個畫面的主角是上面那顆掃描印章。
+            // 沒輸入或查詢中就整顆收掉，不留一顆按不動的鈕在那裡。
+            if (code.isNotBlank() && state !is BarcodeState.Loading) {
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+                    PillButton(stringResource(R.string.barcode_lookup), onClick = { onLookup(code) })
+                }
             }
 
             when (state) {
                 BarcodeState.Idle -> Unit
 
-                BarcodeState.Loading -> Row(
+                BarcodeState.Loading -> Column(
                     Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    CircularProgressIndicator(Modifier.padding(4.dp))
-                    Text(stringResource(R.string.barcode_searching))
+                    IndeterminateRule()
+                    Text(
+                        stringResource(R.string.barcode_searching),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
 
                 BarcodeState.NotFound -> NoticeWithManualFallback(
@@ -142,16 +125,17 @@ private fun FoundCard(state: BarcodeState.Found, onUseProduct: (CachedProduct, D
     var grams by remember(product.barcode) {
         mutableStateOf(product.defaultGrams().let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString() })
     }
-    // 用細框而不是實色卡片：這套色票的卡片底和背景只差 3%，填色等於沒填
-    Card(
-        shape = CardShape,
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    // 細框方塊，不用 M3 的 Card：Card 自帶容器色與陰影，而這套版面靠線分隔
+    // 不靠色塊 —— 填色等於沒填（卡片底和背景只差 3%）。
+    Box(
+        Modifier
+            .clip(CardShape)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CardShape)
     ) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(start = 22.dp, end = 22.dp, top = 18.dp, bottom = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(product.name, style = MaterialTheme.typography.titleMedium)
@@ -174,24 +158,19 @@ private fun FoundCard(state: BarcodeState.Found, onUseProduct: (CachedProduct, D
                 per100gSummary(product),
                 style = MaterialTheme.typography.bodyMedium,
             )
-            TextField(
+            NutriTextField(
                 value = grams,
                 onValueChange = { raw -> grams = raw.filter { it.isDigit() || it == '.' }.take(6) },
-                label = { Text(stringResource(R.string.barcode_grams)) },
-                singleLine = true,
+                label = stringResource(R.string.barcode_grams),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                textStyle = LocalTextStyle.current.copy(fontFamily = NumberFontFamily),
-                shape = NutriFieldShape,
-                colors = nutriFieldColors(),
+                numeric = true,
                 modifier = Modifier.fillMaxWidth(),
             )
-            Button(
-                onClick = { onUseProduct(product, grams.toDoubleOrNull() ?: 100.0) },
+            StampButton(
+                label = stringResource(R.string.save),
                 enabled = (grams.toDoubleOrNull() ?: 0.0) > 0,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(stringResource(R.string.save))
-            }
+                onClick = { onUseProduct(product, grams.toDoubleOrNull() ?: 100.0) },
+            )
         }
     }
 }
@@ -200,9 +179,11 @@ private fun FoundCard(state: BarcodeState.Found, onUseProduct: (CachedProduct, D
 private fun NoticeWithManualFallback(text: String, onManualInstead: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(text, style = MaterialTheme.typography.bodyMedium)
-        OutlinedButton(onClick = onManualInstead, modifier = Modifier.fillMaxWidth()) {
-            Text(stringResource(R.string.add_manual))
-        }
+        TextAction(
+            stringResource(R.string.add_manual),
+            onClick = onManualInstead,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 

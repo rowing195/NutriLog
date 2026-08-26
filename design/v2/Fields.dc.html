@@ -1,0 +1,232 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Noto+Serif+TC:wght@400;600;700&amp;family=Noto+Sans+TC:wght@300;400;500;700&amp;display=swap">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    a { color: #D8462A; } a:hover { color: #A8331C; }
+    .d { font-family: "Instrument Serif", "Hoefler Text", Georgia, serif; }
+    .s { font-family: "Noto Serif TC", "Songti TC", serif; }
+    .cap { font-family: "Noto Serif TC", "Songti TC", serif; font-size: 10px; font-weight: 600;
+           letter-spacing: 0.24em; color: #6E6455; }
+    .badge { width: 17px; height: 17px; border-radius: 9px; background: #16130E; color: #F7F3E9;
+             font-size: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  </style>
+</helmet>
+
+<div style="width: 760px; min-height: 1180px; background: #F7F3E9; color: #16130E; font-family: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif; -webkit-font-smoothing: antialiased; padding: 40px;">
+
+  <div style="display: flex; align-items: baseline; gap: 12px;">
+    <div class="s" style="font-size: 20px; font-weight: 700; letter-spacing: 0.04em;">輸入框</div>
+    <div class="d" style="font-size: 15px; font-style: italic; color: #6E6455;">Text field &amp; search</div>
+    <div style="flex-grow: 1;"></div>
+    <div class="d" style="font-size: 13px; letter-spacing: 0.12em; color: #6E6455;">肥胖日記 ・ 方向 A×B</div>
+  </div>
+  <div style="height: 2px; background: #16130E; margin-top: 8px;"></div>
+
+  <div style="font-size: 13px; line-height: 1.7; color: #4A4437; margin-top: 16px; max-width: 620px; text-wrap: pretty;">現在 app 裡的欄位是「圓角頂角＋一條下橫線」——只有底線、沒有外框。這一版整個換掉：<strong>保留完整外框</strong>（沒有邊界的欄位很難被認出是可以打字的地方），但底下留一條比其他三邊重的 <strong>3px 書寫線</strong>，讓它仍然是這套排版語言的一部分，而不是隨便一個圓角灰底方塊。聚焦時外框轉墨黑、書寫線轉朱紅。</div>
+
+  <div class="cap" style="margin-top: 32px;">一、解剖</div>
+  <div style="height: 1px; background: #D8D0BE; margin-top: 8px; margin-bottom: 18px;"></div>
+
+  <div style="display: flex; gap: 36px; align-items: flex-start;">
+    <div style="width: 400px; flex-shrink: 0;">
+      <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 7px;">
+        <div class="badge">1</div>
+        <div class="cap">食物名稱</div>
+      </div>
+      <div style="position: relative;">
+        <div style="display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 12px; background: #FDFBF5; border: 1px solid #C9C0AE; border-bottom: 3px solid #16130E; border-radius: 6px;">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6E6455" stroke-width="1.6" stroke-linecap="round"><path d="M4 6.5h16"></path><path d="M4 12h16"></path><path d="M4 17.5h10"></path></svg>
+          <div style="flex-grow: 1; font-size: 16px;">起司蛋餅</div>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6E6455" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="8.5" fill="#E9E1D0" stroke="none"></circle><line x1="9" y1="9" x2="15" y2="15"></line><line x1="15" y1="9" x2="9" y2="15"></line></svg>
+        </div>
+        <div class="badge" style="position: absolute; left: -25px; top: 16px;">2</div>
+        <div class="badge" style="position: absolute; left: 13px; top: -25px;">3</div>
+        <div class="badge" style="position: absolute; left: 180px; top: -25px;">4</div>
+        <div class="badge" style="position: absolute; right: 13px; top: -25px;">5</div>
+        <div class="badge" style="position: absolute; left: 180px; bottom: -26px;">6</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 7px; margin-top: 30px;">
+        <div class="badge">7</div>
+        <div style="font-size: 11px; color: #9C9484;">最多 40 字。這個名字之後會出現在搜尋與常吃清單裡。</div>
+      </div>
+    </div>
+
+    <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 9px; padding-top: 6px;">
+      <div style="display: flex; gap: 9px; align-items: baseline;"><div class="badge">1</div><div style="font-size: 12px;"><strong>標籤</strong> — 永遠在框外上方，不用 placeholder 當標籤（一打字就消失，之後認不出這格在填什麼）</div></div>
+      <div style="display: flex; gap: 9px; align-items: baseline;"><div class="badge">2</div><div style="font-size: 12px;"><strong>外框</strong> 1px #C9C0AE — 邊界本身就是「這裡可以打字」的訊號</div></div>
+      <div style="display: flex; gap: 9px; align-items: baseline;"><div class="badge">3</div><div style="font-size: 12px;"><strong>前導圖示</strong> 17px 線性 — 講這一格是什麼類型（文字／搜尋／條碼），不放裝飾用的圖</div></div>
+      <div style="display: flex; gap: 9px; align-items: baseline;"><div class="badge">4</div><div style="font-size: 12px;"><strong>輸入區</strong> 16px — 低於 16px 會讓 iOS 自動放大整頁</div></div>
+      <div style="display: flex; gap: 9px; align-items: baseline;"><div class="badge">5</div><div style="font-size: 12px;"><strong>清除鈕</strong> — 只在有內容時出現。手機上要使用者自己選取後刪掉太費事</div></div>
+      <div style="display: flex; gap: 9px; align-items: baseline;"><div class="badge">6</div><div style="font-size: 12px;"><strong>書寫線</strong> 3px — 比其他三邊重，是這套設計唯一的識別特徵，聚焦時轉朱紅</div></div>
+      <div style="display: flex; gap: 9px; align-items: baseline;"><div class="badge">7</div><div style="font-size: 12px;"><strong>說明文字</strong> — 選用。錯誤訊息也長在同一個位置，不另外彈東西</div></div>
+    </div>
+  </div>
+
+  <div class="cap" style="margin-top: 40px;">二、狀態</div>
+  <div style="height: 1px; background: #D8D0BE; margin-top: 8px; margin-bottom: 18px;"></div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 26px 36px;">
+
+    <div>
+      <div class="cap" style="margin-bottom: 7px;">預設</div>
+      <div style="display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 12px; background: #FDFBF5; border: 1px solid #C9C0AE; border-bottom: 3px solid #16130E; border-radius: 6px;">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#9C9484" stroke-width="1.6" stroke-linecap="round"><path d="M4 6.5h16"></path><path d="M4 12h16"></path><path d="M4 17.5h10"></path></svg>
+        <div style="flex-grow: 1; font-size: 16px; color: #A79D8A;">食物名稱</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="cap" style="margin-bottom: 7px;">聚焦</div>
+      <div style="display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 12px; background: #FFFFFF; border: 1px solid #16130E; border-bottom: 3px solid #D8462A; border-radius: 6px;">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6E6455" stroke-width="1.6" stroke-linecap="round"><path d="M4 6.5h16"></path><path d="M4 12h16"></path><path d="M4 17.5h10"></path></svg>
+        <div style="display: flex; align-items: center; gap: 1px;">
+          <div style="font-size: 16px;">起司蛋</div>
+          <div style="width: 2px; height: 21px; background: #D8462A;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="cap" style="margin-bottom: 7px;">已填</div>
+      <div style="display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 12px; background: #FDFBF5; border: 1px solid #C9C0AE; border-bottom: 3px solid #16130E; border-radius: 6px;">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6E6455" stroke-width="1.6" stroke-linecap="round"><path d="M4 6.5h16"></path><path d="M4 12h16"></path><path d="M4 17.5h10"></path></svg>
+        <div style="flex-grow: 1; font-size: 16px;">起司蛋餅</div>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6E6455" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="8.5" fill="#E9E1D0" stroke="none"></circle><line x1="9" y1="9" x2="15" y2="15"></line><line x1="15" y1="9" x2="9" y2="15"></line></svg>
+      </div>
+    </div>
+
+    <div>
+      <div class="cap" style="margin-bottom: 7px;">錯誤</div>
+      <div style="display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 12px; background: #FBF1EE; border: 1px solid #D8462A; border-bottom: 3px solid #D8462A; border-radius: 6px;">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#D8462A" stroke-width="1.6" stroke-linecap="round"><path d="M4 6.5h16"></path><path d="M4 12h16"></path><path d="M4 17.5h10"></path></svg>
+        <div style="flex-grow: 1; font-size: 16px; color: #A79D8A;">食物名稱</div>
+      </div>
+      <div style="font-size: 11px; color: #D8462A; margin-top: 6px;">請先填食物名稱，其他欄位可以之後補。</div>
+    </div>
+
+    <div>
+      <div class="cap" style="margin-bottom: 7px;">停用</div>
+      <div style="display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 12px; background: #F0EADC; border: 1px solid #DED6C6; border-bottom: 3px solid #C9C0AE; border-radius: 6px;">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#C5BCAC" stroke-width="1.6" stroke-linecap="round"><path d="M4 6.5h16"></path><path d="M4 12h16"></path><path d="M4 17.5h10"></path></svg>
+        <div style="flex-grow: 1; font-size: 16px; color: #C5BCAC;">還沒設定 API key</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="cap" style="margin-bottom: 7px;">唯讀（外部帶進來的值）</div>
+      <div style="display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 12px; background: transparent; border: 1px dashed #C9C0AE; border-radius: 6px;">
+        <div style="flex-grow: 1; font-size: 16px; color: #4A4437;">每 100 g ・ 條碼查得</div>
+        <div class="d" style="font-size: 13px; font-style: italic; color: #9C9484;">OFF</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="cap" style="margin-top: 40px;">三、變體</div>
+  <div style="height: 1px; background: #D8D0BE; margin-top: 8px; margin-bottom: 18px;"></div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 26px 36px;">
+
+    <div>
+      <div class="cap" style="margin-bottom: 7px;">搜尋（今日頁 · 食物庫）</div>
+      <div style="display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 12px; background: #FFFFFF; border: 1px solid #16130E; border-bottom: 3px solid #D8462A; border-radius: 6px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16130E" stroke-width="1.7" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"></circle><line x1="16" y1="16" x2="20.5" y2="20.5"></line></svg>
+        <div style="flex-grow: 1; font-size: 16px;">珍奶 大杯</div>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6E6455" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="8.5" fill="#E9E1D0" stroke="none"></circle><line x1="9" y1="9" x2="15" y2="15"></line><line x1="15" y1="9" x2="9" y2="15"></line></svg>
+      </div>
+      <div style="font-size: 11px; color: #9C9484; margin-top: 6px;">多個關鍵字要全部命中。加入的紀錄會記到 8 月 26 日。</div>
+    </div>
+
+    <div>
+      <div class="cap" style="margin-bottom: 7px;">條碼（數字鍵盤 · 等寬）</div>
+      <div style="display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 12px; background: #FDFBF5; border: 1px solid #C9C0AE; border-bottom: 3px solid #16130E; border-radius: 6px;">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6E6455" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="5" x2="4" y2="19"></line><line x1="7.5" y1="5" x2="7.5" y2="19"></line><line x1="11" y1="5" x2="11" y2="19"></line><line x1="15" y1="5" x2="15" y2="19"></line><line x1="20" y1="5" x2="20" y2="19"></line></svg>
+        <div class="d" style="flex-grow: 1; font-size: 19px; letter-spacing: 0.14em;">4710088410016</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="cap" style="margin-bottom: 7px;">數字格（走自製鍵盤，不叫系統鍵盤）</div>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;">
+        <div style="padding: 10px 13px 8px 13px; border-radius: 6px; background: #FFFFFF; border: 1px solid #16130E; border-bottom: 3px solid #D8462A;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <div style="width: 6px; height: 6px; border-radius: 4px; background: #16130E;"></div>
+            <div class="s" style="font-size: 10px; letter-spacing: 0.16em; color: #6E6455;">熱量</div>
+          </div>
+          <div style="display: flex; align-items: baseline; gap: 4px; margin-top: 3px;">
+            <div class="d" style="font-size: 38px; line-height: 1; color: #D8462A;">350</div>
+            <div class="d" style="font-style: italic; font-size: 13px; color: #9C9484;">kcal</div>
+          </div>
+        </div>
+        <div style="padding: 10px 13px 8px 13px; border-radius: 6px; background: #FDFBF5; border: 1px solid #C9C0AE; border-bottom: 3px solid #16130E;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <div style="width: 6px; height: 6px; border-radius: 4px; background: #3D5A6C;"></div>
+            <div class="s" style="font-size: 10px; letter-spacing: 0.16em; color: #6E6455;">蛋白質</div>
+          </div>
+          <div style="display: flex; align-items: baseline; gap: 4px; margin-top: 3px;">
+            <div class="d" style="font-size: 38px; line-height: 1;">14</div>
+            <div class="d" style="font-style: italic; font-size: 13px; color: #9C9484;">g</div>
+          </div>
+        </div>
+      </div>
+      <div style="font-size: 11px; color: #9C9484; margin-top: 6px;">空值畫破折號而不是 0 ——「沒標示」和「真的是 0」必須分得開。</div>
+    </div>
+
+    <div>
+      <div class="cap" style="margin-bottom: 7px;">長文字（描述吃了什麼給 AI 估）</div>
+      <div style="padding: 11px 12px; background: #FDFBF5; border: 1px solid #C9C0AE; border-bottom: 3px solid #16130E; border-radius: 6px;">
+        <div style="font-size: 16px; line-height: 1.6; color: #4A4437; text-wrap: pretty;">CoCo 珍珠奶茶 大杯半糖，配一份鹹酥雞不加辣</div>
+        <div style="display: flex; align-items: baseline; margin-top: 8px;">
+          <div style="font-size: 11px; color: #9C9484;">講得越具體越準：店名、品項、大小杯、甜度</div>
+          <div style="flex-grow: 1;"></div>
+          <div class="d" style="font-size: 13px; color: #9C9484;">28/120</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="cap" style="margin-top: 40px;">四、數值</div>
+  <div style="height: 1px; background: #D8D0BE; margin-top: 8px; margin-bottom: 16px;"></div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 36px; align-items: start;">
+    <div style="display: flex; flex-direction: column;">
+      <div style="display: flex; padding: 6px 0; border-bottom: 1px solid #E9E1D0;"><div style="width: 150px; font-size: 12px; color: #6E6455;">高度</div><div class="d" style="font-size: 15px;">48 px</div><div style="font-size: 11px; color: #9C9484; margin-left: 8px; align-self: center;">觸控目標下限</div></div>
+      <div style="display: flex; padding: 6px 0; border-bottom: 1px solid #E9E1D0;"><div style="width: 150px; font-size: 12px; color: #6E6455;">圓角</div><div class="d" style="font-size: 15px;">6 px</div></div>
+      <div style="display: flex; padding: 6px 0; border-bottom: 1px solid #E9E1D0;"><div style="width: 150px; font-size: 12px; color: #6E6455;">左右內距</div><div class="d" style="font-size: 15px;">12 px</div></div>
+      <div style="display: flex; padding: 6px 0; border-bottom: 1px solid #E9E1D0;"><div style="width: 150px; font-size: 12px; color: #6E6455;">圖示與文字間距</div><div class="d" style="font-size: 15px;">10 px</div></div>
+      <div style="display: flex; padding: 6px 0; border-bottom: 1px solid #E9E1D0;"><div style="width: 150px; font-size: 12px; color: #6E6455;">外框</div><div class="d" style="font-size: 15px;">1 px</div><div style="font-size: 11px; color: #9C9484; margin-left: 8px; align-self: center;">#C9C0AE → 聚焦 #16130E</div></div>
+      <div style="display: flex; padding: 6px 0; border-bottom: 1px solid #E9E1D0;"><div style="width: 150px; font-size: 12px; color: #6E6455;">書寫線</div><div class="d" style="font-size: 15px;">3 px</div><div style="font-size: 11px; color: #9C9484; margin-left: 8px; align-self: center;">#16130E → 聚焦 #D8462A</div></div>
+      <div style="display: flex; padding: 6px 0; border-bottom: 1px solid #E9E1D0;"><div style="width: 150px; font-size: 12px; color: #6E6455;">輸入文字</div><div class="d" style="font-size: 15px;">16 px</div></div>
+      <div style="display: flex; padding: 6px 0; border-bottom: 1px solid #E9E1D0;"><div style="width: 150px; font-size: 12px; color: #6E6455;">標籤</div><div class="d" style="font-size: 15px;">10 px</div><div style="font-size: 11px; color: #9C9484; margin-left: 8px; align-self: center;">字距 0.24em ・ Noto Serif TC 600</div></div>
+      <div style="display: flex; padding: 6px 0;"><div style="width: 150px; font-size: 12px; color: #6E6455;">說明／錯誤</div><div class="d" style="font-size: 15px;">11 px</div><div style="font-size: 11px; color: #9C9484; margin-left: 8px; align-self: center;">框外下方 6 px</div></div>
+    </div>
+
+    <div style="padding: 16px 18px; border: 1px solid #D8D0BE; border-left: 3px solid #16130E; background: #FBF8F0;">
+      <div class="s" style="font-size: 13px; font-weight: 600; margin-bottom: 8px;">為什麼不是只有底線</div>
+      <div style="font-size: 12px; line-height: 1.8; color: #4A4437; text-wrap: pretty;">只有底線的欄位是 Material Design 第一版帶起來的做法，Google 自己後來的研究把它改掉了 —— 沒有封閉邊界時，使用者辨認「哪裡可以打字」明顯變慢，M3 現在建議用有框的樣式。<br><br>所以這一版留住外框，但不接受「圓角灰底方塊」那種到處都一樣的長相：底下那條 3px 的線是這份設計自己的東西，跟頁面上分隔區塊的規線同源。等於封閉邊界的可發現性拿到了，識別度也沒讓掉。</div>
+      <div style="height: 1px; background: #E9E1D0; margin: 14px 0;"></div>
+      <div style="font-size: 11px; line-height: 1.7; color: #6E6455;">同時要換掉的：<code style="font-family: monospace; font-size: 11px;">NutriFieldShape</code> 與 <code style="font-family: monospace; font-size: 11px;">nutriFieldColors()</code>。目前全 app 的欄位都吃這兩個，改這裡就會一起換。</div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":760,"height":1180}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

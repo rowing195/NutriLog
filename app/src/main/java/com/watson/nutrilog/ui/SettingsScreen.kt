@@ -2,7 +2,15 @@ package com.watson.nutrilog.ui
 
 import android.content.ClipboardManager
 import android.content.Context
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,28 +20,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorType
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,9 +39,9 @@ import androidx.compose.ui.unit.dp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.DarkModePreference
 import com.watson.nutrilog.data.NutriSettings
+import androidx.compose.foundation.layout.size
+import com.watson.nutrilog.ui.theme.NutrientColors
 import com.watson.nutrilog.ui.theme.NumberFontFamily
-import com.watson.nutrilog.ui.theme.NutriFieldShape
-import com.watson.nutrilog.ui.theme.nutriFieldColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,13 +55,10 @@ fun SettingsScreen(
     val context = LocalContext.current
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.settings_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onClose) {
-                        Icon(Icons.Default.Close, stringResource(R.string.close))
-                    }
-                },
+            ScreenTopBar(
+                title = stringResource(R.string.settings_title),
+                closeLabel = stringResource(R.string.close),
+                onClose = onClose,
             )
         },
     ) { inner ->
@@ -82,22 +69,19 @@ fun SettingsScreen(
                 // 同 EditEntryScreen：不加的話鍵盤會蓋住下半部的欄位
                 .imePadding()
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+                .padding(horizontal = 22.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             SectionTitle(stringResource(R.string.settings_appearance))
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                DarkModePreference.entries.forEachIndexed { index, option ->
-                    SegmentedButton(
-                        selected = settings.darkMode == option,
-                        onClick = { onChange(settings.copy(darkMode = option)) },
-                        shape = SegmentedButtonDefaults.itemShape(index, DarkModePreference.entries.size),
-                        label = { Text(option.label()) },
-                    )
-                }
-            }
+            // 圈選，不是 M3 的 SegmentedButton —— 它靠容器色分辨選中與否，
+            // 在這套低對比色票上兩個狀態幾乎看不出差別。
+            BallotRow(
+                labels = DarkModePreference.entries.map { it.label() },
+                selectedIndex = DarkModePreference.entries.indexOf(settings.darkMode),
+                onSelect = { onChange(settings.copy(darkMode = DarkModePreference.entries[it])) },
+            )
 
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            Hairline(Modifier.padding(vertical = 10.dp))
 
             SectionTitle(stringResource(R.string.settings_targets))
             TargetField(
@@ -121,14 +105,15 @@ fun SettingsScreen(
                 max = NutriSettings.MAX_MACRO_TARGET,
             ) { onChange(settings.copy(carbsTargetG = it)) }
 
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            Hairline(Modifier.padding(vertical = 10.dp))
 
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(Modifier.weight(1f)) {
+                // 開關固定 46dp 寬，說明文字要自己讓出間距，不然會頂到它身上
+                Column(Modifier.weight(1f).padding(end = 16.dp)) {
                     Text(stringResource(R.string.settings_show_extended))
                     Text(
                         stringResource(R.string.settings_show_extended_help),
@@ -136,13 +121,13 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                Switch(
+                NutriSwitch(
                     checked = settings.showExtendedNutrients,
                     onCheckedChange = { onChange(settings.copy(showExtendedNutrients = it)) },
                 )
             }
 
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            Hairline(Modifier.padding(vertical = 10.dp))
 
             SectionTitle(stringResource(R.string.settings_gemini))
             Text(
@@ -150,23 +135,21 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            TextField(
+            NutriTextField(
                 value = settings.geminiApiKey,
                 onValueChange = { onChange(settings.copy(geminiApiKey = it.trim())) },
-                label = { Text(stringResource(R.string.settings_api_key)) },
-                placeholder = { Text(stringResource(R.string.settings_api_key_hint)) },
-                singleLine = true,
+                label = stringResource(R.string.settings_api_key),
+                placeholder = stringResource(R.string.settings_api_key_hint),
                 // key 不該直接顯示在畫面上 —— 截圖或旁人看到就等於外流
                 visualTransformation = PasswordVisualTransformation(),
-                shape = NutriFieldShape,
-                colors = nutriFieldColors(),
                 modifier = Modifier.fillMaxWidth(),
             )
-            TextButton(onClick = {
-                clipboardText(context)?.let { onChange(settings.copy(geminiApiKey = it.trim())) }
-            }) {
-                Text(stringResource(R.string.settings_paste))
-            }
+            TextAction(
+                stringResource(R.string.settings_paste),
+                onClick = {
+                    clipboardText(context)?.let { onChange(settings.copy(geminiApiKey = it.trim())) }
+                },
+            )
             ModelField(
                 value = settings.geminiModel,
                 onChange = { onChange(settings.copy(geminiModel = it)) },
@@ -177,7 +160,7 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            Hairline(Modifier.padding(vertical = 10.dp))
 
             SectionTitle(stringResource(R.string.settings_data))
             Text(
@@ -185,9 +168,11 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            OutlinedButton(onClick = onExportCsv, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.export_csv))
-            }
+            StampButton(
+                label = stringResource(R.string.export_csv),
+                onClick = onExportCsv,
+                modifier = Modifier.padding(top = 4.dp),
+            )
             exportMessage?.let {
                 Text(
                     it,
@@ -219,19 +204,16 @@ private fun DarkModePreference.label(): String = stringResource(
  */
 @Composable
 private fun TargetField(label: String, value: Int, max: Int, onChange: (Int) -> Unit) {
-    TextField(
+    NutriTextField(
         value = if (value == 0) "" else value.toString(),
         onValueChange = { raw ->
             val digits = raw.filter { it.isDigit() }.take(5)
             onChange(digits.toIntOrNull()?.coerceIn(NutriSettings.MIN_TARGET, max) ?: 0)
         },
-        label = { Text(label) },
-        singleLine = true,
+        label = label,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        // 輸入的內容一定是純數字，套襯線不會碰到中文 label（label 是另一個 Text，不吃這個 textStyle）
-        textStyle = LocalTextStyle.current.copy(fontFamily = NumberFontFamily),
-        shape = NutriFieldShape,
-        colors = nutriFieldColors(),
+        // 輸入的內容一定是純數字，套襯線不會碰到中文 label（label 是另一個 Text）
+        numeric = true,
         modifier = Modifier.fillMaxWidth(),
     )
 }
@@ -239,32 +221,59 @@ private fun TargetField(label: String, value: Int, max: Int, onChange: (Int) -> 
 /** 目前只有這三個模型能用，改下拉選單就不會再有「名稱打錯」這種輸入錯誤。 */
 private val GEMINI_MODELS = listOf("gemini-3.6-flash", "gemini-3.7-flash", "gemini-3.5-flash-lite")
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * 模型選擇：三個選項直接攤開，不用下拉選單。
+ *
+ * 原本是 `ExposedDropdownMenuBox` —— 但它彈出來的浮層是 M3 自己的容器
+ * （圓角、陰影、Material 的底色），在這套方角紙面上是整個 app 唯一一個
+ * 浮起來的 Material 元件，而且為了三個選項去蓋一整套 popup 樣式並不划算。
+ *
+ * 只有三個而且不會再多，攤開反而少一次點擊，也看得到彼此的差別。
+ * 用垂直的圈選（而不是 [BallotRow] 那種橫排）是因為模型名稱很長，排不成一列。
+ */
 @Composable
 private fun ModelField(value: String, onChange: (String) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
-        TextField(
-            value = value,
-            onValueChange = {},
-            readOnly = true,
-            label = { Text(stringResource(R.string.settings_model)) },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            textStyle = LocalTextStyle.current.copy(fontFamily = NumberFontFamily),
-            shape = NutriFieldShape,
-            colors = nutriFieldColors(),
-            modifier = Modifier
-                .fillMaxWidth()
-                .menuAnchor(MenuAnchorType.PrimaryNotEditable, true),
-        )
-        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            GEMINI_MODELS.forEach { model ->
-                DropdownMenuItem(
-                    text = { Text(model, fontFamily = NumberFontFamily) },
-                    onClick = {
-                        onChange(model)
-                        expanded = false
-                    },
+    val scheme = MaterialTheme.colorScheme
+    Column {
+        SectionLabel(stringResource(R.string.settings_model), Modifier.padding(bottom = 4.dp))
+        GEMINI_MODELS.forEach { model ->
+            val active = model == value
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { onChange(model) }
+                    .padding(vertical = 11.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(9.dp),
+            ) {
+                Box(
+                    Modifier
+                        .size(16.dp)
+                        .clip(CircleShape)
+                        .background(if (active) scheme.onSurface else Color.Transparent)
+                        .border(
+                            1.5.dp,
+                            if (active) scheme.onSurface else NutrientColors.FieldBorder,
+                            CircleShape,
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (active) {
+                        Box(
+                            Modifier
+                                .size(5.dp)
+                                .clip(CircleShape)
+                                .background(scheme.inverseOnSurface)
+                        )
+                    }
+                }
+                // 型號是純英數，套襯線不會碰到中文
+                Text(
+                    model,
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontSize = 15.sp, fontFamily = NumberFontFamily,
+                    ),
+                    color = if (active) scheme.onSurface else scheme.onSurfaceVariant,
                 )
             }
         }

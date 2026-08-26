@@ -10,27 +10,21 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -65,13 +59,10 @@ fun HistoryScreen(
     val today = LocalDate.now()
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.history_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onClose) {
-                        Icon(Icons.Default.Close, stringResource(R.string.close))
-                    }
-                },
+            ScreenTopBar(
+                title = stringResource(R.string.history_title),
+                closeLabel = stringResource(R.string.close),
+                onClose = onClose,
             )
         },
     ) { inner ->
@@ -79,8 +70,8 @@ fun HistoryScreen(
             Modifier
                 .fillMaxSize()
                 .padding(inner)
-                .padding(horizontal = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+                .padding(horizontal = 22.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             MonthHeader(month, today, onShiftMonth)
             WeekdayHeader()
@@ -99,48 +90,62 @@ fun HistoryScreen(
 
 @Composable
 private fun MonthHeader(month: YearMonth, today: LocalDate, onShiftMonth: (Long) -> Unit) {
+    val scheme = MaterialTheme.colorScheme
     Row(
-        Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = { onShiftMonth(-1) }) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, stringResource(R.string.prev_month))
-        }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            Modifier.size(36.dp).clickable { onShiftMonth(-1) },
+            contentAlignment = Alignment.Center,
+        ) { ChevronMark(scheme.onSurfaceVariant, pointsLeft = true, size = 18.dp) }
+
+        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+            // 純數字加斜線，套襯線不會碰到中文
             Text(
-                month.year.toString() + "年" + month.monthValue + "月",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
+                month.year.toString() + " / " + "%02d".format(month.monthValue),
+                style = MaterialTheme.typography.headlineSmall.copy(
+                    fontSize = 24.sp, fontFamily = NumberFontFamily, letterSpacing = 1.sp,
+                ),
             )
             if (month != YearMonth.from(today)) {
-                TextButton(onClick = { onShiftMonth(monthsBetween(month, today)) }) {
-                    Text(stringResource(R.string.back_to_this_month))
-                }
+                Text(
+                    stringResource(R.string.back_to_this_month),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .clickable { onShiftMonth(monthsBetween(month, today)) }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                )
             }
         }
-        IconButton(onClick = { onShiftMonth(1) }) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, stringResource(R.string.next_month))
-        }
+
+        Box(
+            Modifier.size(36.dp).clickable { onShiftMonth(1) },
+            contentAlignment = Alignment.Center,
+        ) { ChevronMark(scheme.onSurfaceVariant, pointsLeft = false, size = 18.dp) }
     }
 }
 
 @Composable
 private fun WeekdayHeader() {
-    Row(Modifier.fillMaxWidth()) {
-        WEEKDAYS.forEachIndexed { index, label ->
-            Text(
-                label,
-                modifier = Modifier.weight(1f),
-                textAlign = TextAlign.Center,
-                style = MaterialTheme.typography.labelMedium,
-                // 週末用淡一點的紅，跟平日區隔但不搶戲
-                color = if (index == 0 || index == 6) {
-                    NutrientColors.Over.copy(alpha = 0.75f)
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-            )
+    Column {
+        Hairline(Modifier.padding(bottom = 8.dp))
+        Row(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+            WEEKDAYS.forEachIndexed { index, label ->
+                Text(
+                    label,
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
+                    // 週末用淡一點的朱紅，跟平日區隔但不搶戲
+                    color = if (index == 0 || index == 6) {
+                        NutrientColors.Over.copy(alpha = 0.75f)
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+            }
         }
     }
 }
@@ -162,7 +167,7 @@ private fun MonthGrid(
     val totalCells = leadingBlanks + daysInMonth
     val rows = (totalCells + 6) / 7
 
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         repeat(rows) { row ->
             Row(
                 Modifier.fillMaxWidth(),
@@ -214,17 +219,20 @@ private fun DayCell(
     val scheme = MaterialTheme.colorScheme
 
     // 底色深淺代表「吃了多少」，讓整個月一眼看得出鬆緊；
-    // 超標另外用紅／橘，因為那是不同性質的資訊，不是「更多一點」而已。
+    // 超標另外用朱紅／赭色，因為那是不同性質的資訊，不是「更多一點」而已。
+    //
+    // 這一版把圓角收成 2dp、每格固定畫一圈細線 —— 整個月看起來像一張印好的
+    // 表格而不是一堆圓角磁磚，跟今日頁那些規線是同一套語言。
     val fill = when {
         total == null -> Color.Transparent
-        severityColor != null -> severityColor.copy(alpha = 0.18f)
+        severityColor != null -> severityColor.copy(alpha = 0.16f)
         else -> {
             val ratio = if (settings.calorieTarget > 0) {
                 (kcal / settings.calorieTarget).coerceIn(0.0, 1.0).toFloat()
             } else {
                 0.5f
             }
-            scheme.primary.copy(alpha = 0.08f + 0.22f * ratio)
+            scheme.onSurface.copy(alpha = 0.05f + 0.16f * ratio)
         }
     }
 
@@ -233,24 +241,25 @@ private fun DayCell(
             .aspectRatio(0.85f)
             .clip(CellShape)
             .background(fill)
-            .then(
-                if (isSelected) {
-                    Modifier.border(2.dp, scheme.primary, CellShape)
-                } else {
-                    Modifier
-                }
+            .border(
+                if (isSelected) 1.5.dp else 1.dp,
+                if (isSelected) scheme.onSurface else scheme.outlineVariant,
+                CellShape,
             )
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(1.dp),
+        ) {
             Text(
                 date.dayOfMonth.toString(),
-                style = MaterialTheme.typography.labelLarge.copy(fontFamily = NumberFontFamily),
-                fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 15.sp, letterSpacing = 0.sp, fontFamily = NumberFontFamily,
+                ),
                 // 未來的日期壓淡：它們永遠是空的，不該看起來像「忘了記錄」
                 color = when {
-                    isToday -> scheme.primary
                     isFuture -> scheme.onSurfaceVariant.copy(alpha = 0.4f)
                     else -> scheme.onSurface
                 },
@@ -258,11 +267,24 @@ private fun DayCell(
             if (total != null) {
                 Text(
                     kcal.fmtInt(),
-                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = NumberFontFamily),
-                    fontSize = 10.sp,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        letterSpacing = 0.sp, fontSize = 11.sp, fontFamily = NumberFontFamily,
+                    ),
                     color = severityColor ?: scheme.onSurfaceVariant,
                 )
             }
+        }
+        // 今天用一條底線標記，跟今日頁那條週長條的選取記號是同一個做法 ——
+        // 不用粗體，因為襯線數字加粗在這個字級上幾乎看不出差別。
+        if (isToday) {
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 6.dp, vertical = 4.dp)
+                    .fillMaxWidth()
+                    .height(2.dp)
+                    .background(scheme.onSurface)
+            )
         }
     }
 }
@@ -285,28 +307,43 @@ private fun MonthSummary(month: YearMonth, totals: Map<String, DayTotal>, settin
     val loggedDays = totals.size
     val average = totals.values.sumOf { it.kcal } / loggedDays
     val overDays = totals.values.count { settings.calorieTarget > 0 && it.kcal > settings.calorieTarget }
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .padding(top = 12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        Text(
-            stringResource(R.string.history_month_summary, loggedDays, average.fmtInt()),
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        if (overDays > 0) {
-            Text(
-                stringResource(R.string.history_month_over, overDays),
-                style = MaterialTheme.typography.bodySmall,
-                color = NutrientColors.Over,
-            )
+    Column(Modifier.fillMaxWidth().padding(top = 14.dp)) {
+        Hairline()
+        Row(
+            Modifier.fillMaxWidth().padding(top = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(24.dp),
+        ) {
+            SummaryStat(stringResource(R.string.history_stat_days), loggedDays.toString(), null)
+            SummaryStat(stringResource(R.string.history_stat_average), average.fmtInt(), null)
+            if (overDays > 0) {
+                SummaryStat(
+                    stringResource(R.string.history_stat_over),
+                    overDays.toString(),
+                    NutrientColors.Over,
+                )
+            }
         }
     }
 }
 
-private val CellShape = RoundedCornerShape(10.dp)
+/** 月概況的一欄。跟今日頁的三大營養素同一個排法：小標在上、襯線數字在下。 */
+@Composable
+private fun SummaryStat(label: String, value: String, tint: Color?) {
+    val scheme = MaterialTheme.colorScheme
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        SectionLabel(label)
+        Text(
+            value,
+            style = MaterialTheme.typography.headlineSmall.copy(
+                fontSize = 24.sp, fontFamily = NumberFontFamily,
+            ),
+            color = tint ?: scheme.onSurface,
+        )
+    }
+}
+
+/** 幾乎方角。圓角磁磚會把整個月看成一堆按鈕，這裡要的是一張印好的表格。 */
+private val CellShape = RoundedCornerShape(2.dp)
 
 private val WEEKDAYS = listOf("日", "一", "二", "三", "四", "五", "六")
 

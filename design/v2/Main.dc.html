@@ -1,0 +1,705 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Noto+Serif+TC:wght@400;600;700&amp;family=Noto+Sans+TC:wght@300;400;500;700&amp;display=swap">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    a { color: #D8462A; } a:hover { color: #A8331C; }
+    .d { font-family: "Instrument Serif", "Hoefler Text", Georgia, serif; }
+    .s { font-family: "Noto Serif TC", "Songti TC", serif; }
+
+    /* 輸入框：外框 ＋ 一條較重的底規線。只有底線的樣式在可發現性上吃虧，
+       所以留住完整外框；底下那條 3px 才是這套語言自己的識別。 */
+    .field { display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 12px;
+             background: #FDFBF5; border: 1px solid #C9C0AE; border-bottom: 3px solid #16130E;
+             border-radius: 6px; }
+    .field:focus-within { border-color: #16130E; border-bottom-color: #D8462A; background: #FFFFFF; }
+    .field input { flex-grow: 1; min-width: 0; border: 0; outline: 0; background: transparent;
+                   font-family: inherit; font-size: 16px; color: #16130E; }
+    .field input::placeholder { color: #A79D8A; }
+    .scroll { overflow-y: auto; }
+    .scroll::-webkit-scrollbar { width: 0; }
+  </style>
+</helmet>
+
+<div style="width: 390px; height: 844px; overflow: hidden; position: relative; background: #F7F3E9; color: #16130E; font-family: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif; -webkit-font-smoothing: antialiased;">
+
+<sc-if value="{{ showToday }}" hint-placeholder-val="{{ true }}">
+  <div style="position: absolute; inset: 0; display: flex; flex-direction: column;">
+
+    <div style="flex-shrink: 0; padding: 54px 24px 0 24px;">
+      <div style="display: flex; align-items: baseline; gap: 10px;">
+        <div class="s" style="font-size: 16px; font-weight: 700; letter-spacing: 0.06em;">肥胖日記</div>
+        <div style="flex-grow: 1;"></div>
+        <div class="d" style="font-size: 13px; letter-spacing: 0.12em; color: #6E6455;">{{ monthLabel }}</div>
+        <div onClick="{{ openSearch }}" style="display: flex; align-items: center; padding: 4px; cursor: pointer;">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#16130E" stroke-width="1.7" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"></circle><line x1="16" y1="16" x2="20.5" y2="20.5"></line></svg>
+        </div>
+        <div style="display: flex; align-items: center; padding: 4px;">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6E6455" stroke-width="1.7" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="1.5"></rect><line x1="3.5" y1="10" x2="20.5" y2="10"></line><line x1="8" y1="2.8" x2="8" y2="6.5"></line><line x1="16" y1="2.8" x2="16" y2="6.5"></line></svg>
+        </div>
+        <div style="display: flex; align-items: center; padding: 4px;">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6E6455" stroke-width="1.7" stroke-linecap="round"><line x1="3" y1="7" x2="21" y2="7"></line><line x1="3" y1="17" x2="21" y2="17"></line><circle cx="15" cy="7" r="2.6" fill="#F7F3E9"></circle><circle cx="9" cy="17" r="2.6" fill="#F7F3E9"></circle></svg>
+        </div>
+      </div>
+      <div style="height: 2px; background: #16130E; margin-top: 8px;"></div>
+
+      <div style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; margin-top: 12px;">
+        <sc-for list="{{ days }}" as="day" hint-placeholder-count="7">
+          <div onClick="{{ day.pick }}" style="display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; padding-bottom: 4px;">
+            <div class="d" style="font-size: 10px; letter-spacing: 0.1em; color: {{ day.wdColor }};">{{ day.wl }}</div>
+            <div style="width: 100%; height: 26px; background: {{ day.trackColor }}; display: flex; align-items: flex-end;">
+              <div style="width: 100%; height: {{ day.barHeight }}; background: {{ day.barColor }};"></div>
+            </div>
+            <div class="d" style="font-size: {{ day.numSize }}; line-height: 1; color: {{ day.numColor }};">{{ day.num }}</div>
+            <div style="width: 100%; height: 2px; background: {{ day.markColor }};"></div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="height: 1px; background: #D8D0BE; margin-top: 10px;"></div>
+    </div>
+
+    <div class="scroll" style="flex-grow: 1; padding: 0 24px;">
+
+      <div style="display: flex; align-items: flex-end; gap: 12px; margin-top: 18px;">
+        <div style="display: flex; align-items: baseline; gap: 7px;">
+          <div class="d" style="font-size: 74px; line-height: 0.78; letter-spacing: -0.03em; color: {{ totalColor }};">{{ totalText }}</div>
+          <div class="d" style="font-style: italic; font-size: 17px; color: #6E6455;">kcal</div>
+        </div>
+        <div style="flex-grow: 1;"></div>
+        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 3px; padding-bottom: 4px;">
+          <div style="font-size: 11px; color: #6E6455;">目標 <span class="d" style="font-size: 14px;">{{ targetText }}</span></div>
+          <div style="font-size: 11px; color: {{ remainColor }};">{{ remainLabel }} <span class="d" style="font-size: 17px;">{{ remainText }}</span></div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 2px; height: 8px; margin-top: 14px; background: #E9E1D0;">
+        <sc-for list="{{ segs }}" as="seg" hint-placeholder-count="4">
+          <div style="flex-grow: {{ seg.grow }}; background: {{ seg.color }};"></div>
+        </sc-for>
+      </div>
+
+      <div style="display: flex; gap: 16px; margin-top: 8px;">
+        <sc-for list="{{ legend }}" as="leg" hint-placeholder-count="4">
+          <div style="font-size: 10px; color: {{ leg.color }};">{{ leg.label }} <span class="d" style="font-size: 12px;">{{ leg.value }}</span></div>
+        </sc-for>
+      </div>
+
+      <div style="height: 1px; background: #D8D0BE; margin-top: 16px;"></div>
+
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 14px;">
+        <sc-for list="{{ macros }}" as="m" hint-placeholder-count="3">
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <div class="s" style="font-size: 10px; letter-spacing: 0.16em; color: #6E6455;">{{ m.label }}</div>
+            <div style="display: flex; align-items: baseline; gap: 3px;">
+              <div class="d" style="font-size: 26px; line-height: 1; color: {{ m.color }};">{{ m.value }}</div>
+              <div class="d" style="font-size: 12px; color: #9C9484;">{{ m.targetText }}</div>
+            </div>
+            <div style="height: 3px; background: #E9E1D0;"><div style="width: {{ m.pct }}; height: 3px; background: {{ m.barColor }};"></div></div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="font-size: 10px; color: #9C9484; margin-top: 12px;">糖 <span class="d" style="font-size: 12px;">{{ extra.sugar }}</span> g　·　鈉 <span class="d" style="font-size: 12px;">{{ extra.sodium }}</span> mg　·　纖維 <span class="d" style="font-size: 12px;">{{ extra.fiber }}</span> g　·　飽脂 <span class="d" style="font-size: 12px;">{{ extra.satfat }}</span> g</div>
+
+      <div style="height: 1px; background: #D8D0BE; margin-top: 14px;"></div>
+
+      <div style="display: flex; flex-direction: column; padding-bottom: 24px;">
+        <sc-for list="{{ rows }}" as="row" hint-placeholder-count="8">
+          <div>
+            <sc-if value="{{ row.isHead }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; align-items: baseline; margin-top: 14px; margin-bottom: 4px;">
+                <div class="s" style="font-size: 11px; font-weight: 600; letter-spacing: 0.26em; color: {{ row.color }};">{{ row.label }}</div>
+                <div style="flex-grow: 1;"></div>
+                <div class="d" style="font-size: 14px; color: {{ row.color }};">{{ row.kcal }}</div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ row.isEntry }}" hint-placeholder-val="{{ true }}">
+              <div onClick="{{ row.open }}" style="display: flex; align-items: center; gap: 12px; padding: 7px 0; border-top: 1px solid #E9E1D0; cursor: pointer;">
+                <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px;">
+                  <div style="font-size: 15px;">{{ row.name }}</div>
+                  <div style="font-size: 10px; color: #9C9484;">{{ row.detail }}</div>
+                </div>
+                <div class="d" style="font-size: 20px;">{{ row.kcal }}</div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ row.isEmpty }}" hint-placeholder-val="{{ false }}">
+              <div onClick="{{ row.open }}" style="display: flex; align-items: center; gap: 8px; border-top: 1px solid #E9E1D0; padding: 8px 0; cursor: pointer;">
+                <div style="width: 22px; height: 22px; border-radius: 11px; border: 1px solid #D8D0BE; display: flex; align-items: center; justify-content: center;">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#B9B0A0" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </div>
+                <div style="font-size: 13px; font-style: italic; color: #B9B0A0;">還沒記</div>
+              </div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+
+    </div>
+
+    <div style="flex-shrink: 0; padding: 10px 24px 26px 24px; background: #F7F3E9; border-top: 1px solid #D8D0BE;">
+      <div onClick="{{ newEntry }}" style="height: 54px; background: #16130E; padding: 4px; cursor: pointer;">
+        <div style="height: 100%; border: 1px solid #6E6455; display: flex; align-items: center; justify-content: center; gap: 11px;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#F7F3E9" stroke-width="1.6" stroke-linecap="round"><line x1="12" y1="4" x2="12" y2="20"></line><line x1="4" y1="12" x2="20" y2="12"></line></svg>
+          <div class="s" style="font-size: 15px; font-weight: 600; letter-spacing: 0.3em; color: #F7F3E9; padding-left: 0.3em;">記一筆</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ showEdit }}" hint-placeholder-val="{{ false }}">
+  <div style="position: absolute; inset: 0; display: flex; flex-direction: column;">
+
+    <div style="flex-shrink: 0; padding: 54px 24px 0 24px;">
+      <div style="display: flex; align-items: center;">
+        <div onClick="{{ back }}" style="font-size: 13px; color: #6E6455; cursor: pointer; padding: 6px 0;">取消</div>
+        <div style="flex-grow: 1;"></div>
+        <div class="s" style="font-size: 12px; font-weight: 600; letter-spacing: 0.3em; padding-left: 0.3em;">{{ editTitle }}</div>
+        <div style="flex-grow: 1;"></div>
+        <div style="width: 30px; height: 30px; border-radius: 15px; border: 1px solid #DED6C6; display: flex; align-items: center; justify-content: center;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#B4544A" stroke-width="1.6" stroke-linecap="round"><path d="M5 7h14"></path><path d="M9 7V4.5h6V7"></path><path d="M6.5 7l1 12.5h9L18 7"></path></svg>
+        </div>
+      </div>
+      <div style="height: 2px; background: #16130E; margin-top: 8px;"></div>
+    </div>
+
+    <div class="scroll" style="flex-grow: 1; padding: 0 24px;">
+
+      <div class="s" style="font-size: 10px; font-weight: 600; letter-spacing: 0.24em; color: #6E6455; margin-top: 18px; margin-bottom: 7px;">吃了什麼</div>
+      <div class="field">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#9C9484" stroke-width="1.6" stroke-linecap="round"><path d="M4 6.5h16"></path><path d="M4 12h16"></path><path d="M4 17.5h10"></path></svg>
+        <input value="{{ draftName }}" onChange="{{ setName }}" placeholder="食物名稱">
+      </div>
+
+      <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+        <sc-for list="{{ mealPills }}" as="pill" hint-placeholder-count="4">
+          <div onClick="{{ pill.pick }}" style="display: flex; align-items: center; gap: 7px; padding: 13px 0; cursor: pointer;">
+            <div style="width: 16px; height: 16px; border-radius: 9px; border: 1.5px solid {{ pill.ring }}; background: {{ pill.fill }}; display: flex; align-items: center; justify-content: center;">
+              <div style="width: 5px; height: 5px; border-radius: 3px; background: {{ pill.dot }};"></div>
+            </div>
+            <div class="s" style="font-size: 14px; font-weight: {{ pill.weight }}; color: {{ pill.color }};">{{ pill.label }}</div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div class="s" style="font-size: 10px; font-weight: 600; letter-spacing: 0.24em; color: #6E6455; margin-top: 8px; margin-bottom: 7px;">份量</div>
+      <div class="field">
+        <input value="{{ draftServing }}" onChange="{{ setServing }}" placeholder="例如 1 碗 (250 g)">
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 6px; margin-top: 12px;">
+        <div class="s" style="font-size: 10px; font-weight: 600; letter-spacing: 0.24em; color: #6E6455; margin-right: 6px;">份數</div>
+        <sc-for list="{{ multPills }}" as="mp" hint-placeholder-count="4">
+          <div onClick="{{ mp.pick }}" class="d" style="font-size: 19px; line-height: 1; padding: 8px 13px; cursor: pointer; border-radius: 50%; color: {{ mp.color }}; border: 1.5px solid {{ mp.ring }};">{{ mp.label }}</div>
+        </sc-for>
+      </div>
+
+      <div style="height: 1px; background: #D8D0BE; margin-top: 16px;"></div>
+
+      <div onClick="{{ kcalCell.focus }}" style="margin-top: 16px; padding: 11px 14px 9px 14px; border-radius: 6px; cursor: pointer; background: {{ kcalCell.bg }}; border: 1px solid {{ kcalCell.border }}; border-bottom: 3px solid {{ kcalCell.rule }};">
+        <div style="display: flex; align-items: center; gap: 7px;">
+          <div style="width: 6px; height: 6px; border-radius: 4px; background: #16130E;"></div>
+          <div class="s" style="font-size: 10px; font-weight: 600; letter-spacing: 0.2em; color: #6E6455;">熱量</div>
+        </div>
+        <div style="display: flex; align-items: baseline; gap: 6px; margin-top: 2px;">
+          <div class="d" style="font-size: 54px; line-height: 1; color: {{ kcalCell.color }};">{{ kcalCell.value }}</div>
+          <div class="d" style="font-style: italic; font-size: 15px; color: #9C9484;">kcal</div>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 8px;">
+        <sc-for list="{{ macroCells }}" as="cell" hint-placeholder-count="3">
+          <div onClick="{{ cell.focus }}" style="cursor: pointer; padding: 9px 11px 7px 11px; border-radius: 6px; background: {{ cell.bg }}; border: 1px solid {{ cell.border }}; border-bottom: 3px solid {{ cell.rule }};">
+            <div style="display: flex; align-items: center; gap: 5px;">
+              <div style="width: 5px; height: 5px; border-radius: 3px; background: {{ cell.dot }};"></div>
+              <div class="s" style="font-size: 10px; letter-spacing: 0.12em; color: #6E6455;">{{ cell.label }}</div>
+            </div>
+            <div style="display: flex; align-items: baseline; gap: 3px; margin-top: 2px;">
+              <div class="d" style="font-size: 30px; line-height: 1; color: {{ cell.color }};">{{ cell.value }}</div>
+              <div class="d" style="font-style: italic; font-size: 12px; color: #9C9484;">g</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="display: flex; align-items: flex-start; gap: 7px; margin-top: 14px; padding-bottom: 24px;">
+        <div style="width: 6px; height: 6px; border-radius: 4px; margin-top: 5px; background: {{ checkColor }};"></div>
+        <div style="flex-grow: 1; font-size: 11px; font-style: italic; color: {{ checkColor }};">{{ checkText }}</div>
+      </div>
+    </div>
+
+    <sc-if value="{{ keypadOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="flex-shrink: 0; background: #F0EADC; border-top: 2px solid #16130E; padding: 0 24px 20px 24px;">
+        <div style="display: flex; align-items: center; padding: 9px 0 10px 0;">
+          <div style="font-size: 11px; letter-spacing: 0.16em; color: #6E6455;">正在填 · {{ focusLabel }}</div>
+          <div style="flex-grow: 1;"></div>
+          <div onClick="{{ closeKeypad }}" style="height: 32px; padding: 0 20px; border-radius: 16px; background: #16130E; display: flex; align-items: center; cursor: pointer;">
+            <div class="s" style="font-size: 12px; font-weight: 600; letter-spacing: 0.22em; color: #F7F3E9; padding-left: 0.22em;">完成</div>
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;">
+          <sc-for list="{{ keys }}" as="k" hint-placeholder-count="12">
+            <div onClick="{{ k.press }}" style="display: flex; align-items: center; justify-content: center; height: 56px; cursor: pointer;">
+              <sc-if value="{{ k.isDigit }}" hint-placeholder-val="{{ true }}">
+                <div style="width: 56px; height: 56px; border-radius: 28px; border: 1.5px solid {{ k.ring }}; background: #FDFBF5; display: flex; align-items: center; justify-content: center;">
+                  <div class="d" style="font-size: 28px; line-height: 1; color: {{ k.color }};">{{ k.label }}</div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ k.isDel }}" hint-placeholder-val="{{ false }}">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#6E6455" stroke-width="1.5" stroke-linecap="round"><path d="M21 5.5H9L3 12l6 6.5h12z"></path><line x1="12.5" y1="9.5" x2="17.5" y2="14.5"></line><line x1="17.5" y1="9.5" x2="12.5" y2="14.5"></line></svg>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ saveBarOpen }}" hint-placeholder-val="{{ true }}">
+      <div style="flex-shrink: 0; padding: 10px 24px 26px 24px; border-top: 1px solid #D8D0BE;">
+        <div onClick="{{ back }}" style="height: 54px; background: {{ saveBg }}; padding: 4px; cursor: pointer;">
+          <div style="height: 100%; border: 1px solid {{ saveInner }}; display: flex; align-items: center; justify-content: center;">
+            <div class="s" style="font-size: 15px; font-weight: 600; letter-spacing: 0.3em; color: {{ saveColor }}; padding-left: 0.3em;">儲存</div>
+          </div>
+        </div>
+        <div style="font-size: 11px; color: #9C9484; margin-top: 7px; text-align: center;">{{ saveHint }}</div>
+      </div>
+    </sc-if>
+  </div>
+</sc-if>
+
+<sc-if value="{{ showSearch }}" hint-placeholder-val="{{ false }}">
+  <div style="position: absolute; inset: 0; display: flex; flex-direction: column;">
+
+    <div style="flex-shrink: 0; padding: 54px 24px 0 24px;">
+      <div style="display: flex; align-items: center;">
+        <div class="s" style="font-size: 12px; font-weight: 600; letter-spacing: 0.3em; padding-left: 0.3em;">搜尋</div>
+        <div style="flex-grow: 1;"></div>
+        <div onClick="{{ back }}" style="font-size: 13px; color: #6E6455; cursor: pointer; padding: 6px 0;">取消</div>
+      </div>
+      <div style="height: 2px; background: #16130E; margin-top: 8px;"></div>
+
+      <div class="field" style="margin-top: 16px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6E6455" stroke-width="1.7" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"></circle><line x1="16" y1="16" x2="20.5" y2="20.5"></line></svg>
+        <input value="{{ query }}" onChange="{{ setQuery }}" placeholder="食物名稱或份量">
+        <sc-if value="{{ hasQuery }}" hint-placeholder-val="{{ false }}">
+          <div onClick="{{ clearQuery }}" style="display: flex; align-items: center; cursor: pointer; padding: 4px;">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6E6455" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="8.5" fill="#E9E1D0" stroke="none"></circle><line x1="9" y1="9" x2="15" y2="15"></line><line x1="15" y1="9" x2="9" y2="15"></line></svg>
+          </div>
+        </sc-if>
+      </div>
+      <div style="font-size: 10px; color: #9C9484; margin-top: 7px;">{{ searchHint }}</div>
+      <div style="height: 1px; background: #D8D0BE; margin-top: 12px;"></div>
+    </div>
+
+    <div class="scroll" style="flex-grow: 1; padding: 0 24px;">
+      <div style="display: flex; gap: 18px; margin-top: 12px; margin-bottom: 4px;">
+        <div class="s" style="font-size: 12px; font-weight: 600; letter-spacing: 0.2em; border-bottom: 3px solid #16130E; padding-bottom: 3px;">常吃</div>
+        <div class="s" style="font-size: 12px; letter-spacing: 0.2em; color: #9C9484; padding-bottom: 3px;">最近</div>
+      </div>
+
+      <sc-for list="{{ results }}" as="r" hint-placeholder-count="6">
+        <div onClick="{{ r.open }}" style="display: flex; align-items: center; gap: 12px; padding: 9px 0; border-top: 1px solid #E9E1D0; cursor: pointer;">
+          <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px;">
+            <div style="font-size: 15px;">{{ r.name }}</div>
+            <div style="font-size: 10px; color: #9C9484;">{{ r.stats }}</div>
+          </div>
+          <div class="d" style="font-size: 20px;">{{ r.kcal }}</div>
+          <div style="width: 30px; height: 30px; border-radius: 15px; border: 1.5px solid #16130E; display: flex; align-items: center; justify-content: center;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16130E" stroke-width="1.8" stroke-linecap="round"><line x1="12" y1="4" x2="12" y2="20"></line><line x1="4" y1="12" x2="20" y2="12"></line></svg>
+          </div>
+        </div>
+      </sc-for>
+
+      <sc-if value="{{ noResult }}" hint-placeholder-val="{{ false }}">
+        <div style="font-size: 12px; font-style: italic; color: #9C9484; padding: 22px 0; border-top: 1px solid #E9E1D0;">找不到符合的紀錄。多個關鍵字要全部命中，試著少打一點。</div>
+      </sc-if>
+    </div>
+  </div>
+</sc-if>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"target":{"editor":"int","default":2000,"min":1200,"max":3000,"step":50,"section":"每日目標"},"$preview":{"width":390,"height":844}}'>
+const MEALS = ['早餐', '午餐', '晚餐', '點心'];
+const MEAL_SHORT = ['早', '午', '晚', '點'];
+const SEG_COLORS = ['#16130E', '#4A4437', '#6E6455', '#9C9484'];
+const INK = '#16130E';
+const MUTED = '#6E6455';
+const FAINT = '#9C9484';
+const PALE = '#B9B0A0';
+const OVER = '#D8462A';
+const WARN = '#B8791F';
+
+const MACRO_TARGETS = { p: 100, f: 60, c: 250 };
+const MACRO_COLORS = { p: '#3D5A6C', f: '#A8722B', c: '#6B4E7D' };
+
+// 一週的資料。每筆的 kcal 是自己的欄位（跟 app 一樣），三大營養素另外記，
+// 畫面上所有小計都從這裡加總出來，不另外寫死。
+const DAYS = [
+  { num: 23, wl: 'SUN', future: false, entries: [
+    { meal: 0, name: '蛋餅＋奶茶', serving: '1 份', kcal: 520, p: 16, f: 22, c: 58 },
+    { meal: 1, name: '牛肉麵', serving: '1 碗', kcal: 680, p: 34, f: 24, c: 78 },
+    { meal: 2, name: '排骨便當', serving: '1 個', kcal: 640, p: 30, f: 26, c: 72 },
+  ] },
+  { num: 24, wl: 'MON', future: false, entries: [
+    { meal: 0, name: '美式早餐', serving: '1 份', kcal: 620, p: 24, f: 32, c: 58 },
+    { meal: 1, name: '炸雞便當', serving: '1 個', kcal: 880, p: 38, f: 44, c: 86 },
+    { meal: 2, name: '鹹酥雞', serving: '1 份', kcal: 500, p: 20, f: 32, c: 38 },
+    { meal: 3, name: '珍奶（微糖）', serving: '中杯', kcal: 260, p: 5, f: 8, c: 38 },
+  ] },
+  { num: 25, wl: 'TUE', future: false, entries: [
+    { meal: 0, name: '燕麥牛奶', serving: '1 碗', kcal: 380, p: 16, f: 10, c: 56 },
+    { meal: 1, name: '雞胸沙拉', serving: '1 份', kcal: 460, p: 42, f: 16, c: 28 },
+    { meal: 2, name: '滷味拼盤', serving: '1 份', kcal: 780, p: 36, f: 34, c: 74 },
+  ] },
+  { num: 26, wl: 'WED', future: false, entries: [
+    { meal: 0, name: '起司蛋餅', serving: '1 份', kcal: 350, p: 14, f: 18, c: 32 },
+    { meal: 0, name: '豆漿（無糖）', serving: '大杯', kcal: 130, p: 12, f: 4, c: 8 },
+    { meal: 1, name: '滷肉飯（中）', serving: '1 碗', kcal: 540, p: 17, f: 19, c: 74 },
+    { meal: 1, name: '味噌湯', serving: '1 碗', kcal: 80, p: 4, f: 3, c: 6 },
+    { meal: 3, name: 'CoCo 珍奶', serving: '大杯半糖', kcal: 410, p: 6, f: 12, c: 62 },
+  ] },
+  { num: 27, wl: 'THU', future: true, entries: [] },
+  { num: 28, wl: 'FRI', future: true, entries: [] },
+  { num: 29, wl: 'SAT', future: true, entries: [] },
+];
+
+const SUGGESTIONS = [
+  { name: 'CoCo 珍奶', serving: '大杯半糖', kcal: 410, p: 6, f: 12, c: 62, times: 14, last: '昨天' },
+  { name: '滷肉飯（中）', serving: '1 碗', kcal: 540, p: 17, f: 19, c: 74, times: 9, last: '今天' },
+  { name: '起司蛋餅', serving: '1 份', kcal: 350, p: 14, f: 18, c: 32, times: 8, last: '今天' },
+  { name: '雞胸沙拉', serving: '1 份', kcal: 460, p: 42, f: 16, c: 28, times: 6, last: '8 月 25 日' },
+  { name: '牛肉麵', serving: '1 碗', kcal: 680, p: 34, f: 24, c: 78, times: 5, last: '8 月 23 日' },
+  { name: '豆漿（無糖）', serving: '大杯', kcal: 130, p: 12, f: 4, c: 8, times: 5, last: '今天' },
+  { name: '鹹酥雞', serving: '1 份', kcal: 500, p: 20, f: 32, c: 38, times: 3, last: '8 月 24 日' },
+];
+
+const MACRO_FIELDS = [
+  { key: 'p', label: '蛋白質', dot: MACRO_COLORS.p },
+  { key: 'f', label: '脂肪', dot: MACRO_COLORS.f },
+  { key: 'c', label: '碳水', dot: MACRO_COLORS.c },
+];
+const FIELD_LABELS = { kcal: '熱量', p: '蛋白質', f: '脂肪', c: '碳水' };
+
+/** 超標嚴重度。跟 app 的 overSeverity() 同一條規則：10% 以內橘、超過才紅。 */
+function severity(value, target) {
+  if (target <= 0 || value <= target) return null;
+  return (value - target) / target > 0.10 ? OVER : WARN;
+}
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      screen: 'today',
+      dayIndex: 3,
+      query: '',
+      focus: null,
+      fresh: false,
+      mult: 1,
+      // 一開始就給一份空草稿，編輯畫面的值才永遠算得出來。
+      draft: { name: '', serving: '', meal: 0, kcal: '', p: '', f: '', c: '',
+               base: { kcal: 0, p: 0, f: 0, c: 0 }, isNew: true },
+    };
+  }
+
+  target() {
+    return this.props.target ?? 2000;
+  }
+
+  openDraft(entry) {
+    // 從既有紀錄開啟時倍率一律回 1 —— 畫面上的數字就是這筆本來的值。
+    this.setState({
+      screen: 'edit',
+      focus: null,
+      mult: 1,
+      draft: entry
+        ? { name: entry.name, serving: entry.serving, meal: entry.meal,
+            kcal: String(entry.kcal), p: String(entry.p), f: String(entry.f), c: String(entry.c),
+            base: { kcal: entry.kcal, p: entry.p, f: entry.f, c: entry.c }, isNew: false }
+        : { name: '', serving: '', meal: 0, kcal: '', p: '', f: '', c: '',
+            base: { kcal: 0, p: 0, f: 0, c: 0 }, isNew: true },
+    });
+  }
+
+  patchDraft(patch) {
+    this.setState({ draft: Object.assign({}, this.state.draft, patch) });
+  }
+
+  pressKey(key) {
+    const field = this.state.focus;
+    if (!field) return;
+    const current = this.state.draft[field] || '';
+    let next;
+    if (key === 'del') {
+      next = current.slice(0, -1);
+    } else if (key === '.') {
+      next = current.indexOf('.') >= 0 ? current : (this.state.fresh ? '0.' : (current || '0') + '.');
+    } else {
+      // 聚焦後第一次按鍵覆蓋掉原值：會點進來多半就是不同意現在這個數字。
+      next = this.state.fresh ? key : current + key;
+    }
+    const draft = Object.assign({}, this.state.draft);
+    draft[field] = next;
+    // 手改過之後倍率的基準跟著換成新值，不然再按倍率會跳回舊的比例。
+    draft.base = { kcal: Number(draft.kcal) || 0, p: Number(draft.p) || 0, f: Number(draft.f) || 0, c: Number(draft.c) || 0 };
+    this.setState({ draft: draft, fresh: false, mult: 1 });
+  }
+
+  applyMult(m) {
+    const base = this.state.draft.base;
+    const round = (v) => (v * m % 1 === 0 ? String(v * m) : (v * m).toFixed(1));
+    this.setState({
+      mult: m,
+      draft: Object.assign({}, this.state.draft, {
+        kcal: base.kcal ? String(Math.round(base.kcal * m)) : '',
+        p: base.p ? round(base.p) : '',
+        f: base.f ? round(base.f) : '',
+        c: base.c ? round(base.c) : '',
+      }),
+    });
+  }
+
+  numCell(key, dot) {
+    const draft = this.state.draft;
+    const active = this.state.focus === key;
+    const blank = draft[key] === '';
+    return {
+      label: FIELD_LABELS[key],
+      dot: dot,
+      value: blank ? '—' : draft[key],
+      color: blank ? '#C5BCAC' : (active ? OVER : INK),
+      bg: active ? '#FFFFFF' : '#FDFBF5',
+      border: active ? INK : '#C9C0AE',
+      rule: active ? OVER : INK,
+      focus: () => this.setState({ focus: key, fresh: true }),
+    };
+  }
+
+  todayVals() {
+    const target = this.target();
+    const day = DAYS[this.state.dayIndex];
+    const entries = day.entries;
+    const total = entries.reduce((s, e) => s + e.kcal, 0);
+    const totalSeverity = severity(total, target);
+    const remaining = target - total;
+
+    const days = DAYS.map((d, i) => {
+      const sum = d.entries.reduce((s, e) => s + e.kcal, 0);
+      const sev = severity(sum, target);
+      const selected = i === this.state.dayIndex;
+      const frac = target > 0 ? Math.min(sum / target, 1) : 0;
+      return {
+        wl: d.wl,
+        num: d.num,
+        pick: () => this.setState({ dayIndex: i }),
+        wdColor: selected ? INK : (d.future ? '#C5BCAC' : FAINT),
+        numColor: selected ? INK : (d.future ? '#C5BCAC' : MUTED),
+        numSize: selected ? '22px' : '17px',
+        trackColor: d.future ? '#EFE9DB' : '#E9E1D0',
+        barHeight: (frac * 100).toFixed(0) + '%',
+        barColor: sev || (selected ? INK : PALE),
+        markColor: selected ? INK : 'transparent',
+      };
+    });
+
+    const mealSums = MEALS.map((_, m) => entries.filter((e) => e.meal === m).reduce((s, e) => s + e.kcal, 0));
+    const segs = [];
+    mealSums.forEach((sum, m) => {
+      if (sum <= 0) return;
+      segs.push({ grow: String(sum), color: totalSeverity || SEG_COLORS[m] });
+      segs.push({ grow: '4', color: '#F7F3E9' });
+    });
+    if (remaining > 0) segs.push({ grow: String(remaining), color: '#E9E1D0' });
+
+    const legend = mealSums.map((sum, m) => ({
+      label: MEAL_SHORT[m],
+      value: sum > 0 ? String(sum) : '—',
+      color: sum > 0 ? MUTED : PALE,
+    }));
+
+    const sum = (k) => entries.reduce((s, e) => s + e[k], 0);
+    const macros = MACRO_FIELDS.map((m) => {
+      const value = sum(m.key);
+      const t = MACRO_TARGETS[m.key];
+      const sev = severity(value, t);
+      return {
+        label: m.label,
+        value: String(Math.round(value)),
+        targetText: '/' + t,
+        color: sev || INK,
+        barColor: sev || m.dot,
+        pct: Math.min((value / t) * 100, 100).toFixed(0) + '%',
+      };
+    });
+
+    const rows = [];
+    MEALS.forEach((label, m) => {
+      const ofMeal = entries.filter((e) => e.meal === m);
+      const empty = ofMeal.length === 0;
+      rows.push({
+        isHead: true, isEntry: false, isEmpty: false,
+        label: label,
+        kcal: empty ? '—' : String(mealSums[m]),
+        color: empty ? PALE : INK,
+      });
+      if (empty) {
+        rows.push({ isHead: false, isEntry: false, isEmpty: true, open: () => this.openDraft(null) });
+      } else {
+        ofMeal.forEach((e) => {
+          rows.push({
+            isHead: false, isEntry: true, isEmpty: false,
+            name: e.name,
+            detail: e.serving + ' · 蛋白 ' + e.p + ' · 脂肪 ' + e.f + ' · 碳水 ' + e.c,
+            kcal: String(e.kcal),
+            open: () => this.openDraft(e),
+          });
+        });
+      }
+    });
+
+    return {
+      monthLabel: '2026 / 08',
+      days: days,
+      totalText: String(total),
+      totalColor: totalSeverity || INK,
+      targetText: String(target),
+      remainLabel: remaining < 0 ? '超出' : '還有',
+      remainText: String(Math.abs(remaining)),
+      remainColor: remaining < 0 ? OVER : MUTED,
+      segs: segs,
+      legend: legend,
+      macros: macros,
+      // 進階營養素在 app 裡是另外的欄位，這裡放固定的示範值，不從三大營養素推算。
+      extra: this.state.dayIndex === 3
+        ? { sugar: '46', sodium: '1820', fiber: '11', satfat: '19' }
+        : { sugar: '—', sodium: '—', fiber: '—', satfat: '—' },
+      rows: rows,
+      openSearch: () => this.setState({ screen: 'search' }),
+      newEntry: () => this.openDraft(null),
+    };
+  }
+
+  editVals() {
+    const draft = this.state.draft;
+    const focus = this.state.focus;
+
+    const kcal = Number(draft.kcal) || 0;
+    const derived = (Number(draft.p) || 0) * 4 + (Number(draft.f) || 0) * 9 + (Number(draft.c) || 0) * 4;
+    let checkText;
+    let checkColor;
+    if (!kcal || !derived) {
+      checkText = '填完三大營養素，這裡會拿它們換算的熱量跟你填的數字對照。';
+      checkColor = FAINT;
+    } else if (Math.abs(derived - kcal) / kcal > 0.20) {
+      checkText = '三大營養素換算約 ' + Math.round(derived) + ' kcal，和你填的 ' + kcal + ' 差得有點多。';
+      checkColor = OVER;
+    } else {
+      checkText = '三大營養素換算約 ' + Math.round(derived) + ' kcal，和填的數字對得起來。';
+      checkColor = MUTED;
+    }
+
+    const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', 'del'].map((k) => ({
+      label: k === 'del' ? '' : k,
+      isDigit: k !== 'del',
+      isDel: k === 'del',
+      // 小數點是次要鍵：圈還在（還是可以按），但墨色退一階。
+      ring: k === '.' ? '#DED6C6' : '#C9C0AE',
+      color: k === '.' ? MUTED : INK,
+      press: () => this.pressKey(k),
+    }));
+
+    const canSave = draft.name.trim().length > 0;
+
+    return {
+      editTitle: draft.isNew ? '新增' : '編輯',
+      draftName: draft.name,
+      draftServing: draft.serving,
+      setName: (e) => this.patchDraft({ name: e.target.value }),
+      setServing: (e) => this.patchDraft({ serving: e.target.value }),
+      mealPills: MEALS.map((label, m) => {
+        const active = draft.meal === m;
+        return {
+          label: label,
+          ring: active ? INK : '#C9C0AE',
+          fill: active ? INK : 'transparent',
+          dot: active ? '#F7F3E9' : 'transparent',
+          color: active ? INK : MUTED,
+          weight: active ? '600' : '400',
+          pick: () => this.patchDraft({ meal: m }),
+        };
+      }),
+      multPills: [0.5, 1, 1.5, 2].map((m) => {
+        const active = this.state.mult === m;
+        return {
+          label: String(m),
+          color: active ? INK : PALE,
+          ring: active ? INK : 'transparent',
+          pick: () => this.applyMult(m),
+        };
+      }),
+      kcalCell: this.numCell('kcal', INK),
+      macroCells: MACRO_FIELDS.map((f) => this.numCell(f.key, f.dot)),
+      checkText: checkText,
+      checkColor: checkColor,
+      keypadOpen: focus !== null,
+      saveBarOpen: focus === null,
+      focusLabel: focus ? FIELD_LABELS[focus] : '',
+      closeKeypad: () => this.setState({ focus: null }),
+      keys: keys,
+      // 不能存的時候整顆退成外框章，不是變灰的實心塊 —— 看得出還在，只是還沒輪到它。
+      saveBg: canSave ? INK : 'transparent',
+      saveInner: canSave ? '#6E6455' : '#C9C0AE',
+      saveColor: canSave ? '#F7F3E9' : '#B9B0A0',
+      saveHint: canSave ? '' : '請先填食物名稱，其他欄位可以之後補',
+    };
+  }
+
+  searchVals() {
+    const q = this.state.query.trim();
+    // 多個關鍵字要全部命中，跟 app 的搜尋行為一致。
+    const terms = q ? q.split(/\s+/) : [];
+    const matched = SUGGESTIONS.filter((s) => {
+      const hay = s.name + ' ' + s.serving;
+      return terms.every((t) => hay.indexOf(t) >= 0);
+    });
+    return {
+      query: this.state.query,
+      hasQuery: q.length > 0,
+      setQuery: (e) => this.setState({ query: e.target.value }),
+      clearQuery: () => this.setState({ query: '' }),
+      searchHint: '加入的紀錄會記到 8 月 26 日（週三）',
+      results: matched.map((s) => ({
+        name: s.name,
+        stats: s.serving + ' · ' + s.times + ' 次 · 最後 ' + s.last,
+        kcal: String(s.kcal),
+        open: () => this.openDraft({ name: s.name, serving: s.serving, meal: 0, kcal: s.kcal, p: s.p, f: s.f, c: s.c }),
+      })),
+      noResult: matched.length === 0,
+    };
+  }
+
+  renderVals() {
+    const screen = this.state.screen;
+    const base = {
+      showToday: screen === 'today',
+      showEdit: screen === 'edit',
+      showSearch: screen === 'search',
+      back: () => this.setState({ screen: 'today', focus: null }),
+    };
+    // 三個畫面的欄位名稱不重疊，一律全部算出來併起來 —— 隱藏分支裡的 hole
+    // 才不會變成 undefined。
+    return Object.assign(base, this.todayVals(), this.editVals(), this.searchVals());
+  }
+}
+</script>
+</body>
+</html>

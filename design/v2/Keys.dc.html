@@ -1,0 +1,230 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Noto+Serif+TC:wght@400;600;700&amp;family=Noto+Sans+TC:wght@300;400;500;700&amp;display=swap">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    a { color: #D8462A; } a:hover { color: #A8331C; }
+    .d { font-family: "Instrument Serif", "Hoefler Text", Georgia, serif; }
+    .s { font-family: "Noto Serif TC", "Songti TC", serif; }
+    .cap { font-family: "Noto Serif TC", "Songti TC", serif; font-size: 10px; font-weight: 600;
+           letter-spacing: 0.24em; color: #6E6455; }
+    .note { font-size: 11px; line-height: 1.7; color: #6E6455; text-wrap: pretty; }
+    .rank { font-family: "Instrument Serif", Georgia, serif; font-size: 30px; line-height: 1; color: #C5BCAC; }
+  </style>
+</helmet>
+
+<div style="width: 760px; min-height: 1240px; background: #F7F3E9; color: #16130E; font-family: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif; -webkit-font-smoothing: antialiased; padding: 40px;">
+
+  <div style="display: flex; align-items: baseline; gap: 12px;">
+    <div class="s" style="font-size: 20px; font-weight: 700; letter-spacing: 0.04em;">按鍵</div>
+    <div class="d" style="font-size: 15px; font-style: italic; color: #6E6455;">Buttons &amp; keys</div>
+    <div style="flex-grow: 1;"></div>
+    <div class="d" style="font-size: 13px; letter-spacing: 0.12em; color: #6E6455;">肥胖日記 ・ 方向 A×B</div>
+  </div>
+  <div style="height: 2px; background: #16130E; margin-top: 8px;"></div>
+
+  <div style="font-size: 13px; line-height: 1.7; color: #4A4437; margin-top: 16px; max-width: 640px; text-wrap: pretty;">上一版每一顆按鍵都是同一種矩形，那不是簡約，是還沒設計。這一版<strong>形狀本身就是層級</strong>：印章給主要動作、藥丸給確認、圓章給數字鍵、圈選給單選、手圈給數值切換、線框給圖示鈕。六種形狀各做一件事，同一個畫面上就不會需要靠顏色或大小去猜哪顆比較重要。</div>
+
+  <div class="cap" style="margin-top: 32px;">一、六種按鍵</div>
+  <div style="height: 1px; background: #D8D0BE; margin-top: 8px; margin-bottom: 20px;"></div>
+
+  <div style="display: flex; flex-direction: column; gap: 22px;">
+
+    <div style="display: flex; gap: 20px; align-items: flex-start; padding-bottom: 20px; border-bottom: 1px solid #E9E1D0;">
+      <div class="rank" style="width: 26px; flex-shrink: 0;">1</div>
+      <div style="width: 300px; flex-shrink: 0;">
+        <div class="cap" style="margin-bottom: 10px;">印章 ｜ 主要動作</div>
+        <div style="height: 54px; background: #16130E; padding: 4px;">
+          <div style="height: 100%; border: 1px solid #6E6455; display: flex; align-items: center; justify-content: center; gap: 11px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#F7F3E9" stroke-width="1.6" stroke-linecap="round"><line x1="12" y1="4" x2="12" y2="20"></line><line x1="4" y1="12" x2="20" y2="12"></line></svg>
+            <div class="s" style="font-size: 15px; font-weight: 600; letter-spacing: 0.3em; color: #F7F3E9; padding-left: 0.3em;">記一筆</div>
+          </div>
+        </div>
+        <div style="height: 54px; background: transparent; padding: 4px; margin-top: 10px;">
+          <div style="height: 100%; border: 1px solid #C9C0AE; display: flex; align-items: center; justify-content: center;">
+            <div class="s" style="font-size: 15px; font-weight: 600; letter-spacing: 0.3em; color: #B9B0A0; padding-left: 0.3em;">儲存</div>
+          </div>
+        </div>
+      </div>
+      <div style="flex-grow: 1; padding-top: 22px;">
+        <div class="note"><strong style="color: #16130E;">記一筆 ／ 儲存。</strong>滿版寬度、實心墨底，裡面再退 4px 畫一條細框 —— 是印章的雙框，不是一塊填滿的色。這一層整個 app 只有一顆，同一畫面不會出現第二顆。</div>
+        <div class="note" style="margin-top: 8px;">不能存的時候<strong style="color: #16130E;">退成外框章</strong>（第二個），不是把實心塊調灰。灰掉的實心塊看起來像壞了；外框章看得出它還在，只是還沒輪到它。理由寫在旁邊那行小字，不彈東西。</div>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 20px; align-items: flex-start; padding-bottom: 20px; border-bottom: 1px solid #E9E1D0;">
+      <div class="rank" style="width: 26px; flex-shrink: 0;">2</div>
+      <div style="width: 300px; flex-shrink: 0;">
+        <div class="cap" style="margin-bottom: 10px;">藥丸 ｜ 就地確認</div>
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <div style="height: 32px; padding: 0 20px; border-radius: 16px; background: #16130E; display: flex; align-items: center;">
+            <div class="s" style="font-size: 12px; font-weight: 600; letter-spacing: 0.22em; color: #F7F3E9; padding-left: 0.22em;">完成</div>
+          </div>
+          <div style="height: 32px; padding: 0 20px; border-radius: 16px; border: 1px solid #C9C0AE; display: flex; align-items: center;">
+            <div class="s" style="font-size: 12px; letter-spacing: 0.22em; color: #6E6455; padding-left: 0.22em;">重試</div>
+          </div>
+        </div>
+      </div>
+      <div style="flex-grow: 1; padding-top: 22px;">
+        <div class="note"><strong style="color: #16130E;">收鍵盤、重試、去設定。</strong>比印章小一號、圓端，代表「關掉眼前這件事」而不是「完成整張表單」。放在它所屬的那一塊裡（鍵盤標頭列、錯誤訊息旁），不會跑到畫面底部去。</div>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 20px; align-items: flex-start; padding-bottom: 20px; border-bottom: 1px solid #E9E1D0;">
+      <div class="rank" style="width: 26px; flex-shrink: 0;">3</div>
+      <div style="width: 300px; flex-shrink: 0;">
+        <div class="cap" style="margin-bottom: 10px;">圓章 ｜ 數字鍵</div>
+        <div style="display: flex; gap: 12px; align-items: center;">
+          <div style="width: 56px; height: 56px; border-radius: 28px; border: 1.5px solid #C9C0AE; background: #FDFBF5; display: flex; align-items: center; justify-content: center;">
+            <div class="d" style="font-size: 28px; line-height: 1;">7</div>
+          </div>
+          <div style="width: 56px; height: 56px; border-radius: 28px; border: 1.5px solid #16130E; background: #16130E; display: flex; align-items: center; justify-content: center;">
+            <div class="d" style="font-size: 28px; line-height: 1; color: #F7F3E9;">7</div>
+          </div>
+          <div style="width: 56px; height: 56px; border-radius: 28px; border: 1.5px solid #DED6C6; background: #FDFBF5; display: flex; align-items: center; justify-content: center;">
+            <div class="d" style="font-size: 28px; line-height: 1; color: #6E6455;">.</div>
+          </div>
+          <div style="width: 56px; height: 56px; display: flex; align-items: center; justify-content: center;">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#6E6455" stroke-width="1.5" stroke-linecap="round"><path d="M21 5.5H9L3 12l6 6.5h12z"></path><line x1="12.5" y1="9.5" x2="17.5" y2="14.5"></line><line x1="17.5" y1="9.5" x2="12.5" y2="14.5"></line></svg>
+          </div>
+        </div>
+        <div style="display: flex; gap: 12px; margin-top: 7px;">
+          <div class="note" style="width: 56px; text-align: center; font-size: 10px;">一般</div>
+          <div class="note" style="width: 56px; text-align: center; font-size: 10px;">按下</div>
+          <div class="note" style="width: 56px; text-align: center; font-size: 10px;">次要</div>
+          <div class="note" style="width: 56px; text-align: center; font-size: 10px;">刪除</div>
+        </div>
+      </div>
+      <div style="flex-grow: 1; padding-top: 22px;">
+        <div class="note"><strong style="color: #16130E;">自製數字鍵盤。</strong>圓的，因為整頁其他東西都是方的與線性的 —— 一片全是方格的鍵盤在紙感版面上會像試算表。圓章也呼應打字機鍵帽，跟襯線數字是同一個時代的東西。</div>
+        <div class="note" style="margin-top: 8px;">三級：數字是<strong style="color: #16130E;">有圈</strong>的、小數點<strong style="color: #16130E;">圈變淡</strong>（還能按，但不是主角）、刪除<strong style="color: #16130E;">沒有圈</strong>只有圖示。不必看標籤就分得出哪些是輸入、哪個是破壞性的。</div>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 20px; align-items: flex-start; padding-bottom: 20px; border-bottom: 1px solid #E9E1D0;">
+      <div class="rank" style="width: 26px; flex-shrink: 0;">4</div>
+      <div style="width: 300px; flex-shrink: 0;">
+        <div class="cap" style="margin-bottom: 10px;">圈選 ｜ 單選</div>
+        <div style="display: flex; justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 7px;">
+            <div style="width: 16px; height: 16px; border-radius: 9px; border: 1.5px solid #C9C0AE;"></div>
+            <div class="s" style="font-size: 14px; color: #6E6455;">早餐</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 7px;">
+            <div style="width: 16px; height: 16px; border-radius: 9px; border: 1.5px solid #16130E; background: #16130E; display: flex; align-items: center; justify-content: center;">
+              <div style="width: 5px; height: 5px; border-radius: 3px; background: #F7F3E9;"></div>
+            </div>
+            <div class="s" style="font-size: 14px; font-weight: 600;">午餐</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 7px;">
+            <div style="width: 16px; height: 16px; border-radius: 9px; border: 1.5px solid #C9C0AE;"></div>
+            <div class="s" style="font-size: 14px; color: #6E6455;">晚餐</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 7px;">
+            <div style="width: 16px; height: 16px; border-radius: 9px; border: 1.5px solid #C9C0AE;"></div>
+            <div class="s" style="font-size: 14px; color: #6E6455;">點心</div>
+          </div>
+        </div>
+      </div>
+      <div style="flex-grow: 1; padding-top: 12px;">
+        <div class="note"><strong style="color: #16130E;">餐別。</strong>原本是四個一模一樣的方塊，選中的那個填色 —— 在這種低對比紙色上很難一眼看出選了哪個。改成印刷表單的圈選：空心圈與實心圈的差別遠比「淡色塊 vs 深色塊」明顯，選中的字再加粗一級。</div>
+        <div class="note" style="margin-top: 8px;">整列 42px 高都是可點區，圈本身只有 16px 但不必點準它。</div>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 20px; align-items: flex-start; padding-bottom: 20px; border-bottom: 1px solid #E9E1D0;">
+      <div class="rank" style="width: 26px; flex-shrink: 0;">5</div>
+      <div style="width: 300px; flex-shrink: 0;">
+        <div class="cap" style="margin-bottom: 10px;">手圈 ｜ 數值切換</div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <div class="s" style="font-size: 10px; font-weight: 600; letter-spacing: 0.24em; color: #6E6455; margin-right: 6px;">份數</div>
+          <div class="d" style="font-size: 19px; line-height: 1; padding: 8px 13px; color: #B9B0A0;">0.5</div>
+          <div class="d" style="font-size: 19px; line-height: 1; padding: 8px 13px; border-radius: 50%; border: 1.5px solid #16130E;">1</div>
+          <div class="d" style="font-size: 19px; line-height: 1; padding: 8px 13px; color: #B9B0A0;">1.5</div>
+          <div class="d" style="font-size: 19px; line-height: 1; padding: 8px 13px; color: #B9B0A0;">2</div>
+        </div>
+      </div>
+      <div style="flex-grow: 1; padding-top: 12px;">
+        <div class="note"><strong style="color: #16130E;">份數倍率。</strong>值本身就是按鍵，沒被選到的完全沒有框 —— 一排四個框會讓人以為要各按一次。選中的那個用一個手畫似的橢圓圈起來，就像在紙本表單上圈答案。</div>
+        <div class="note" style="margin-top: 8px;">按下去四個營養素數字會一起等比重算，所以它必須看起來像「一個開關的四個檔位」，不是四顆獨立的鈕。</div>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 20px; align-items: flex-start;">
+      <div class="rank" style="width: 26px; flex-shrink: 0;">6</div>
+      <div style="width: 300px; flex-shrink: 0;">
+        <div class="cap" style="margin-bottom: 10px;">線框 ｜ 圖示鈕</div>
+        <div style="display: flex; gap: 14px; align-items: center;">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#16130E" stroke-width="1.7" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"></circle><line x1="16" y1="16" x2="20.5" y2="20.5"></line></svg>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6E6455" stroke-width="1.7" stroke-linecap="round"><line x1="3" y1="7" x2="21" y2="7"></line><line x1="3" y1="17" x2="21" y2="17"></line><circle cx="15" cy="7" r="2.6" fill="#F7F3E9"></circle><circle cx="9" cy="17" r="2.6" fill="#F7F3E9"></circle></svg>
+          <div style="width: 30px; height: 30px; border-radius: 15px; border: 1.5px solid #16130E; display: flex; align-items: center; justify-content: center;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16130E" stroke-width="1.8" stroke-linecap="round"><line x1="12" y1="4" x2="12" y2="20"></line><line x1="4" y1="12" x2="20" y2="12"></line></svg>
+          </div>
+          <div style="width: 30px; height: 30px; border-radius: 15px; border: 1px solid #DED6C6; display: flex; align-items: center; justify-content: center;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#B4544A" stroke-width="1.6" stroke-linecap="round"><path d="M5 7h14"></path><path d="M9 7V4.5h6V7"></path><path d="M6.5 7l1 12.5h9L18 7"></path></svg>
+          </div>
+          <div style="width: 22px; height: 22px; border-radius: 11px; border: 1px solid #D8D0BE; display: flex; align-items: center; justify-content: center;">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#B9B0A0" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          </div>
+        </div>
+        <div style="display: flex; gap: 14px; margin-top: 7px;">
+          <div class="note" style="width: 17px; font-size: 9px; text-align: center;">裸</div>
+          <div class="note" style="width: 17px; font-size: 9px; text-align: center;">裸</div>
+          <div class="note" style="width: 30px; font-size: 9px; text-align: center;">實</div>
+          <div class="note" style="width: 30px; font-size: 9px; text-align: center;">危</div>
+          <div class="note" style="width: 22px; font-size: 9px; text-align: center;">虛</div>
+        </div>
+      </div>
+      <div style="flex-grow: 1; padding-top: 12px;">
+        <div class="note"><strong style="color: #16130E;">四級。</strong>報頭上的搜尋、月曆、設定<strong style="color: #16130E;">不加框</strong>（一排框會把報頭壓死）；搜尋結果的「加入」是<strong style="color: #16130E;">實線圈</strong>，因為它在一列裡要跟整列點擊分開；刪除是<strong style="color: #16130E;">淡框＋磚紅圖示</strong>，唯一用暖紅的按鍵；「還沒記」旁邊那個是<strong style="color: #16130E;">最淡的圈</strong>，只是提示可以點，不搶戲。</div>
+        <div class="note" style="margin-top: 8px;">全部走同一套線性圖示：1.5–1.8px 線寬、圓端點、24 格。不用 Material 內建圖示 —— 那是最容易讓 app 看起來像沒設計過的一件事。</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="cap" style="margin-top: 36px;">二、數值與對照</div>
+  <div style="height: 1px; background: #D8D0BE; margin-top: 8px; margin-bottom: 18px;"></div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 36px; align-items: start;">
+    <div style="display: flex; flex-direction: column;">
+      <div style="display: flex; padding: 6px 0; border-bottom: 1px solid #E9E1D0;"><div style="width: 130px; font-size: 12px; color: #6E6455;">印章</div><div class="d" style="font-size: 15px;">54 px</div><div style="font-size: 11px; color: #9C9484; margin-left: 8px; align-self: center;">內框退 4 px ・ 字距 0.3em</div></div>
+      <div style="display: flex; padding: 6px 0; border-bottom: 1px solid #E9E1D0;"><div style="width: 130px; font-size: 12px; color: #6E6455;">藥丸</div><div class="d" style="font-size: 15px;">32 px</div><div style="font-size: 11px; color: #9C9484; margin-left: 8px; align-self: center;">左右 20 px ・ 半徑 16 px</div></div>
+      <div style="display: flex; padding: 6px 0; border-bottom: 1px solid #E9E1D0;"><div style="width: 130px; font-size: 12px; color: #6E6455;">圓章</div><div class="d" style="font-size: 15px;">56 px</div><div style="font-size: 11px; color: #9C9484; margin-left: 8px; align-self: center;">圈 1.5 px ・ 數字 28 px</div></div>
+      <div style="display: flex; padding: 6px 0; border-bottom: 1px solid #E9E1D0;"><div style="width: 130px; font-size: 12px; color: #6E6455;">圈選</div><div class="d" style="font-size: 15px;">16 px</div><div style="font-size: 11px; color: #9C9484; margin-left: 8px; align-self: center;">可點區整列 42 px 高</div></div>
+      <div style="display: flex; padding: 6px 0; border-bottom: 1px solid #E9E1D0;"><div style="width: 130px; font-size: 12px; color: #6E6455;">手圈</div><div class="d" style="font-size: 15px;">35 px</div><div style="font-size: 11px; color: #9C9484; margin-left: 8px; align-self: center;">內距 8／13 px ・ 半徑 50%</div></div>
+      <div style="display: flex; padding: 6px 0;"><div style="width: 130px; font-size: 12px; color: #6E6455;">圖示鈕</div><div class="d" style="font-size: 15px;">30 px</div><div style="font-size: 11px; color: #9C9484; margin-left: 8px; align-self: center;">裸圖示的可點區另外墊到 44 px</div></div>
+    </div>
+
+    <div style="padding: 16px 18px; border: 1px solid #D8D0BE; border-left: 3px solid #16130E; background: #FBF8F0;">
+      <div class="s" style="font-size: 13px; font-weight: 600; margin-bottom: 10px;">跟舊版的差別</div>
+      <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 12px;">
+        <div style="width: 56px; height: 56px; border-radius: 16px; background: #16130E; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F8F7F2" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        </div>
+        <div class="note">舊版：右下角一顆 FAB，只有一個 ＋。它同時是「拍照」「掃條碼」「常吃」「手動輸入」五個入口，但畫面上完全看不出來，還會蓋住最後一筆紀錄。</div>
+      </div>
+      <div style="height: 1px; background: #E9E1D0; margin: 12px 0;"></div>
+      <div class="note">現在：滿版印章帶字，點下去才展開那五個入口。字比圖示誠實 —— 第一次用的人不必猜 ＋ 會發生什麼事，而且不擋內容。代價是佔掉底部 54px，所以捲動區要自己留出等高的下緣留白。</div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":760,"height":1240}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

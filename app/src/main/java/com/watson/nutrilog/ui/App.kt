@@ -109,7 +109,8 @@ fun NutriLogApp(viewModel: NutriViewModel) {
             onBackToToday = { viewModel.showDate(LocalDate.now()) },
             onOpenEntry = viewModel::startEdit,
             onAddManual = { viewModel.startNewEntry() },
-            onAddForMeal = { meal -> viewModel.startNewEntry(meal) },
+            // 從某一餐的「還沒記」點進來只是「記住這一餐」，開哪一條路由選單決定
+            onTargetMeal = viewModel::setPendingMeal,
             onAddPhoto = startCamera,
             onAddFromGallery = startGallery,
             // 這個畫面同時是常吃清單，不需要 key 也能用，

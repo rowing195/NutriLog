@@ -1,0 +1,142 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Noto+Serif+TC:wght@400;600;700&amp;family=Noto+Sans+TC:wght@300;400;500&amp;display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #D8462A; } a:hover { color: #A8331C; }
+    .d { font-family: "Instrument Serif", "Hoefler Text", Georgia, serif; }
+    .s { font-family: "Noto Serif TC", "Songti TC", serif; }
+  </style>
+</helmet>
+
+<div style="width: 390px; height: 720px; overflow: hidden; position: relative; background: #F7F3E9; color: #16130E; font-family: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif; -webkit-font-smoothing: antialiased;">
+
+  <div style="display: flex; flex-direction: column; padding: 54px 24px 0 24px;">
+
+    <div style="display: flex; align-items: center;">
+      <div style="font-size: 13px; color: #6E6455;">取消</div>
+      <div style="flex-grow: 1;"></div>
+      <div class="s" style="font-size: 12px; font-weight: 600; letter-spacing: 0.3em; padding-left: 0.3em;">編輯</div>
+      <div style="flex-grow: 1;"></div>
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6E6455" stroke-width="1.5" stroke-linecap="round"><path d="M5 7h14"></path><path d="M9 7V4.5h6V7"></path><path d="M6.5 7l1 12.5h9L18 7"></path></svg>
+    </div>
+    <div style="height: 2px; background: #16130E; margin-top: 8px;"></div>
+
+    <div style="font-size: 10px; letter-spacing: 0.26em; color: #9C9484; margin-top: 22px;">吃了什麼</div>
+    <div class="s" style="font-size: 27px; font-weight: 600; margin-top: 6px;">起司蛋餅</div>
+    <div style="height: 1px; background: #D8D0BE; margin-top: 10px;"></div>
+
+    <div style="display: flex; gap: 22px; margin-top: 18px;">
+      <div style="display: flex; flex-direction: column; gap: 5px; align-items: center;">
+        <div class="s" style="font-size: 14px; font-weight: 600;">早餐</div>
+        <div style="width: 100%; height: 3px; background: #16130E;"></div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 5px; align-items: center;">
+        <div class="s" style="font-size: 14px; color: #9C9484;">午餐</div>
+        <div style="width: 100%; height: 3px; background: transparent;"></div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 5px; align-items: center;">
+        <div class="s" style="font-size: 14px; color: #9C9484;">晚餐</div>
+        <div style="width: 100%; height: 3px; background: transparent;"></div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 5px; align-items: center;">
+        <div class="s" style="font-size: 14px; color: #9C9484;">點心</div>
+        <div style="width: 100%; height: 3px; background: transparent;"></div>
+      </div>
+    </div>
+
+    <div style="height: 1px; background: #D8D0BE; margin-top: 18px;"></div>
+
+    <div style="display: flex; align-items: flex-end; gap: 12px; margin-top: 16px;">
+      <div style="flex-grow: 1;">
+        <div style="font-size: 10px; letter-spacing: 0.26em; color: #9C9484;">份量</div>
+        <div style="font-size: 15px; margin-top: 5px;">1 份（120 g）</div>
+      </div>
+      <div style="display: flex; align-items: baseline; gap: 12px;">
+        <div class="d" style="font-size: 17px; color: #B9B0A0;">0.5</div>
+        <div class="d" style="font-size: 24px; border-bottom: 3px solid #16130E; line-height: 1.05;">1</div>
+        <div class="d" style="font-size: 17px; color: #B9B0A0;">1.5</div>
+        <div class="d" style="font-size: 17px; color: #B9B0A0;">2</div>
+      </div>
+    </div>
+
+    <div style="height: 1px; background: #D8D0BE; margin-top: 18px;"></div>
+
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 20px; margin-top: 20px;">
+      <div style="display: flex; flex-direction: column; gap: 2px; border-bottom: 3px solid #D8462A; padding-bottom: 6px;">
+        <div class="s" style="font-size: 11px; letter-spacing: 0.2em; color: #6E6455;">熱量</div>
+        <div style="display: flex; align-items: baseline; gap: 5px;">
+          <div class="d" style="font-size: 46px; line-height: 0.9; color: #D8462A;">350</div>
+          <div class="d" style="font-style: italic; font-size: 15px; color: #9C9484;">kcal</div>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 2px; border-bottom: 1px solid #D8D0BE; padding-bottom: 6px;">
+        <div class="s" style="font-size: 11px; letter-spacing: 0.2em; color: #6E6455;">蛋白質</div>
+        <div style="display: flex; align-items: baseline; gap: 5px;">
+          <div class="d" style="font-size: 46px; line-height: 0.9;">14</div>
+          <div class="d" style="font-style: italic; font-size: 15px; color: #9C9484;">g</div>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 2px; border-bottom: 1px solid #D8D0BE; padding-bottom: 6px;">
+        <div class="s" style="font-size: 11px; letter-spacing: 0.2em; color: #6E6455;">脂肪</div>
+        <div style="display: flex; align-items: baseline; gap: 5px;">
+          <div class="d" style="font-size: 46px; line-height: 0.9;">18</div>
+          <div class="d" style="font-style: italic; font-size: 15px; color: #9C9484;">g</div>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 2px; border-bottom: 1px solid #D8D0BE; padding-bottom: 6px;">
+        <div class="s" style="font-size: 11px; letter-spacing: 0.2em; color: #6E6455;">碳水</div>
+        <div style="display: flex; align-items: baseline; gap: 5px;">
+          <div class="d" style="font-size: 46px; line-height: 0.9;">32</div>
+          <div class="d" style="font-style: italic; font-size: 15px; color: #9C9484;">g</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="font-size: 12px; font-style: italic; color: #6E6455; margin-top: 16px;">三大營養素換算約 <span class="d" style="font-style: normal; font-size: 15px;">346</span> kcal，和填的數字對得起來。</div>
+
+  </div>
+
+  <div style="position: absolute; left: 0; right: 0; bottom: 0; background: #F0EADC; border-top: 2px solid #16130E;">
+    <div style="display: flex; align-items: baseline; padding: 9px 24px 7px 24px;">
+      <div style="font-size: 11px; letter-spacing: 0.2em; color: #6E6455;">正在填 · 熱量</div>
+      <div style="flex-grow: 1;"></div>
+      <div class="s" style="font-size: 13px; font-weight: 600; letter-spacing: 0.2em; color: #D8462A;">完成</div>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid #D8D0BE;">
+      <div class="d" style="text-align: center; font-size: 26px; padding: 11px 0; border-right: 1px solid #E0D8C7; border-bottom: 1px solid #E0D8C7;">1</div>
+      <div class="d" style="text-align: center; font-size: 26px; padding: 11px 0; border-right: 1px solid #E0D8C7; border-bottom: 1px solid #E0D8C7;">2</div>
+      <div class="d" style="text-align: center; font-size: 26px; padding: 11px 0; border-bottom: 1px solid #E0D8C7;">3</div>
+      <div class="d" style="text-align: center; font-size: 26px; padding: 11px 0; border-right: 1px solid #E0D8C7; border-bottom: 1px solid #E0D8C7;">4</div>
+      <div class="d" style="text-align: center; font-size: 26px; padding: 11px 0; border-right: 1px solid #E0D8C7; border-bottom: 1px solid #E0D8C7;">5</div>
+      <div class="d" style="text-align: center; font-size: 26px; padding: 11px 0; border-bottom: 1px solid #E0D8C7;">6</div>
+      <div class="d" style="text-align: center; font-size: 26px; padding: 11px 0; border-right: 1px solid #E0D8C7; border-bottom: 1px solid #E0D8C7;">7</div>
+      <div class="d" style="text-align: center; font-size: 26px; padding: 11px 0; border-right: 1px solid #E0D8C7; border-bottom: 1px solid #E0D8C7;">8</div>
+      <div class="d" style="text-align: center; font-size: 26px; padding: 11px 0; border-bottom: 1px solid #E0D8C7;">9</div>
+      <div class="d" style="text-align: center; font-size: 26px; padding: 11px 0; color: #9C9484; border-right: 1px solid #E0D8C7;">.</div>
+      <div class="d" style="text-align: center; font-size: 26px; padding: 11px 0; border-right: 1px solid #E0D8C7;">0</div>
+      <div style="display: flex; align-items: center; justify-content: center; padding: 11px 0;">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#6E6455" stroke-width="1.5" stroke-linecap="round"><path d="M21 5.5H9L3 12l6 6.5h12z"></path><line x1="12.5" y1="9.5" x2="17.5" y2="14.5"></line><line x1="17.5" y1="9.5" x2="12.5" y2="14.5"></line></svg>
+      </div>
+    </div>
+    <div style="height: 22px;"></div>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":390,"height":720}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

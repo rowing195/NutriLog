@@ -262,6 +262,9 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     var analysisMeal by mutableStateOf(Meal.BREAKFAST)
         private set
 
+    /** 見 [setPendingMeal]。null 代表使用者沒指定，照時間猜。 */
+    private var pendingMeal: Meal? = null
+
     /** 搜尋輸入。空字串時畫面顯示食物庫（常吃／最近兩頁），有字才換成逐筆結果。 */
     var searchQuery by mutableStateOf("")
         private set
@@ -332,8 +335,21 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
 
     fun backToToday() {
         exportMessage = null
+        pendingMeal = null
         screen = Screen.Today
     }
+
+    /**
+     * 使用者從某一餐的「還沒記」點進新增選單時，記住那一餐。
+     *
+     * 五個入口（常吃／手動／拍照／相簿／條碼）最後都會走到 [guessMeal]，
+     * 所以只要在那三個地方讓它讓位給這個值，不管使用者選哪一條路，
+     * 記錄都會落在他點的那一餐 —— 而不是只有「輸入營養素」那一條有效。
+     *
+     * 從角落那顆章進來時傳 null，回到今日頁時清掉：不清的話下次從角落進來
+     * 還會沿用上次那一餐，而使用者根本沒指定過。
+     */
+    fun setPendingMeal(meal: Meal?) { pendingMeal = meal }
 
     fun showDate(date: LocalDate) {
         selectedDate = date
@@ -374,7 +390,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
      * 猜錯使用者改一下就好，總比每次都要選。
      */
     fun startNewEntry(meal: Meal? = null) {
-        draft = EntryDraft(meal = meal ?: guessMeal())
+        draft = EntryDraft(meal = meal ?: pendingMeal ?: guessMeal())
         screen = Screen.EditEntry
     }
 
@@ -385,7 +401,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
 
     /** 條碼／拍照流程用：先把草稿填好再切到表單，讓使用者確認後才入庫。 */
     fun startPrefilled(prefilled: EntryDraft) {
-        draft = prefilled.copy(meal = guessMeal())
+        draft = prefilled.copy(meal = pendingMeal ?: guessMeal())
         screen = Screen.EditEntry
     }
 
@@ -396,6 +412,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         val entry = draft.toEntry(selectedDate)
         viewModelScope.launch {
             dao.upsert(entry)
+            pendingMeal = null
             screen = Screen.Today
         }
     }
@@ -496,7 +513,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         lastSource = source
-        analysisMeal = guessMeal()
+        analysisMeal = pendingMeal ?: guessMeal()
         analysisState = AnalysisState.Analyzing
         screen = Screen.Review
         viewModelScope.launch {

@@ -18,22 +18,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,10 +31,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.watson.nutrilog.R
@@ -106,6 +96,20 @@ fun EditEntryScreen(
     }
 
     val scheme = MaterialTheme.colorScheme
+    val focusManager = LocalFocusManager.current
+
+    /**
+     * 點數字格：先把文字欄位的焦點放掉，系統鍵盤才會收起來。
+     *
+     * 少了這一行，系統鍵盤和自製數字鍵盤會同時佔著畫面底部 —— 使用者以為自己
+     * 在按數字，其實按在系統鍵盤上，數字進了上一個聚焦的文字欄位。
+     * 反方向（點文字欄位收掉數字鍵盤）走的是 NutriTextField 的 onFocusChanged。
+     */
+    fun focusNumber(field: NumField) {
+        focusManager.clearFocus()
+        focused = field
+        fresh = true
+    }
 
     // 鍵盤開著時返回鍵先收鍵盤，而不是直接把整張表單關掉
     if (focused != null) {
@@ -144,40 +148,24 @@ fun EditEntryScreen(
 
     Scaffold(
         topBar = {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    // 自己拼的 topBar 不像 M3 TopAppBar 會自動避開狀態列
-                    .statusBarsPadding()
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TextButton(onClick = onClose) {
-                    Text(stringResource(R.string.cancel), style = MaterialTheme.typography.bodyMedium)
-                }
-                Text(
-                    stringResource(
-                        if (draft.id == null) R.string.entry_new_title else R.string.entry_edit_title
-                    ),
-                    style = MaterialTheme.typography.titleSmall,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.weight(1f),
-                )
-                // 新增中的草稿還沒進資料庫，沒有東西可刪 —— 位子留著，
-                // 不然標題會因為有沒有刪除鈕而左右跳動
-                if (onDelete != null) {
-                    IconButton(onClick = { confirmDelete = true }) {
-                        Icon(
-                            Icons.Default.Delete,
-                            stringResource(R.string.delete),
-                            Modifier.size(18.dp),
-                            tint = scheme.onSurfaceVariant,
-                        )
+            ScreenTopBar(
+                title = stringResource(
+                    if (draft.id == null) R.string.entry_new_title else R.string.entry_edit_title
+                ),
+                closeLabel = stringResource(R.string.cancel),
+                onClose = onClose,
+                // 新增中的草稿還沒進資料庫，沒有東西可刪。刪除是唯一用暖紅的按鍵，
+                // 框刻意畫淡：要點得到，但不該是這個畫面上最顯眼的東西。
+                trailing = if (onDelete == null) null else {
+                    {
+                        CircleIconButton(
+                            onClick = { confirmDelete = true },
+                            borderColor = scheme.outlineVariant,
+                            borderWidth = 1.dp,
+                        ) { TrashMark(scheme.error) }
                     }
-                } else {
-                    Box(Modifier.size(48.dp))
-                }
-            }
+                },
+            )
         },
         bottomBar = {
             if (focused != null) {
@@ -196,15 +184,13 @@ fun EditEntryScreen(
                         .navigationBarsPadding()
                         .padding(horizontal = 22.dp, vertical = 12.dp)
                 ) {
-                    SaveButton(enabled = draft.isValid, onClick = onSave)
-                    if (!draft.isValid) {
-                        Text(
-                            stringResource(R.string.entry_name_required),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = scheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 6.dp),
-                        )
-                    }
+                    // 不能存的時候整顆退成外框章，理由用 helper 講一句就好，不彈東西。
+                    StampButton(
+                        label = stringResource(R.string.save),
+                        enabled = draft.isValid,
+                        onClick = onSave,
+                        helper = if (draft.isValid) null else stringResource(R.string.entry_name_required),
+                    )
                 }
             }
         },
@@ -218,26 +204,25 @@ fun EditEntryScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 22.dp),
         ) {
-            FieldLabel(stringResource(R.string.entry_name_label))
-            PlainTextField(
+            NutriTextField(
                 value = draft.name,
                 onValueChange = {
                     onDraftChange(draft.copy(name = it))
                     baseDraft = baseDraft.copy(name = it)
                 },
+                label = stringResource(R.string.entry_name_label),
                 placeholder = stringResource(R.string.entry_name),
-                textStyle = MaterialTheme.typography.titleLarge,
-                onFocus = { focused = null },
+                // 點文字欄位就把自製數字鍵盤收起來，不然系統鍵盤會疊在它上面
+                onFocusChanged = { if (it) focused = null },
+                modifier = Modifier.padding(top = 18.dp),
             )
-            Hairline(Modifier.padding(top = 12.dp))
 
-            MealPicker(draft.meal, Modifier.padding(vertical = 14.dp)) {
+            MealPicker(draft.meal, Modifier.padding(top = 8.dp, bottom = 8.dp)) {
                 onDraftChange(draft.copy(meal = it))
                 baseDraft = baseDraft.copy(meal = it)
             }
 
-            FieldLabel(stringResource(R.string.entry_serving))
-            PlainTextField(
+            NutriTextField(
                 value = draft.servingText,
                 onValueChange = {
                     onDraftChange(draft.copy(servingText = it))
@@ -247,9 +232,9 @@ fun EditEntryScreen(
                         baseDraft = baseDraft.copy(servingText = scaleServingText(it, 1.0 / multiplier))
                     }
                 },
+                label = stringResource(R.string.entry_serving),
                 placeholder = stringResource(R.string.entry_serving_hint),
-                textStyle = MaterialTheme.typography.bodyLarge,
-                onFocus = { focused = null },
+                onFocusChanged = { if (it) focused = null },
             )
 
             PortionMultiplierBar(
@@ -258,53 +243,94 @@ fun EditEntryScreen(
                     multiplier = newMult
                     onDraftChange(draft.scaleFromBase(baseDraft, newMult))
                 },
-                modifier = Modifier.padding(top = 10.dp, bottom = 4.dp),
+                modifier = Modifier.padding(top = 14.dp),
             )
 
-            Hairline(Modifier.padding(top = 10.dp))
+            Hairline(Modifier.padding(top = 14.dp))
 
-            NumberGrid(
-                cells = listOf(
-                    NumberCellSpec(NumField.CALORIES, stringResource(R.string.nutrient_calories), stringResource(R.string.unit_kcal), NutrientColors.Calories),
+            // 熱量滿版一格、三大營養素橫排三格，不是四格等大的 2×2。
+            // 等大等於說這四個數字一樣重要，但熱量才是這一頁的主角 ——
+            // 而且這個階層跟今日頁（大數字 ＋ 三欄）是同一個。
+            NumberCell(
+                spec = NumberCellSpec(
+                    NumField.CALORIES,
+                    stringResource(R.string.nutrient_calories),
+                    stringResource(R.string.unit_kcal),
+                    NutrientColors.Calories,
+                ),
+                value = valueOf(NumField.CALORIES),
+                active = focused == NumField.CALORIES,
+                big = true,
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                onClick = { focusNumber(NumField.CALORIES) },
+            )
+            Row(
+                Modifier.padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                listOf(
                     NumberCellSpec(NumField.PROTEIN, stringResource(R.string.nutrient_protein), "g", NutrientColors.Protein),
                     NumberCellSpec(NumField.FAT, stringResource(R.string.nutrient_fat), "g", NutrientColors.Fat),
                     NumberCellSpec(NumField.CARBS, stringResource(R.string.nutrient_carbs), "g", NutrientColors.Carbs),
-                ),
-                valueOf = ::valueOf,
-                focused = focused,
-                big = true,
-                modifier = Modifier.padding(top = 14.dp),
-                onFocus = { focused = it; fresh = true },
-            )
+                ).forEach { spec ->
+                    NumberCell(
+                        spec = spec,
+                        value = valueOf(spec.field),
+                        active = focused == spec.field,
+                        big = false,
+                        modifier = Modifier.weight(1f),
+                        onClick = { focusNumber(spec.field) },
+                    )
+                }
+            }
 
             MacroCrossCheck(draft)
 
-            TextButton(
-                onClick = { showAdvanced = !showAdvanced },
-                modifier = Modifier.padding(top = 4.dp),
+            Row(
+                Modifier
+                    .clickable { showAdvanced = !showAdvanced }
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
             ) {
-                Text(stringResource(R.string.entry_advanced), style = MaterialTheme.typography.bodyMedium)
-                Icon(
-                    if (showAdvanced) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
+                Text(
+                    stringResource(R.string.entry_advanced),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = scheme.onSurfaceVariant,
                 )
+                // 同一個 chevron 轉九十度當展開記號，不另外拿一組上下箭頭圖示
+                Box(Modifier.rotate(if (showAdvanced) 90f else -90f)) {
+                    ChevronMark(scheme.outline, pointsLeft = true, size = 14.dp)
+                }
             }
 
             if (showAdvanced) {
-                NumberGrid(
-                    cells = listOf(
+                // 進階四項沒有專屬色也不是主角，維持 2×2 的等大方格就好 ——
+                // 核心那四個才需要「熱量比較大」的階層。
+                Column(
+                    Modifier.padding(bottom = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    listOf(
                         NumberCellSpec(NumField.SUGAR, stringResource(R.string.nutrient_sugar), "g", null),
                         NumberCellSpec(NumField.SODIUM, stringResource(R.string.nutrient_sodium), "mg", null),
                         NumberCellSpec(NumField.FIBER, stringResource(R.string.nutrient_fiber), "g", null),
                         NumberCellSpec(NumField.SATFAT, stringResource(R.string.nutrient_satfat), "g", null),
-                    ),
-                    valueOf = ::valueOf,
-                    focused = focused,
-                    big = false,
-                    modifier = Modifier.padding(bottom = 8.dp),
-                    onFocus = { focused = it; fresh = true },
-                )
+                    ).chunked(2).forEach { pair ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            pair.forEach { spec ->
+                                NumberCell(
+                                    spec = spec,
+                                    value = valueOf(spec.field),
+                                    active = focused == spec.field,
+                                    big = false,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { focusNumber(spec.field) },
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
             Box(Modifier.height(16.dp))
@@ -312,75 +338,14 @@ fun EditEntryScreen(
     }
 
     if (confirmDelete && onDelete != null) {
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text(stringResource(R.string.delete_title)) },
-            text = { Text(stringResource(R.string.delete_message, draft.name)) },
-            confirmButton = {
-                TextButton(onClick = { confirmDelete = false; onDelete() }) {
-                    Text(stringResource(R.string.delete), color = NutrientColors.Over)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
-        )
-    }
-}
-
-@Composable
-private fun SaveButton(enabled: Boolean, onClick: () -> Unit) {
-    val scheme = MaterialTheme.colorScheme
-    Text(
-        stringResource(R.string.save),
-        style = MaterialTheme.typography.titleSmall.copy(letterSpacing = 1.sp),
-        color = if (enabled) scheme.inverseOnSurface else scheme.outline,
-        textAlign = TextAlign.Center,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(PillShape)
-            .background(if (enabled) scheme.inverseSurface else scheme.surfaceContainerHigh)
-            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(vertical = 14.dp),
-    )
-}
-
-@Composable
-private fun FieldLabel(text: String) {
-    SectionLabel(text, Modifier.padding(top = 10.dp, bottom = 4.dp))
-}
-
-/**
- * 沒有外框的輸入欄。
- *
- * 用 [BasicTextField] 而不是 OutlinedTextField：這套版面用細線分隔，
- * M3 那圈膠囊外框在這裡是唯一一個有邊框的東西，看起來像貼錯的元件。
- */
-@Composable
-private fun PlainTextField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    placeholder: String,
-    textStyle: androidx.compose.ui.text.TextStyle,
-    onFocus: () -> Unit,
-) {
-    val scheme = MaterialTheme.colorScheme
-    Box {
-        if (value.isEmpty()) {
-            Text(placeholder, style = textStyle, color = scheme.outline)
-        }
-        BasicTextField(
-            value = value,
-            onValueChange = { onValueChange(it) },
-            textStyle = textStyle.merge(LocalTextStyle.current.copy(color = scheme.onSurface)),
-            singleLine = true,
-            cursorBrush = SolidColor(scheme.primary),
-            modifier = Modifier
-                .fillMaxWidth()
-                // 點文字欄位就把數字鍵盤收起來，不然兩套鍵盤會疊在一起
-                .clickable(onClick = onFocus),
+        NutriDialog(
+            title = stringResource(R.string.delete_title),
+            message = stringResource(R.string.delete_message, draft.name),
+            confirmLabel = stringResource(R.string.delete),
+            cancelLabel = stringResource(R.string.cancel),
+            destructive = true,
+            onConfirm = { confirmDelete = false; onDelete() },
+            onDismiss = { confirmDelete = false },
         )
     }
 }
@@ -394,33 +359,6 @@ private data class NumberCellSpec(
 )
 
 @Composable
-private fun NumberGrid(
-    cells: List<NumberCellSpec>,
-    valueOf: (NumField) -> String,
-    focused: NumField?,
-    big: Boolean,
-    modifier: Modifier = Modifier,
-    onFocus: (NumField) -> Unit,
-) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        cells.chunked(2).forEach { pair ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                pair.forEach { spec ->
-                    NumberCell(
-                        spec = spec,
-                        value = valueOf(spec.field),
-                        active = focused == spec.field,
-                        big = big,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onFocus(spec.field) },
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun NumberCell(
     spec: NumberCellSpec,
     value: String,
@@ -430,17 +368,21 @@ private fun NumberCell(
     onClick: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val shape = RoundedCornerShape(12.dp)
-    Column(
+    // 跟輸入框同一套語言：外框 ＋ 一條比其他三邊重的底規線，聚焦時外框轉墨色、
+    // 底線轉朱紅。這一格本來就是個欄位，只是它的鍵盤是自己畫的那副。
+    Box(
         modifier
-            .clip(shape)
-            .border(1.dp, if (active) scheme.primary else scheme.outlineVariant, shape)
-            .background(if (active) scheme.surfaceContainerLow else Color.Transparent)
+            .clip(NutriFieldShape)
+            .background(if (active) scheme.surfaceContainerLowest else scheme.surfaceContainerLow)
+            .border(
+                1.dp,
+                if (active) scheme.onSurface else NutrientColors.FieldBorder,
+                NutriFieldShape,
+            )
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 9.dp),
-        verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+    Column(Modifier.padding(start = 12.dp, end = 12.dp, top = 9.dp, bottom = 9.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             spec.dot?.let {
                 Box(
                     Modifier
@@ -451,33 +393,58 @@ private fun NumberCell(
             }
             Text(
                 spec.label,
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.6.sp),
                 color = scheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            Modifier.padding(top = 2.dp),
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             Text(
                 // 空值顯示破折號而不是 0 ——「沒填」和「真的是 0」必須分得開
                 value.ifBlank { "—" },
-                style = if (big) {
-                    MaterialTheme.typography.headlineSmall.copy(fontFamily = NumberFontFamily)
+                style = (if (big) {
+                    MaterialTheme.typography.displaySmall
                 } else {
-                    MaterialTheme.typography.headlineSmall.copy(
-                        fontSize = 20.sp, lineHeight = 26.sp, fontFamily = NumberFontFamily,
-                    )
+                    MaterialTheme.typography.headlineSmall
+                }).copy(fontFamily = NumberFontFamily).let {
+                    // 破折號照數字的字級畫會變成一條很長的橫線，看起來像畫壞的分隔線。
+                    // 只縮字級、不動 lineHeight —— 這樣填進數字時格子的高度不會跳。
+                    if (value.isBlank()) it.copy(fontSize = it.fontSize * 0.55f) else it
                 },
-                color = if (value.isBlank()) scheme.outline.copy(alpha = 0.5f) else scheme.onSurface,
+                color = when {
+                    value.isBlank() -> scheme.outline.copy(alpha = 0.6f)
+                    active -> NutrientColors.Accent
+                    else -> scheme.onSurface
+                },
                 maxLines = 1,
             )
             Text(
                 spec.unit,
-                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp, fontFamily = NumberFontFamily),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    letterSpacing = 0.sp,
+                    fontSize = if (big) 13.sp else 11.sp,
+                    fontFamily = NumberFontFamily,
+                    fontStyle = FontStyle.Italic,
+                ),
                 color = scheme.outline,
-                modifier = Modifier.padding(bottom = 4.dp),
+                modifier = Modifier.padding(bottom = if (big) 6.dp else 3.dp),
             )
         }
+    }
+        // 底規線。貼著外框底部畫滿整格寬，才做得出「只有下面那條比較重」——
+        // 用 border 做不到單邊加粗。
+        Box(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(if (active) 3.dp else 2.dp)
+                .background(if (active) NutrientColors.Accent else scheme.onSurface)
+        )
     }
 }
 
@@ -499,16 +466,29 @@ private fun MacroCrossCheck(draft: EntryDraft) {
     if (computed <= 0.0) return
 
     val mismatch = stated > 0 && kotlin.math.abs(computed - stated) / stated > 0.2
-    Text(
-        if (mismatch) {
-            stringResource(R.string.entry_kcal_mismatch, computed.fmtInt(), stated.fmtInt())
-        } else {
-            stringResource(R.string.entry_kcal_check, computed.fmtInt())
-        },
-        style = MaterialTheme.typography.bodySmall,
-        color = if (mismatch) NutrientColors.Over else scheme.outline,
-        modifier = Modifier.padding(top = 10.dp),
-    )
+    val color = if (mismatch) NutrientColors.Over else scheme.outline
+    Row(
+        Modifier.padding(top = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(7.dp),
+    ) {
+        Box(
+            Modifier
+                .padding(top = 5.dp)
+                .size(6.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(color)
+        )
+        Text(
+            if (mismatch) {
+                stringResource(R.string.entry_kcal_mismatch, computed.fmtInt(), stated.fmtInt())
+            } else {
+                stringResource(R.string.entry_kcal_check, computed.fmtInt())
+            },
+            // 斜體：這是旁白，不是表單的一部分
+            style = MaterialTheme.typography.bodySmall.copy(fontStyle = FontStyle.Italic),
+            color = color,
+        )
+    }
 }
 
 /**
@@ -522,14 +502,16 @@ private fun NumberKeypad(label: String, onKey: (String) -> Unit, onDone: () -> U
     val scheme = MaterialTheme.colorScheme
     Column(
         Modifier
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .background(scheme.surfaceVariant)
             .navigationBarsPadding()
     ) {
-        Hairline()
+        // 鍵盤是浮在表單上的另一層，用 2px 重規線把它跟表單切開，
+        // 不是用細線 —— 細線在這裡看起來像表單自己的一列。
+        Rule()
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp),
+                .padding(start = 22.dp, end = 22.dp, top = 9.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -538,29 +520,37 @@ private fun NumberKeypad(label: String, onKey: (String) -> Unit, onDone: () -> U
                 color = scheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
-            Text(
-                stringResource(R.string.keypad_done),
-                style = MaterialTheme.typography.labelLarge,
-                color = scheme.primary,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable(onClick = onDone)
-                    .padding(horizontal = 10.dp, vertical = 4.dp),
-            )
+            PillButton(stringResource(R.string.keypad_done), onClick = onDone)
         }
-        KEYS.chunked(3).forEach { row ->
-            Row(Modifier.fillMaxWidth()) {
-                row.forEach { key ->
-                    Text(
-                        key,
-                        style = MaterialTheme.typography.titleMedium.copy(fontSize = 19.sp),
-                        textAlign = TextAlign.Center,
-                        color = scheme.onSurface,
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable { onKey(key) }
-                            .padding(vertical = 13.dp),
-                    )
+        // 圓的，因為整頁其他東西都是方的與線性的 —— 一片全是方格的鍵盤在紙感
+        // 版面上會像試算表。三級：數字有圈、小數點圈變淡（還能按，但不是主角）、
+        // 刪除完全沒有圈，不看標籤也分得出哪個是破壞性的。
+        Column(
+            Modifier.padding(start = 22.dp, end = 22.dp, bottom = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            KEYS.chunked(3).forEach { row ->
+                Row(Modifier.fillMaxWidth()) {
+                    row.forEach { key ->
+                        RoundKey(
+                            onClick = { onKey(key) },
+                            modifier = Modifier.weight(1f),
+                            ringed = key != BACKSPACE,
+                            dimmed = key == ".",
+                        ) {
+                            if (key == BACKSPACE) {
+                                BackspaceMark(scheme.onSurfaceVariant)
+                            } else {
+                                Text(
+                                    key,
+                                    style = MaterialTheme.typography.headlineSmall.copy(
+                                        fontSize = 28.sp, fontFamily = NumberFontFamily,
+                                    ),
+                                    color = if (key == ".") scheme.onSurfaceVariant else scheme.onSurface,
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -8,18 +8,10 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,8 +24,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.db.FoodSuggestion
-import com.watson.nutrilog.ui.theme.NutriFieldShape
-import com.watson.nutrilog.ui.theme.nutriFieldColors
 import java.time.LocalDate
 
 /**
@@ -54,18 +44,14 @@ fun TextLookupScreen(
     onClose: () -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
-    var previewing by remember { mutableStateOf<FoodSuggestion?>(null) }
     val submit = { if (query.isNotBlank()) onLookup(query) }
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.text_lookup_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onClose) {
-                        Icon(Icons.Default.Close, stringResource(R.string.close))
-                    }
-                },
+            ScreenTopBar(
+                title = stringResource(R.string.text_lookup_title),
+                closeLabel = stringResource(R.string.close),
+                onClose = onClose,
             )
         },
     ) { inner ->
@@ -88,10 +74,10 @@ fun TextLookupScreen(
             // FoodLibrary 內部是 TabRow + HorizontalPager 兩個手足元件，
             // 得放進 Column（而不是 Box）才會上下疊放而不是互相蓋住。
             Column(Modifier.weight(1f).fillMaxWidth()) {
-                FoodLibrary(frequent, recent) { previewing = it }
+                FoodLibrary(frequent, recent, onReuseSuggestion)
             }
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Hairline()
 
             Column(
                 Modifier
@@ -110,39 +96,24 @@ fun TextLookupScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
-                TextField(
+                NutriTextField(
                     value = query,
                     onValueChange = { query = it },
-                    label = { Text(stringResource(R.string.text_lookup_label)) },
-                    placeholder = { Text(stringResource(R.string.text_lookup_placeholder)) },
+                    label = stringResource(R.string.text_lookup_label),
+                    placeholder = stringResource(R.string.text_lookup_placeholder),
                     // 單行 + 送出鍵：這裡打完通常就想直接查，不需要換行
-                    singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = { submit() }),
-                    shape = NutriFieldShape,
-                    colors = nutriFieldColors(),
                     modifier = Modifier.fillMaxWidth(),
                 )
 
-                Button(
-                    onClick = submit,
+                StampButton(
+                    label = stringResource(R.string.text_lookup_go),
                     enabled = query.isNotBlank(),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(stringResource(R.string.text_lookup_go))
-                }
+                    onClick = submit,
+                )
             }
         }
     }
 
-    previewing?.let { suggestion ->
-        SuggestionSheet(
-            suggestion = suggestion,
-            onDismiss = { previewing = null },
-            onAdd = {
-                previewing = null
-                onReuseSuggestion(suggestion)
-            },
-        )
-    }
 }

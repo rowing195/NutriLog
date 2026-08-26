@@ -21,12 +21,21 @@
     <string name="calories_eaten">已經吃</string>
     <string name="calories_budget_left">目標 %1$d · 還有 %2$s 的空間</string>
     <string name="calories_budget_over">目標 %1$d · 已經超出 %2$s</string>
+    <!-- 今日頁的大數字旁邊分成兩行排，數字要單獨套襯線，所以標籤和數值拆開 -->
+    <string name="budget_target">目標</string>
+    <string name="budget_left">還有</string>
+    <string name="budget_over">超出</string>
 
     <!-- 餐別 -->
     <string name="meal_breakfast">早餐</string>
     <string name="meal_lunch">午餐</string>
     <string name="meal_dinner">晚餐</string>
     <string name="meal_snack">點心</string>
+    <!-- 額度條下面那行小計，四個並排，只放得下一個字 -->
+    <string name="meal_breakfast_short">早</string>
+    <string name="meal_lunch_short">午</string>
+    <string name="meal_dinner_short">晚</string>
+    <string name="meal_snack_short">點</string>
 
     <!-- 今日頁 -->
     <string name="prev_week">上一週</string>
@@ -86,8 +95,10 @@
     <string name="next_month">下個月</string>
     <string name="back_to_this_month">回到本月</string>
     <string name="history_empty_month">這個月還沒有任何紀錄</string>
-    <string name="history_month_summary">記錄了 %1$d 天，平均每天 %2$s kcal</string>
-    <string name="history_month_over">其中 %1$d 天超過目標</string>
+    <!-- 月概況改成三欄「小標 ＋ 襯線數字」，所以標籤和數值拆開 -->
+    <string name="history_stat_days">記錄天數</string>
+    <string name="history_stat_average">每天平均</string>
+    <string name="history_stat_over">超標天數</string>
 
     <!-- 設定 -->
     <string name="settings_title">設定</string>
@@ -139,6 +150,8 @@
     <string name="photo_no_key">還沒設定 Gemini API key，請先到設定頁填入</string>
     <string name="review_nothing_found">沒有辨識到食物。換一張照片、把描述講得更具體，或自己輸入營養素</string>
     <string name="photo_confidence">把握度 %1$d%%</string>
+    <!-- 數字要單獨套襯線，所以標籤跟數值拆開排 -->
+    <string name="photo_confidence_label">把握度</string>
     <string name="photo_save_selected">儲存勾選的 %1$d 項</string>
     <string name="go_to_settings">去設定</string>
     <string name="retry">重試</string>
