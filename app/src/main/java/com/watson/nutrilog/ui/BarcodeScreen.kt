@@ -30,7 +30,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.db.CachedProduct
-import com.watson.nutrilog.ui.theme.NumberFontFamily
 
 /**
  * 條碼查詢。

@@ -60,7 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.db.Meal
-import com.watson.nutrilog.ui.theme.NumberFontFamily
+import com.watson.nutrilog.ui.theme.numeric
 import com.watson.nutrilog.ui.theme.NutrientColors
 import java.time.LocalDate
 import java.time.format.TextStyle as JavaTextStyle
@@ -253,7 +253,7 @@ fun NutriTextField(
     }
 
     val resolvedStyle = (textStyle ?: MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp))
-        .let { if (numeric) it.copy(fontFamily = NumberFontFamily) else it }
+        .let { if (numeric) it.numeric() else it }
 
     androidx.compose.foundation.layout.Column(modifier) {
         label?.let {

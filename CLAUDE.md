@@ -104,6 +104,25 @@ Instrument Serif**（`res/font/instrument_serif.ttf`，OFL）。換成內嵌字�
 `indexOf` 數字的位置（數字剛好等於年份之類的巧合會框錯段）——拆成兩個 `Text` 並排，
 用 `alignByBaseline()` 對齊，見 `TodayScreen.kt` 的 `LabelledNumber`。
 
+**套用數字字型一律呼叫 `theme/Theme.kt` 的 `TextStyle.numeric()`，不要自己
+`.copy(fontFamily = NumberFontFamily)`。** `numeric()` 依字級比例算字距
+（`fontSize * 3%`），呼叫順序是先把字級定好（用基礎樣式本身的，或
+`.copy(fontSize = ...)`）再呼叫它，因為字距是從當下的 `fontSize` 算出來的：
+
+```kotlin
+// 對：先定字級，numeric() 讀這個字級算字距
+MaterialTheme.typography.headlineSmall.copy(fontSize = 20.sp).numeric()
+
+// 錯：numeric() 在 copy 之前呼叫，讀到的還是舊字級
+MaterialTheme.typography.headlineSmall.numeric().copy(fontSize = 20.sp)
+```
+
+這個字型的字腔比中文筆畫窄，字級一大，筆畫間的空隙會被壓成一條線，讀起來細長
+——`displayLarge`／`displaySmall`（今日頁大熱量數字、表單熱量格）原本各自
+寫死 `letterSpacing = -1.5.sp` / `-0.5.sp`，是抄一般無襯線標題「收緊變醒目」
+那招，但窄字腔的襯線數字禁不起再往內壓，那正是使用者實際反應「數字細長難讀」
+的原因，已經改成統一用 `numeric()` 算正字距。**不要再對數字字距寫死負值。**
+
 設計稿上的小標原本是襯線中文，Android 上做不到（全字集動輒十幾 MB，落到系統襯線
 又會踩上面那個坑），所以**小標改用無襯線＋拉開字距**（`labelSmall` 的
 `letterSpacing = 2.4.sp`、`titleSmall` 是 `4.sp`）。字距就是這套設計裡「這是標題」

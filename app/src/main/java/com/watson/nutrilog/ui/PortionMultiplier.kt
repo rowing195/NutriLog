@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.watson.nutrilog.R
-import com.watson.nutrilog.ui.theme.NumberFontFamily
+import com.watson.nutrilog.ui.theme.numeric
 import com.watson.nutrilog.ui.theme.NutrientColors
 import kotlin.math.roundToInt
 
@@ -67,8 +67,7 @@ fun PortionMultiplierBar(
                     formatMultiplierValue(multiplier),
                     style = MaterialTheme.typography.headlineSmall.copy(
                         fontSize = if (compact) 20.sp else 24.sp,
-                        fontFamily = NumberFontFamily,
-                    ),
+                    ).numeric(),
                     // 不是 1 份就上朱紅：這是「你動過它」的提示，跟聚焦同色
                     color = if (multiplier != 1.0) NutrientColors.Accent else scheme.onSurface,
                     modifier = Modifier.alignByBaseline(),
@@ -104,8 +103,7 @@ private fun StepKey(text: String, size: Dp, onClick: () -> Unit) {
             style = MaterialTheme.typography.bodySmall.copy(
                 // ±1 只有兩個字元，±0.1 有四個，同一個字級會讓後者撐爆圓圈
                 fontSize = if (text.length > 2) 11.sp else 14.sp,
-                fontFamily = NumberFontFamily,
-            ),
+            ).numeric(),
             color = scheme.onSurface,
         )
     }

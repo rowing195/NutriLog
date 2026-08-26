@@ -41,7 +41,7 @@ import com.watson.nutrilog.data.DarkModePreference
 import com.watson.nutrilog.data.NutriSettings
 import androidx.compose.foundation.layout.size
 import com.watson.nutrilog.ui.theme.NutrientColors
-import com.watson.nutrilog.ui.theme.NumberFontFamily
+import com.watson.nutrilog.ui.theme.numeric
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -270,9 +270,7 @@ private fun ModelField(value: String, onChange: (String) -> Unit) {
                 // 型號是純英數，套襯線不會碰到中文
                 Text(
                     model,
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontSize = 15.sp, fontFamily = NumberFontFamily,
-                    ),
+                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp).numeric(),
                     color = if (active) scheme.onSurface else scheme.onSurfaceVariant,
                 )
             }

@@ -72,7 +72,7 @@ import com.watson.nutrilog.data.db.FoodEntry
 import com.watson.nutrilog.data.db.Meal
 import com.watson.nutrilog.data.db.Totals
 import com.watson.nutrilog.data.db.totals
-import com.watson.nutrilog.ui.theme.NumberFontFamily
+import com.watson.nutrilog.ui.theme.numeric
 import com.watson.nutrilog.ui.theme.NutrientColors
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
@@ -337,9 +337,7 @@ private fun HeaderRow(
                 // 純數字加斜線，套襯線不會碰到中文
                 Text(
                     date.year.toString() + " / " + "%02d".format(date.monthValue),
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontFamily = NumberFontFamily, letterSpacing = 1.6.sp,
-                    ),
+                    style = MaterialTheme.typography.bodyMedium.numeric(),
                     color = scheme.onSurfaceVariant,
                     modifier = Modifier.padding(end = 4.dp),
                 )
@@ -593,9 +591,7 @@ private fun DayColumn(
         }
         Text(
             day.dayOfMonth.toString(),
-            style = MaterialTheme.typography.bodyMedium.copy(
-                fontSize = 15.sp, letterSpacing = 0.sp, fontFamily = NumberFontFamily,
-            ),
+            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp).numeric(),
             // 未來的日期壓淡：它們永遠是空的，不該看起來像「忘了記錄」
             color = when {
                 isSelected -> scheme.onSurface
@@ -704,7 +700,7 @@ private fun Budget(entries: List<FoodEntry>, totals: Totals, settings: NutriSett
             Row {
                 Text(
                     consumed.fmtInt(),
-                    style = MaterialTheme.typography.displayLarge.copy(fontFamily = NumberFontFamily),
+                    style = MaterialTheme.typography.displayLarge.numeric(),
                     color = severityColor ?: scheme.onSurface,
                     modifier = Modifier.alignByBaseline(),
                 )
@@ -713,9 +709,8 @@ private fun Budget(entries: List<FoodEntry>, totals: Totals, settings: NutriSett
                     stringResource(R.string.unit_kcal),
                     style = MaterialTheme.typography.bodyLarge.copy(
                         fontSize = 17.sp,
-                        fontFamily = NumberFontFamily,
                         fontStyle = FontStyle.Italic,
-                    ),
+                    ).numeric(),
                     color = scheme.onSurfaceVariant,
                     modifier = Modifier.alignByBaseline(),
                 )
@@ -791,9 +786,7 @@ private fun LabelledNumber(
         )
         Text(
             number,
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontSize = numberSize, fontFamily = NumberFontFamily,
-            ),
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = numberSize).numeric(),
             color = numberColor,
             modifier = Modifier.alignByBaseline(),
         )
@@ -898,15 +891,13 @@ private fun MacroColumn(
         Row {
             Text(
                 value.fmtInt(),
-                style = MaterialTheme.typography.headlineSmall.copy(fontFamily = NumberFontFamily),
+                style = MaterialTheme.typography.headlineSmall.numeric(),
                 color = tint ?: scheme.onSurface,
                 modifier = Modifier.alignByBaseline(),
             )
             Text(
                 "/$target",
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontSize = 12.sp, fontFamily = NumberFontFamily,
-                ),
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp).numeric(),
                 color = scheme.outline,
                 modifier = Modifier.alignByBaseline(),
             )
@@ -961,9 +952,7 @@ private fun ExtraItem(label: String, value: String, unit: String) {
         )
         Text(
             "$value $unit",
-            style = MaterialTheme.typography.labelSmall.copy(
-                letterSpacing = 0.sp, fontSize = 12.sp, fontFamily = NumberFontFamily,
-            ),
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp).numeric(),
             color = scheme.onSurfaceVariant,
             maxLines = 1,
             modifier = Modifier.alignByBaseline(),
@@ -993,9 +982,7 @@ private fun MealHeader(meal: Meal, ofMeal: List<FoodEntry>) {
         // 只放數字，不重複 kcal —— 上面那個大數字已經講過單位了
         Text(
             if (empty) "—" else ofMeal.totals().calories.fmtInt(),
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontSize = 14.sp, fontFamily = NumberFontFamily,
-            ),
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 14.sp).numeric(),
             color = if (empty) scheme.outline else scheme.onSurfaceVariant,
         )
     }
@@ -1031,9 +1018,7 @@ private fun EntryRow(entry: FoodEntry, onClick: () -> Unit) {
             }
             Text(
                 entry.calories.fmtInt(),
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontSize = 20.sp, fontFamily = NumberFontFamily,
-                ),
+                style = MaterialTheme.typography.titleMedium.copy(fontSize = 20.sp).numeric(),
             )
         }
     }
@@ -1195,9 +1180,7 @@ private fun AddMenu(
                         // 五個選項，需要的是節奏感，不是再多五行說明文字。
                         Text(
                             "%02d".format(index + 1),
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontSize = 15.sp, fontFamily = NumberFontFamily,
-                            ),
+                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp).numeric(),
                             color = scheme.outline,
                         )
                         Text(

@@ -10,6 +10,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -240,19 +241,43 @@ private val DarkColors = darkColorScheme(
  */
 val NumberFontFamily = FontFamily(Font(R.font.instrument_serif))
 
+/**
+ * 數字字距的比例。Instrument Serif 字腔本來就比中文筆畫窄，字級一大，
+ * 筆畫間的空隙看起來就像被壓扁成一條線 —— 這是「細長難讀」的真正原因，
+ * 不是字重或字級的問題。統一用比例字距，之後要整體調寬鬆只改這一個數字，
+ * 不必到處找呼叫點各自猜的 sp 值。
+ */
+private const val NUMBER_TRACKING_RATIO = 0.03f
+
+/**
+ * 套用數字字型並依字級比例拉開字距。所有純數字／英文的 [Text] 都該用這個，
+ * 不要自己 `.copy(fontFamily = NumberFontFamily)` 再各自猜一個字距 —— 兩個
+ * 大數字（今日頁熱量、表單熱量格）原本套的是**負字距**（-1.5sp／-0.5sp），
+ * 是抄一般無襯線標題「收緊變醒目」那招，但窄字腔的襯線數字禁不起再往內壓，
+ * 那正是使用者看到「細長」的原因。
+ *
+ * 呼叫順序：字級要先確定（用基礎樣式本身的，或 `.copy(fontSize = ...)` 先設好）
+ * 再呼叫這個，因為字距是從 `fontSize` 算出來的。
+ */
+fun TextStyle.numeric(): TextStyle = copy(
+    fontFamily = NumberFontFamily,
+    letterSpacing = (fontSize.value * NUMBER_TRACKING_RATIO).sp,
+)
+
 private val Base = Typography()
 
 private val NutriTypography = Typography(
     // 今日頁的大熱量數字。Instrument Serif 的字腔比 Roboto 開，行高要壓得比字級小
-    // 才不會在數字上下留出一大片空白。
+    // 才不會在數字上下留出一大片空白。字距交給套用時的 [numeric]，不在這裡寫死
+    // ——這裡原本是負字距，是造成「細長難讀」的原因，見 [numeric] 的說明。
     displayLarge = Base.displayLarge.copy(
         fontSize = 66.sp, lineHeight = 60.sp,
-        fontWeight = FontWeight.Normal, letterSpacing = (-1.5).sp,
+        fontWeight = FontWeight.Normal,
     ),
     // 編輯表單的熱量（滿版那一格）
     displaySmall = Base.displaySmall.copy(
         fontSize = 46.sp, lineHeight = 46.sp,
-        fontWeight = FontWeight.Normal, letterSpacing = (-0.5).sp,
+        fontWeight = FontWeight.Normal,
     ),
     // 三大營養素那三格
     headlineSmall = Base.headlineSmall.copy(

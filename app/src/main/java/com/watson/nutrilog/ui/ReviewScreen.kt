@@ -28,7 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.db.Meal
-import com.watson.nutrilog.ui.theme.NumberFontFamily
+import com.watson.nutrilog.ui.theme.numeric
 import kotlin.math.roundToInt
 
 /**
@@ -224,18 +224,14 @@ private fun ItemRow(
                     )
                     Text(
                         (food.confidence * 100).roundToInt().toString() + "%",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            letterSpacing = 0.sp, fontSize = 12.sp, fontFamily = NumberFontFamily,
-                        ),
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp).numeric(),
                         color = scheme.outline,
                     )
                 }
             }
             Text(
                 food.calories.fmtInt(),
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontSize = 20.sp, fontFamily = NumberFontFamily,
-                ),
+                style = MaterialTheme.typography.titleMedium.copy(fontSize = 20.sp).numeric(),
                 color = if (item.selected) scheme.onSurface else scheme.outline,
             )
         }

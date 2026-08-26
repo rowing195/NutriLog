@@ -35,7 +35,7 @@ import androidx.compose.ui.unit.dp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.db.FoodEntry
 import com.watson.nutrilog.data.db.FoodSuggestion
-import com.watson.nutrilog.ui.theme.NumberFontFamily
+import com.watson.nutrilog.ui.theme.numeric
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -241,7 +241,7 @@ private fun SuggestionRow(
         }
         Text(
             suggestion.calories.fmtInt(),
-            style = MaterialTheme.typography.titleMedium.copy(fontFamily = NumberFontFamily),
+            style = MaterialTheme.typography.titleMedium.numeric(),
             fontWeight = FontWeight.Medium,
         )
     }
@@ -330,7 +330,7 @@ private fun ResultRow(entry: FoodEntry, onClick: () -> Unit, onReuse: () -> Unit
                 }
                 Text(
                     entry.calories.fmtInt() + " " + stringResource(R.string.unit_kcal),
-                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = NumberFontFamily),
+                    style = MaterialTheme.typography.bodySmall.numeric(),
                     color = MaterialTheme.colorScheme.outline,
                     maxLines = 1,
                 )

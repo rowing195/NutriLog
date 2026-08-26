@@ -40,7 +40,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.watson.nutrilog.R
-import com.watson.nutrilog.ui.theme.NumberFontFamily
+import com.watson.nutrilog.ui.theme.numeric
 import com.watson.nutrilog.ui.theme.NutrientColors
 
 /** 表單裡正在填的那個數字欄位。null 代表沒有，鍵盤收起來、儲存鈕露出來。 */
@@ -411,7 +411,7 @@ private fun NumberCell(
                     MaterialTheme.typography.displaySmall
                 } else {
                     MaterialTheme.typography.headlineSmall
-                }).copy(fontFamily = NumberFontFamily).let {
+                }).numeric().let {
                     // 破折號照數字的字級畫會變成一條很長的橫線，看起來像畫壞的分隔線。
                     // 只縮字級、不動 lineHeight —— 這樣填進數字時格子的高度不會跳。
                     if (value.isBlank()) it.copy(fontSize = it.fontSize * 0.55f) else it
@@ -426,11 +426,9 @@ private fun NumberCell(
             Text(
                 spec.unit,
                 style = MaterialTheme.typography.labelSmall.copy(
-                    letterSpacing = 0.sp,
                     fontSize = if (big) 13.sp else 11.sp,
-                    fontFamily = NumberFontFamily,
                     fontStyle = FontStyle.Italic,
-                ),
+                ).numeric(),
                 color = scheme.outline,
                 modifier = Modifier.padding(bottom = if (big) 6.dp else 3.dp),
             )
@@ -544,8 +542,8 @@ private fun NumberKeypad(label: String, onKey: (String) -> Unit, onDone: () -> U
                                 Text(
                                     key,
                                     style = MaterialTheme.typography.headlineSmall.copy(
-                                        fontSize = 28.sp, fontFamily = NumberFontFamily,
-                                    ),
+                                        fontSize = 28.sp,
+                                    ).numeric(),
                                     color = if (key == ".") scheme.onSurfaceVariant else scheme.onSurface,
                                 )
                             }

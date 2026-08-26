@@ -31,7 +31,7 @@ import androidx.compose.ui.unit.sp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.NutriSettings
 import com.watson.nutrilog.data.db.DayTotal
-import com.watson.nutrilog.ui.theme.NumberFontFamily
+import com.watson.nutrilog.ui.theme.numeric
 import com.watson.nutrilog.ui.theme.NutrientColors
 import java.time.LocalDate
 import java.time.YearMonth
@@ -104,9 +104,7 @@ private fun MonthHeader(month: YearMonth, today: LocalDate, onShiftMonth: (Long)
             // 純數字加斜線，套襯線不會碰到中文
             Text(
                 month.year.toString() + " / " + "%02d".format(month.monthValue),
-                style = MaterialTheme.typography.headlineSmall.copy(
-                    fontSize = 24.sp, fontFamily = NumberFontFamily, letterSpacing = 1.sp,
-                ),
+                style = MaterialTheme.typography.headlineSmall.copy(fontSize = 24.sp).numeric(),
             )
             if (month != YearMonth.from(today)) {
                 Text(
@@ -255,9 +253,7 @@ private fun DayCell(
         ) {
             Text(
                 date.dayOfMonth.toString(),
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = 15.sp, letterSpacing = 0.sp, fontFamily = NumberFontFamily,
-                ),
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp).numeric(),
                 // 未來的日期壓淡：它們永遠是空的，不該看起來像「忘了記錄」
                 color = when {
                     isFuture -> scheme.onSurfaceVariant.copy(alpha = 0.4f)
@@ -267,9 +263,7 @@ private fun DayCell(
             if (total != null) {
                 Text(
                     kcal.fmtInt(),
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        letterSpacing = 0.sp, fontSize = 11.sp, fontFamily = NumberFontFamily,
-                    ),
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp).numeric(),
                     color = severityColor ?: scheme.onSurfaceVariant,
                 )
             }
@@ -334,9 +328,7 @@ private fun SummaryStat(label: String, value: String, tint: Color?) {
         SectionLabel(label)
         Text(
             value,
-            style = MaterialTheme.typography.headlineSmall.copy(
-                fontSize = 24.sp, fontFamily = NumberFontFamily,
-            ),
+            style = MaterialTheme.typography.headlineSmall.copy(fontSize = 24.sp).numeric(),
             color = tint ?: scheme.onSurface,
         )
     }
