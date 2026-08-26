@@ -242,26 +242,34 @@ private val DarkColors = darkColorScheme(
 val NumberFontFamily = FontFamily(Font(R.font.instrument_serif))
 
 /**
- * 數字字距的比例。Instrument Serif 字腔本來就比中文筆畫窄，字級一大，
- * 筆畫間的空隙看起來就像被壓扁成一條線 —— 這是「細長難讀」的真正原因，
- * 不是字重或字級的問題。統一用比例字距，之後要整體調寬鬆只改這一個數字，
- * 不必到處找呼叫點各自猜的 sp 值。
+ * 數字字距的公式：比例項 + 固定底量。Instrument Serif 字腔本來就比中文筆畫窄，
+ * 字級一大，筆畫間的空隙看起來就像被壓扁成一條線 —— 這是「細長難讀」的真正原因，
+ * 不是字重或字級的問題。
+ *
+ * **純比例（只乘一個百分比）在小字級上會失效**：11–20sp 這個範圍（目標／還有
+ * 那兩行、三大營養素的 `/60` 分母、月曆格數字）乘 3% 算出來不到 1sp，肉眼幾乎
+ * 看不出差別，使用者回報「還是有點擠」就是在講這些小數字，不是那兩個大數字
+ * （那兩個 66sp／46sp 光比例項就有將近 2sp，已經夠開）。字距這種東西本來就
+ * 該用「一個小字級也扛得住的固定量」加上「大字級才需要的比例量」一起算，
+ * 不是單純跟著字級等比縮小 —— 兩者都要用只改比例項，小數字會維持擠；
+ * 只改固定量，大數字又會拉得太開。
  */
-private const val NUMBER_TRACKING_RATIO = 0.03f
+private const val NUMBER_TRACKING_RATIO = 0.025f
+private const val NUMBER_TRACKING_BASE = 0.4f
 
 /**
- * 套用數字字型並依字級比例拉開字距。所有純數字／英文的 [Text] 都該用這個，
- * 不要自己 `.copy(fontFamily = NumberFontFamily)` 再各自猜一個字距 —— 兩個
- * 大數字（今日頁熱量、表單熱量格）原本套的是**負字距**（-1.5sp／-0.5sp），
- * 是抄一般無襯線標題「收緊變醒目」那招，但窄字腔的襯線數字禁不起再往內壓，
- * 那正是使用者看到「細長」的原因。
+ * 套用數字字型並拉開字距。所有純數字／英文的 [Text] 都該用這個，不要自己
+ * `.copy(fontFamily = NumberFontFamily)` 再各自猜一個字距 —— 兩個大數字
+ * （今日頁熱量、表單熱量格）原本套的是**負字距**（-1.5sp／-0.5sp），是抄一般
+ * 無襯線標題「收緊變醒目」那招，但窄字腔的襯線數字禁不起再往內壓，那正是
+ * 使用者看到「細長」的原因。
  *
  * 呼叫順序：字級要先確定（用基礎樣式本身的，或 `.copy(fontSize = ...)` 先設好）
  * 再呼叫這個，因為字距是從 `fontSize` 算出來的。
  */
 fun TextStyle.numeric(): TextStyle = copy(
     fontFamily = NumberFontFamily,
-    letterSpacing = (fontSize.value * NUMBER_TRACKING_RATIO).sp,
+    letterSpacing = (fontSize.value * NUMBER_TRACKING_RATIO + NUMBER_TRACKING_BASE).sp,
 )
 
 private val Base = Typography()
