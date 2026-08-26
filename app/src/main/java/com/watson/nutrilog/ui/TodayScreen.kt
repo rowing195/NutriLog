@@ -39,7 +39,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -384,6 +386,9 @@ private fun WeekStrip(
     onShiftWeek: (Long) -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
+    // 每一週的資料快取，活得比任何一個週分頁的頁面都久（只要 WeekStrip 本身
+    // 沒被收掉），見 [WeekRow] 上面那段長註解——這是修「換頁閃一下」的關鍵。
+    val weekTotalsCache = remember { mutableStateMapOf<LocalDate, List<DayTotal>>() }
     Row(
         Modifier
             .fillMaxWidth()
@@ -406,6 +411,7 @@ private fun WeekStrip(
             WeekPageContent(
                 weekStart = weekOfPage(page),
                 weekTotalsFlow = weekTotalsFlow,
+                weekTotalsCache = weekTotalsCache,
                 today = today,
                 target = target,
                 dayPagerState = dayPagerState,
@@ -439,6 +445,7 @@ private fun WeekStrip(
 private fun WeekPageContent(
     weekStart: LocalDate,
     weekTotalsFlow: (LocalDate) -> Flow<List<DayTotal>>,
+    weekTotalsCache: MutableMap<LocalDate, List<DayTotal>>,
     today: LocalDate,
     target: Int,
     dayPagerState: PagerState,
@@ -454,16 +461,16 @@ private fun WeekPageContent(
         val rowWidthPx = with(LocalDensity.current) { maxWidth.toPx() }
 
         Box(Modifier.graphicsLayer { translationX = (overflowBefore - overflowAfter) * rowWidthPx }) {
-            WeekRow(weekStart, weekTotalsFlow, today, target, dayPagerState, dayPageOf, onPickDay)
+            WeekRow(weekStart, weekTotalsFlow, weekTotalsCache, today, target, dayPagerState, dayPageOf, onPickDay)
         }
         if (overflowAfter > 0f) {
             Box(Modifier.graphicsLayer { translationX = (1f - overflowAfter) * rowWidthPx }) {
-                WeekRow(weekStart.plusWeeks(1), weekTotalsFlow, today, target, dayPagerState, dayPageOf, onPickDay)
+                WeekRow(weekStart.plusWeeks(1), weekTotalsFlow, weekTotalsCache, today, target, dayPagerState, dayPageOf, onPickDay)
             }
         }
         if (overflowBefore > 0f) {
             Box(Modifier.graphicsLayer { translationX = (overflowBefore - 1f) * rowWidthPx }) {
-                WeekRow(weekStart.minusWeeks(1), weekTotalsFlow, today, target, dayPagerState, dayPageOf, onPickDay)
+                WeekRow(weekStart.minusWeeks(1), weekTotalsFlow, weekTotalsCache, today, target, dayPagerState, dayPageOf, onPickDay)
             }
         }
     }
@@ -487,18 +494,38 @@ private fun WeekPageContent(
  * 這裡只**讀** dayPagerState 拿來畫畫面，不會拿它去 commit 新日期或驅動別的
  * 分頁器滾動 —— 那條路線之前踩過真的會壞的 bug（見上面 TodayScreen 裡的長註解），
  * 純讀取當渲染參數才是安全的用法。
+ *
+ * **資料讀 [weekTotalsCache] 而不是直接 `collectAsState(initial = emptyList())`**：
+ * 這個函式在同一週會被重新呼叫很多次——換到還沒收進 pager 存活範圍的週（預設
+ * `beyondViewportPageCount` 是 0，離開視野就整頁被丟掉）、或是日分頁拖過週界時
+ * [WeekPageContent] 借位畫出來的鄰週預覽，每一次都是全新的 composable，直接用
+ * `collectAsState(initial = emptyList())` 會先畫出七格全空的長條，等 Room 的
+ * Flow 真正吐出資料才「跳」回正確高度——這就是換頁會閃一下的原因，SQLite
+ * 查詢再快也快不過那一次 dispatcher 往返。快取活在 [WeekStrip]，比任何一個
+ * 週分頁的頁面都長壽，同一週只要被看過一次，之後不管從哪個角落重新進來都能
+ * 立刻拿到上次的值當第一畫面，不必再等資料庫。真的第一次看到的週還是會閃一次
+ * ——那次是誠實的「還沒查到」，不是這裡要修的東西。
  */
 @Composable
 private fun WeekRow(
     weekStart: LocalDate,
     weekTotalsFlow: (LocalDate) -> Flow<List<DayTotal>>,
+    weekTotalsCache: MutableMap<LocalDate, List<DayTotal>>,
     today: LocalDate,
     target: Int,
     dayPagerState: PagerState,
     dayPageOf: (LocalDate) -> Int,
     onPickDay: (LocalDate) -> Unit,
 ) {
-    val totals by remember(weekStart) { weekTotalsFlow(weekStart) }.collectAsState(initial = emptyList())
+    val totals by produceState(
+        initialValue = weekTotalsCache[weekStart] ?: emptyList(),
+        key1 = weekStart,
+    ) {
+        weekTotalsFlow(weekStart).collect { fresh ->
+            weekTotalsCache[weekStart] = fresh
+            value = fresh
+        }
+    }
     val byDate = remember(totals) { totals.associateBy { it.date } }
     val over = NutrientColors.Over
 
