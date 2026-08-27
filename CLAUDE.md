@@ -94,39 +94,36 @@ Material3 預設 baseline 是紫色系。**新增顏色角色時整族都要蓋*
 
 中文一律無襯線（`Base = Typography()` 沒覆寫 `fontFamily`，Roboto + 中文落到
 Noto Sans CJK）。純數字／英文另外套 `theme/NumberFontFamily`，那是**內嵌的
-Instrument Serif**（`res/font/instrument_serif.ttf`，OFL）。換成內嵌字型而不是
-系統別名 `FontFamily.Serif`，是因為系統襯線在多數 Android 上就是 Noto Serif，
-字面接近 Times，看起來是「沒挑過字型」而不是「挑了襯線」。
+Neucha**（`res/font/neucha.ttf`，OFL，Jovanny Lemonad）——一支手寫體。用內嵌
+字型是因為 Android 沒有任何內建手寫體可以指定；挑手寫體是因為這個 app 是「每天
+隨手記一筆」的東西，數字長得像手寫的比像印刷品更貼近它在做的事。
 
 **這個字型沒有中文字符，只能套在確定不含中文的 `Text` 上**（大熱量數字、目標、
 紀錄與搜尋的熱量、日期格、月曆、鍵盤按鍵、單位 kcal/g/mg）。套到中文會 fallback
-回系統襯線，那正是要避開的東西。中西文混排**不要**用 `buildAnnotatedString` 去
+回系統字型，同一句裡會出現兩種長相。中西文混排**不要**用 `buildAnnotatedString` 去
 `indexOf` 數字的位置（數字剛好等於年份之類的巧合會框錯段）——拆成兩個 `Text` 並排，
 用 `alignByBaseline()` 對齊，見 `TodayScreen.kt` 的 `LabelledNumber`。
 
 **套用數字字型一律呼叫 `theme/Theme.kt` 的 `TextStyle.numeric()`，不要自己
-`.copy(fontFamily = NumberFontFamily)`。** `numeric()` 依字級比例算字距
-（`fontSize * 3%`），呼叫順序是先把字級定好（用基礎樣式本身的，或
-`.copy(fontSize = ...)`）再呼叫它，因為字距是從當下的 `fontSize` 算出來的：
+`.copy(fontFamily = NumberFontFamily)`。** `numeric()` 除了換字型還會把
+`letterSpacing` **歸零**，這是刻意的：基礎樣式各自帶著給中文標題用的字距
+（`titleSmall` 4sp、`labelSmall` 2.4sp），不歸零數字會跟著被拉開。
 
-```kotlin
-// 對：先定字級，numeric() 讀這個字級算字距
-MaterialTheme.typography.headlineSmall.copy(fontSize = 20.sp).numeric()
+**不要對數字字距寫死負值。** `displayLarge`／`displaySmall`（今日頁大熱量數字、
+表單熱量格）曾經各自寫死 `letterSpacing = -1.5.sp` / `-0.5.sp`，是抄一般無襯線
+標題「收緊變醒目」那招，但數字禁不起再往內壓，那正是使用者反應「數字細長難讀」
+的原因。
 
-// 錯：numeric() 在 copy 之前呼叫，讀到的還是舊字級
-MaterialTheme.typography.headlineSmall.numeric().copy(fontSize = 20.sp)
-```
+字型換過兩輪，值得記住教訓：中間版本是 Instrument Serif，字腔窄，字級一大筆畫間
+的空隙就被壓成一條線，只好加一套「`fontSize × 比例 + 固定底量`」的浮動字距去補
+——補到剛好很難拿捏，使用者最後仍然覺得不好看。**字距補不出字腔。** Neucha 側邊
+留白天生就夠，那套公式在任何字級上算出來都不到 1sp，所以連同兩個常數整個拆掉。
+換字型時要重新確認這件事，不要預設又要一套補償公式。
 
-這個字型的字腔比中文筆畫窄，字級一大，筆畫間的空隙會被壓成一條線，讀起來細長
-——`displayLarge`／`displaySmall`（今日頁大熱量數字、表單熱量格）原本各自
-寫死 `letterSpacing = -1.5.sp` / `-0.5.sp`，是抄一般無襯線標題「收緊變醒目」
-那招，但窄字腔的襯線數字禁不起再往內壓，那正是使用者實際反應「數字細長難讀」
-的原因，已經改成統一用 `numeric()` 算正字距。**不要再對數字字距寫死負值。**
-
-設計稿上的小標原本是襯線中文，Android 上做不到（全字集動輒十幾 MB，落到系統襯線
-又會踩上面那個坑），所以**小標改用無襯線＋拉開字距**（`labelSmall` 的
-`letterSpacing = 2.4.sp`、`titleSmall` 是 `4.sp`）。字距就是這套設計裡「這是標題」
-的唯一訊號，改字距等於改階層。
+設計稿上的小標原本是襯線中文，Android 上做不到（全字集動輒十幾 MB），所以
+**小標改用無襯線＋拉開字距**（`labelSmall` 的 `letterSpacing = 2.4.sp`、
+`titleSmall` 是 `4.sp`）。字距就是這套設計裡「這是標題」的唯一訊號，改字距等於
+改階層。
 
 ## 欄位與按鍵：形狀就是層級
 

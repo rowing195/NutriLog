@@ -21,7 +21,7 @@ import com.watson.nutrilog.R
  * 紙與墨（第二版：刊物）。
  *
  * 前一版也叫紙與墨，但那是「不填色只畫線」的低對比版面；這一版把**排版**
- * 推成主角：報頭式的粗規線、襯線的大數字、朱紅只出現在超標與聚焦兩件事上。
+ * 推成主角：報頭式的粗規線、手寫的大數字、朱紅只出現在超標與聚焦兩件事上。
  *
  * 三件跟前一版不一樣、而且會咬人的事：
  *
@@ -29,11 +29,11 @@ import com.watson.nutrilog.R
  *    這一版仍然靠線分隔，但線本身分兩級：[Rule] 是 2px 的墨線（報頭、區段），
  *    [Hairline] 才是原本那條 1px。不要把兩者混用，版面的節奏就是靠這兩級撐的。
  *
- * 2. **數字字型改成內嵌的 Instrument Serif**（`res/font/instrument_serif.ttf`，OFL）。
- *    它沒有中文字符，所以規矩跟前一版一樣、而且更嚴格：[NumberFontFamily]
- *    **只能套在確定不含中文的 Text 上**。套到中文會 fallback 到系統襯線，
- *    那正是之前「讀起來像新細明體」的老問題。中西文混排要用
- *    `buildAnnotatedString` 只框住數字那一段。
+ * 2. **數字字型是內嵌的 Neucha 手寫體**（`res/font/neucha.ttf`，OFL）。
+ *    它沒有中文字符，所以規矩很嚴格：[NumberFontFamily] **只能套在確定不含
+ *    中文的 Text 上**。套到中文會 fallback 回系統字型，中英文變成兩種長相
+ *    混在同一句裡。中西文混排要拆成兩個 Text 並排，不要整句一起套。
+ *    （中間曾經用過 Instrument Serif，換掉的原因見 [NumberFontFamily]。）
  *
  * 3. **中文一律無襯線。** 設計稿上的小標是 Noto Serif TC，但 Android 沒有那套
  *    可以只帶標題字重的做法（全字集動輒十幾 MB），落到系統襯線就會踩到第 2 點。
@@ -229,55 +229,46 @@ private val DarkColors = darkColorScheme(
 )
 
 /**
- * 純數字／英文用的襯線字型：內嵌的 Instrument Serif（OFL）。
+ * 純數字／英文用的手寫字型：內嵌的 Neucha（OFL，Jovanny Lemonad）。
  *
- * 換成內嵌字型而不是系統別名 `FontFamily.Serif`，是因為系統襯線在多數 Android
- * 上就是 Noto Serif，字面接近 Times，看起來是「沒挑過字型」而不是「挑了襯線」。
+ * 用內嵌字型而不是系統別名，是因為 Android 沒有任何一支內建的手寫體可以指定；
+ * 而挑手寫體是因為這個 app 叫「肥胖日記」—— 每天隨手記一筆的東西，數字長得像
+ * 手寫的比像印刷品更貼近它在做的事。
+ *
+ * 前一版用的是 Instrument Serif（刊物風的襯線數字）。換掉的原因不是它醜，是它
+ * **字腔窄**：字級一大，筆畫間的空隙看起來就被壓成一條線，讀起來細長，得靠
+ * 額外的字距去補，而補到剛好很難拿捏。Neucha 字腔天生就開，那個問題自己消失，
+ * 連帶把那套補償用的浮動字距也拆掉了（見 [numeric]）。
  *
  * **這個字型沒有中文字符**，所以只能套在確定不含中文的 Text 上（大熱量數字、
- * 目標欄位、紀錄與搜尋的熱量、日期格、月曆、鍵盤按鍵）。套到中文會 fallback
- * 回系統襯線，那正是要避開的東西。中西文混排在同一句要用 `buildAnnotatedString`
- * 只框住數字那一段，不能整個 Text 一起套。
+ * 目標欄位、紀錄與搜尋的熱量、日期格、月曆、鍵盤按鍵、kcal/g/mg 這些單位）。
+ * 套到中文會 fallback 回系統字型，中英文會變成兩種長相混在同一句裡。
+ * 中西文混排要拆成兩個 Text 並排，不能整個 Text 一起套。
  */
-val NumberFontFamily = FontFamily(Font(R.font.instrument_serif))
+val NumberFontFamily = FontFamily(Font(R.font.neucha))
 
 /**
- * 數字字距的公式：比例項 + 固定底量。Instrument Serif 字腔本來就比中文筆畫窄，
- * 字級一大，筆畫間的空隙看起來就像被壓扁成一條線 —— 這是「細長難讀」的真正原因，
- * 不是字重或字級的問題。
+ * 套用數字字型。所有純數字／英文的 [Text] 都該用這個，不要自己
+ * `.copy(fontFamily = NumberFontFamily)`。
  *
- * **純比例（只乘一個百分比）在小字級上會失效**：11–20sp 這個範圍（目標／還有
- * 那兩行、三大營養素的 `/60` 分母、月曆格數字）乘 3% 算出來不到 1sp，肉眼幾乎
- * 看不出差別，使用者回報「還是有點擠」就是在講這些小數字，不是那兩個大數字
- * （那兩個 66sp／46sp 光比例項就有將近 2sp，已經夠開）。字距這種東西本來就
- * 該用「一個小字級也扛得住的固定量」加上「大字級才需要的比例量」一起算，
- * 不是單純跟著字級等比縮小 —— 兩者都要用只改比例項，小數字會維持擠；
- * 只改固定量，大數字又會拉得太開。
- */
-private const val NUMBER_TRACKING_RATIO = 0.025f
-private const val NUMBER_TRACKING_BASE = 0.4f
-
-/**
- * 套用數字字型並拉開字距。所有純數字／英文的 [Text] 都該用這個，不要自己
- * `.copy(fontFamily = NumberFontFamily)` 再各自猜一個字距 —— 兩個大數字
- * （今日頁熱量、表單熱量格）原本套的是**負字距**（-1.5sp／-0.5sp），是抄一般
- * 無襯線標題「收緊變醒目」那招，但窄字腔的襯線數字禁不起再往內壓，那正是
- * 使用者看到「細長」的原因。
+ * 字距明確歸零，不是「沒設」：基礎樣式各自帶著給中文標題用的字距
+ * （titleSmall 4sp、labelSmall 2.4sp），不歸零的話數字會跟著被拉開。
  *
- * 呼叫順序：字級要先確定（用基礎樣式本身的，或 `.copy(fontSize = ...)` 先設好）
- * 再呼叫這個，因為字距是從 `fontSize` 算出來的。
+ * 這裡曾經有一組「比例 + 底量」的浮動字距，是拿來補 Instrument Serif 窄字腔的。
+ * Neucha 側邊留白本來就夠，那套公式在任何字級上算出來都不到 1sp，等於沒作用，
+ * 所以連同兩個常數一起拆掉。**換字型時要重新確認這件事**。
  */
 fun TextStyle.numeric(): TextStyle = copy(
     fontFamily = NumberFontFamily,
-    letterSpacing = (fontSize.value * NUMBER_TRACKING_RATIO + NUMBER_TRACKING_BASE).sp,
+    letterSpacing = 0.sp,
 )
 
 private val Base = Typography()
 
 private val NutriTypography = Typography(
-    // 今日頁的大熱量數字。Instrument Serif 的字腔比 Roboto 開，行高要壓得比字級小
-    // 才不會在數字上下留出一大片空白。字距交給套用時的 [numeric]，不在這裡寫死
-    // ——這裡原本是負字距，是造成「細長難讀」的原因，見 [numeric] 的說明。
+    // 今日頁的大熱量數字。行高刻意壓得比字級小，不然數字上下會留出一大片空白
+    // （手寫體的行高本來就為了容納上下伸部而留得很寬，但這裡只放數字）。
+    // 字距交給套用時的 [numeric]，不在這裡寫死。
     displayLarge = Base.displayLarge.copy(
         fontSize = 66.sp, lineHeight = 60.sp,
         fontWeight = FontWeight.Normal,
