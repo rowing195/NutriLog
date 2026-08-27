@@ -163,22 +163,6 @@ fun detailLine(servingText: String, proteinG: Double, fatG: Double, carbsG: Doub
         "碳水 " + carbsG.fmt(),
     ).filterNotNull().joinToString(" · ")
 
-/** 「蛋白 12 · 脂肪 5 · 碳水 30」這種一行摘要，AI 確認畫面用。 */
-@Composable
-fun MacroSummaryText(
-    proteinG: Double,
-    fatG: Double,
-    carbsG: Double,
-    modifier: Modifier = Modifier,
-) {
-    Text(
-        "蛋白 ${proteinG.fmt()} · 脂肪 ${fatG.fmt()} · 碳水 ${carbsG.fmt()}",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.outline,
-        modifier = modifier,
-    )
-}
-
 // ─────────────────────────── 線 ───────────────────────────
 //
 // 這套版面靠線分隔而不是卡片色塊，線分兩級：Rule 是報頭與區段的 2px 墨線，
