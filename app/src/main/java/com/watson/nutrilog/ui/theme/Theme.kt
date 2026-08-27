@@ -244,6 +244,15 @@ private val DarkColors = darkColorScheme(
  * 目標欄位、紀錄與搜尋的熱量、日期格、月曆、鍵盤按鍵、kcal/g/mg 這些單位）。
  * 套到中文會 fallback 回系統字型，中英文會變成兩種長相混在同一句裡。
  * 中西文混排要拆成兩個 Text 並排，不能整個 Text 一起套。
+ *
+ * **這支 ttf 不是原封不動的 Google Fonts 版本。** 原版 Neucha 的數字側邊留白很
+ * 不平均：0/6/8/9 有 41 units，1/2/3/4/5/7 是 0（`two` 甚至是 −1），句點只有 20，
+ * 於是 `11` 完全沒有間隙、`0.2` 的點黏在兩邊數字上。已經把 0-9 與 `. , / + -`
+ * 全部補成 lsb = rsb = 41 units —— 41 是這支字型自己給 0/6/8/9 的值，等於把其餘
+ * 字形補到它原本的標準，不是外加一套新的節奏（0/6/8 的 advance 幾乎沒變動）。
+ * 字型本身的 kern 由 [numeric] 關掉，原因見那裡。OFL 允許修改，且它沒有宣告
+ * Reserved Font Name，所以檔名與字型名維持不變。重新從 Google Fonts 下載會失去
+ * 這個處理。
  */
 val NumberFontFamily = FontFamily(Font(R.font.neucha))
 
@@ -253,14 +262,17 @@ val NumberFontFamily = FontFamily(Font(R.font.neucha))
  *
  * 字距明確歸零，不是「沒設」：基礎樣式各自帶著給中文標題用的字距
  * （titleSmall 4sp、labelSmall 2.4sp），不歸零的話數字會跟著被拉開。
+ * **不要在這裡加浮動字距**，理由見 [NumberFontFamily]。
  *
- * 這裡曾經有一組「比例 + 底量」的浮動字距，是拿來補 Instrument Serif 窄字腔的。
- * Neucha 側邊留白本來就夠，那套公式在任何字級上算出來都不到 1sp，等於沒作用，
- * 所以連同兩個常數一起拆掉。**換字型時要重新確認這件事**。
+ * 關掉 kerning 是為了搭配那支動過側邊留白的 neucha.ttf：字型裡的 kern 是照
+ * 原本過緊的 metrics 調的，全是負值（`zero`+`period` 是 −52），補完側邊留白
+ * 之後它們會把字又拉回去。側邊留白已經整排補成一致的 41 units，這裡不需要
+ * 任何逐對微調。
  */
 fun TextStyle.numeric(): TextStyle = copy(
     fontFamily = NumberFontFamily,
     letterSpacing = 0.sp,
+    fontFeatureSettings = "\"kern\" 0",
 )
 
 private val Base = Typography()

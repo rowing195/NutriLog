@@ -104,6 +104,21 @@ Neucha**（`res/font/neucha.ttf`，OFL，Jovanny Lemonad）——一支手寫體
 `indexOf` 數字的位置（數字剛好等於年份之類的巧合會框錯段）——拆成兩個 `Text` 並排，
 用 `alignByBaseline()` 對齊，見 `TodayScreen.kt` 的 `LabelledNumber`。
 
+**`res/font/neucha.ttf` 是改過的，不是 Google Fonts 原版。** 原版數字的側邊留白
+很不平均：`0/6/8/9` 是 41 units，`1/2/3/4/5/7` 是 0（`2` 甚至 −1），句點只有 20，
+而且 kern 還是負的（`0`+`.` 是 −52）。結果是 `11` 完全沒間隙、`0.2` 的點黏在兩邊
+數字上，看起來「有些數字擠有些不擠」。已經把 `0-9` 與 `. , / + -` 全部補成
+lsb = rsb = **41 units** —— 41 就是這支字型自己給 `0/6/8/9` 的值，等於把其餘字形
+補到它原本的標準（`0/6/8` 的 advance 幾乎沒動），不是外加一套新節奏。
+
+要重現這個處理：對上列字形做 `hmtx[g] = (41 + 墨跡寬 + 41, 41)`，輪廓平移
+`41 - xMin`，最後更新 `hhea.advanceWidthMax`。**從 Google Fonts 重新下載會失去它。**
+OFL 允許修改，且 Neucha 沒有宣告 Reserved Font Name，所以字型名不用改。
+
+**`numeric()` 會關掉 kerning**（`fontFeatureSettings = "\"kern\" 0"`）。字型裡的
+kern 是照原本過緊的 metrics 調的、幾乎全是負值，補完側邊留白後它們會把字又拉回去。
+側邊留白既然已經整排一致，就不需要任何逐對微調。
+
 **套用數字字型一律呼叫 `theme/Theme.kt` 的 `TextStyle.numeric()`，不要自己
 `.copy(fontFamily = NumberFontFamily)`。** `numeric()` 除了換字型還會把
 `letterSpacing` **歸零**，這是刻意的：基礎樣式各自帶著給中文標題用的字距
