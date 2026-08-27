@@ -50,7 +50,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -60,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.db.Meal
+import com.watson.nutrilog.ui.theme.NumberFontFamily
 import com.watson.nutrilog.ui.theme.numeric
 import com.watson.nutrilog.ui.theme.NutrientColors
 import java.time.LocalDate
@@ -122,6 +126,33 @@ fun LocalDate.displayLabel(today: LocalDate = LocalDate.now()): String {
     val week = dayOfWeek.getDisplayName(JavaTextStyle.SHORT, Locale.TRADITIONAL_CHINESE)
     return "$prefix${monthValue}月${dayOfMonth}日（$week）"
 }
+
+/**
+ * 中文夾數字的那種一行摘要，把**數字段**換成手寫的數字字型，中文留給系統字型。
+ *
+ * 這是 `numeric()` 的中西文混排版本：`numeric()` 是整個 [Text] 換字型，只能用在
+ * 保證不含中文的字串上；這裡是逐段換。
+ *
+ * 用正規式標「所有數字段」，不是去 `indexOf` 某個值 —— 差別很重要。找特定數值會
+ * 被巧合的相同字串框錯段（要標熱量 330，結果框到份量裡的 330）；標所有數字段是
+ * 確定的，句子怎麼組都不會標錯。
+ *
+ * 跟 [numeric] 一樣要關掉 kerning，理由見那裡。
+ */
+fun withNumerals(text: String): AnnotatedString = buildAnnotatedString {
+    append(text)
+    for (m in NumeralRun.findAll(text)) {
+        addStyle(NumeralSpan, m.range.first, m.range.last + 1)
+    }
+}
+
+// 小數點只有夾在數字中間才算數字的一部分，句尾的句號不要被吃進去
+private val NumeralRun = Regex("""\d+(?:\.\d+)*""")
+
+private val NumeralSpan = SpanStyle(
+    fontFamily = NumberFontFamily,
+    fontFeatureSettings = "\"kern\" 0",
+)
 
 /** 紀錄列的第二行：「大碗 · 蛋白 19 · 脂肪 21 · 碳水 78」。份量沒填就不留空的分隔點。 */
 fun detailLine(servingText: String, proteinG: Double, fatG: Double, carbsG: Double): String =

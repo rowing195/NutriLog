@@ -1064,7 +1064,7 @@ private fun EntryRow(entry: FoodEntry, onClick: () -> Unit) {
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    detailLine(entry.servingText, entry.proteinG, entry.fatG, entry.carbsG),
+                    withNumerals(detailLine(entry.servingText, entry.proteinG, entry.fatG, entry.carbsG)),
                     style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
                     color = MaterialTheme.colorScheme.outline,
                     maxLines = 1,

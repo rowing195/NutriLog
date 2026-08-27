@@ -100,9 +100,16 @@ Neucha**（`res/font/neucha.ttf`，OFL，Jovanny Lemonad）——一支手寫體
 
 **這個字型沒有中文字符，只能套在確定不含中文的 `Text` 上**（大熱量數字、目標、
 紀錄與搜尋的熱量、日期格、月曆、鍵盤按鍵、單位 kcal/g/mg）。套到中文會 fallback
-回系統字型，同一句裡會出現兩種長相。中西文混排**不要**用 `buildAnnotatedString` 去
-`indexOf` 數字的位置（數字剛好等於年份之類的巧合會框錯段）——拆成兩個 `Text` 並排，
-用 `alignByBaseline()` 對齊，見 `TodayScreen.kt` 的 `LabelledNumber`。
+回系統字型，同一句裡會出現兩種長相。中西文混排有兩種作法，看情況選：
+
+- **並排的標籤＋數值**（「早 330」「目標 2000」）拆成兩個 `Text`，用
+  `alignByBaseline()` 對齊，見 `TodayScreen.kt` 的 `LabelledNumber`。
+- **一行摘要**（「1.1 份 · 蛋白 30.8 · 脂肪 11」）用 `Common.kt` 的
+  `withNumerals()`，它用正規式把所有數字段換成數字字型。
+
+**不要**用 `buildAnnotatedString` 去 `indexOf` 某個數值的位置——巧合的相同字串會
+框錯段（要標熱量 330，結果框到份量裡的 330）。`withNumerals()` 沒有這個問題：它標
+的是「所有數字段」而不是某個值，句子怎麼組都不會標錯。
 
 **`res/font/neucha.ttf` 是改過的，不是 Google Fonts 原版。** 原版數字的側邊留白
 很不平均：`0/6/8/9` 是 41 units，`1/2/3/4/5/7` 是 0（`2` 甚至 −1），句點只有 20，

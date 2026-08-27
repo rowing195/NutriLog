@@ -232,7 +232,7 @@ private fun SuggestionRow(
                     )
                 }
                 Text(
-                    suggestionStats(suggestion, showTimes),
+                    withNumerals(suggestionStats(suggestion, showTimes)),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline,
                     maxLines = 1,
