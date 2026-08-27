@@ -1,6 +1,7 @@
 package com.watson.nutrilog.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
@@ -190,6 +191,8 @@ private val LightColors = lightColorScheme(
     onError = Color(0xFFFFFFFF),
 
     // 印章鈕（記一筆／儲存）用「墨底紙字」，是這套設計的主要對比來源
+    // 遮罩永遠用深色的墨：它是「把背景壓暗」的工具，不能跟著主題翻成亮色
+    scrim = Paper.Ink,
     inverseSurface = Paper.Ink,
     inverseOnSurface = Paper.Bg,
 )
@@ -224,6 +227,8 @@ private val DarkColors = darkColorScheme(
     error = Paper.DarkVermilion,
     onError = Color(0xFF3A0D07),
 
+    // 跟淺色用同一個 scrim：遮罩的工作是壓暗，不能跟著主題翻成亮色
+    scrim = Paper.Ink,
     inverseSurface = Paper.DarkInk,
     inverseOnSurface = Paper.DarkBg,
 )
@@ -325,11 +330,20 @@ fun NutriLogTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
+    val scheme = if (darkTheme) DarkColors else LightColors
     CompositionLocalProvider(LocalNutriPalette provides if (darkTheme) DarkNutri else LightNutri) {
         MaterialTheme(
-            colorScheme = if (darkTheme) DarkColors else LightColors,
+            colorScheme = scheme,
             typography = NutriTypography,
-            content = content,
-        )
+        ) {
+            // `LocalContentColor` 的預設值是 **純黑**，只有 M3 的 `Surface` 會覆蓋它。
+            // 這個 app 不用 M3 的成品容器，畫面是 `Modifier.background()` 疊出來的，
+            // 所以只要有 `Text` 沒寫 `color`，拿到的就是黑色。淺色模式下黑字配米底
+            // 剛好是對的，所以這件事一直沒被發現；深色模式就變成黑底黑字。
+            //
+            // 在這裡給一個正確的預設，比在每個 Text 上補 `color` 可靠 —— 後者漏一個
+            // 就是一處看不見的文字，而且只在深色模式下才會發現。
+            CompositionLocalProvider(LocalContentColor provides scheme.onSurface, content = content)
+        }
     }
 }

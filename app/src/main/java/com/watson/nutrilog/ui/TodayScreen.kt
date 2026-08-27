@@ -1174,7 +1174,7 @@ private fun AddMenu(
                 Modifier
                     .fillMaxSize()
                     .graphicsLayer { alpha = cover }
-                    .background(scheme.inverseSurface.copy(alpha = 0.32f))
+                    .background(scheme.scrim.copy(alpha = 0.32f))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
@@ -1192,7 +1192,9 @@ private fun AddMenu(
                         alpha = cover
                         translationY = (1f - cover) * 20.dp.toPx()
                     }
-                    .background(scheme.background)
+                    // 抬高一階，讓它讀起來是「浮在壓暗背景上的一張紙」。用 background
+                    // 的話深色模式下面板會比壓暗後的背景還暗，變成一個黑洞。
+                    .background(scheme.surfaceContainerLow)
                     // 吸收落在面板空白處的點擊，不要穿透到下面的遮罩去關掉自己
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
@@ -1236,7 +1238,8 @@ private fun AddMenu(
                         Text(
                             "%02d".format(index + 1),
                             style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp).numeric(),
-                            color = scheme.outline,
+                            // outline 在深色底上只有 3.99:1，不到 AA 的 4.5
+                            color = scheme.onSurfaceVariant,
                         )
                         Text(
                             option.label,

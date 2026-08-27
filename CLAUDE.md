@@ -152,6 +152,29 @@ kern 是照原本過緊的 metrics 調的、幾乎全是負值，補完側邊留
 `titleSmall` 是 `4.sp`）。字距就是這套設計裡「這是標題」的唯一訊號，改字距等於
 改階層。
 
+## 文字顏色：`LocalContentColor` 的預設是純黑
+
+**`Text` 沒寫 `color` 時拿到的是 `LocalContentColor`，而它的預設值是 `Color.Black`。**
+只有 M3 的 `Surface` 會覆蓋它，而這個 app 不用 M3 成品容器 —— 畫面是
+`Modifier.background()` 疊出來的。所以任何畫在 `Scaffold` 之外的東西（`AddMenu`
+那類覆蓋層、`Dialog`）裡沒指定顏色的 `Text`，實際上都是黑字。
+
+淺色模式下黑字配米底剛好是對的，所以這個 bug 只會在深色模式現形，而且是「整段
+文字消失」等級的（實測 `#000000` 配 `#17150F`，對比 **1.15:1**）。
+
+`NutriLogTheme` 已經在根部 `CompositionLocalProvider(LocalContentColor provides
+scheme.onSurface)`，所以現在的預設是對的。**不要把它拿掉**，也不要因為「反正有預設」
+就不寫 `color` —— 在反色底上（角落那顆章、確認按鍵）還是要自己指定
+`inverseOnSurface`。
+
+相關的兩條配色規則：
+
+- **遮罩用 `scheme.scrim`，不要用 `inverseSurface`。** `inverseSurface` 的意思是
+  「跟目前主題相反的表面」，深色模式下它是**亮的** —— 拿來當遮罩會把背景刷亮，
+  面板反而變成畫面上最暗的一塊。`scrim` 兩個主題都指定成 `Paper.Ink`，永遠是壓暗。
+- **浮在遮罩上的面板用 `surfaceContainerLow` 而不是 `background`。** 深色模式下
+  `background` 跟壓暗後的背景幾乎同色，面板會讀成一個黑洞。
+
 ## 欄位與按鍵：形狀就是層級
 
 所有輸入框走 `Common.kt` 的 **`NutriTextField`**：完整外框 ＋ 一條比其他三邊重的
