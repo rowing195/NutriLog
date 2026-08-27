@@ -477,11 +477,13 @@ private fun MacroCrossCheck(draft: EntryDraft) {
                 .background(color)
         )
         Text(
-            if (mismatch) {
-                stringResource(R.string.entry_kcal_mismatch, computed.fmtInt(), stated.fmtInt())
-            } else {
-                stringResource(R.string.entry_kcal_check, computed.fmtInt())
-            },
+            withNumerals(
+                if (mismatch) {
+                    stringResource(R.string.entry_kcal_mismatch, computed.fmtInt(), stated.fmtInt())
+                } else {
+                    stringResource(R.string.entry_kcal_check, computed.fmtInt())
+                }
+            ),
             // 斜體：這是旁白，不是表單的一部分
             style = MaterialTheme.typography.bodySmall.copy(fontStyle = FontStyle.Italic),
             color = color,

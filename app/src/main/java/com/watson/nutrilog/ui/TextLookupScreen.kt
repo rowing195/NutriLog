@@ -64,7 +64,7 @@ fun TextLookupScreen(
             // 跟搜尋頁一樣：可能是從別天跳回來才補登，不講的話不知道會記到哪天。
             if (targetDate != LocalDate.now()) {
                 Text(
-                    stringResource(R.string.search_target_date, targetDate.displayLabel()),
+                    withNumerals(stringResource(R.string.search_target_date, targetDate.displayLabel())),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),

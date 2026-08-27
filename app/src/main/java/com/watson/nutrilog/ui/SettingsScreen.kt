@@ -175,7 +175,7 @@ fun SettingsScreen(
             )
             exportMessage?.let {
                 Text(
-                    it,
+                    withNumerals(it),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary,
                 )

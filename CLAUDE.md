@@ -104,8 +104,13 @@ Neucha**（`res/font/neucha.ttf`，OFL，Jovanny Lemonad）——一支手寫體
 
 - **並排的標籤＋數值**（「早 330」「目標 2000」）拆成兩個 `Text`，用
   `alignByBaseline()` 對齊，見 `TodayScreen.kt` 的 `LabelledNumber`。
-- **一行摘要**（「1.1 份 · 蛋白 30.8 · 脂肪 11」）用 `Common.kt` 的
-  `withNumerals()`，它用正規式把所有數字段換成數字字型。
+- **其餘所有中文夾數字的字串**——一行摘要（「1.1 份 · 蛋白 30.8」）、提醒
+  （「換算約 40 kcal，和你填的 250 差得有點多」）、說明文（「已匯出 5 筆紀錄」）、
+  欄位提示（「例如 1 碗 (250 g)」）——一律用 `Common.kt` 的 `withNumerals()`，
+  它用正規式把所有數字段換成數字字型。
+
+  `NutriTextField` 的 placeholder 與 `StampButton` 的 label／helper 已經在元件
+  內部套好了，呼叫端直接傳 `String` 就行，不用自己包。
 
 **不要**用 `buildAnnotatedString` 去 `indexOf` 某個數值的位置——巧合的相同字串會
 框錯段（要標熱量 330，結果框到份量裡的 330）。`withNumerals()` 沒有這個問題：它標

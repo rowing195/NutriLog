@@ -294,7 +294,7 @@ fun NutriTextField(
                 Box(Modifier.weight(1f)) {
                     if (value.isEmpty() && placeholder.isNotEmpty()) {
                         Text(
-                            placeholder,
+                            withNumerals(placeholder),
                             style = resolvedStyle,
                             color = scheme.outline,
                             maxLines = if (singleLine) 1 else Int.MAX_VALUE,
@@ -337,7 +337,7 @@ fun NutriTextField(
         }
         helper?.let {
             Text(
-                it,
+                withNumerals(it),
                 style = MaterialTheme.typography.bodySmall,
                 color = if (isError) NutrientColors.Over else scheme.outline,
                 modifier = Modifier.padding(top = 6.dp),
@@ -638,7 +638,8 @@ fun StampButton(
                     Box(Modifier.size(11.dp))
                 }
                 Text(
-                    label,
+                    // 這裡不歸零字距：5sp 是這顆按鍵的設計，數字要跟中文一起被拉開
+                    withNumerals(label),
                     style = MaterialTheme.typography.titleSmall.copy(letterSpacing = 5.sp),
                     color = labelColor,
                     // 字距會在最後一個字後面也留一格，靠左推回來才是真的置中

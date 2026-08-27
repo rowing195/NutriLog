@@ -109,7 +109,7 @@ fun SearchScreen(
             // 尤其他很可能是剛從搜尋結果跳去某一天才回到這裡的。
             if (targetDate != LocalDate.now()) {
                 Text(
-                    stringResource(R.string.search_target_date, targetDate.displayLabel()),
+                    withNumerals(stringResource(R.string.search_target_date, targetDate.displayLabel())),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(horizontal = 22.dp, vertical = 4.dp),

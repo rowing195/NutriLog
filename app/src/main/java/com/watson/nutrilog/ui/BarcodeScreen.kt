@@ -149,7 +149,7 @@ private fun FoundCard(state: BarcodeState.Found, onUseProduct: (CachedProduct, D
                 )
             }
             Text(
-                stringResource(R.string.barcode_per_100g),
+                withNumerals(stringResource(R.string.barcode_per_100g)),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
