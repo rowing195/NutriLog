@@ -92,8 +92,20 @@ Material3 預設 baseline 是紫色系。**新增顏色角色時整族都要蓋*
 它們是 `@Composable` getter 而不是常數 —— 深淺兩套的值不一樣（深色底上要提亮），
 正確的那一套只有在 composition 裡讀得到，所以**不能**在 top-level `val` 用它們。
 
-中文一律無襯線（`Base = Typography()` 沒覆寫 `fontFamily`，Roboto + 中文落到
-Noto Sans CJK）。純數字／英文另外套 `theme/NumberFontFamily`，那是**內嵌的
+中文與一般文字用**內嵌的 jf open 粉圓**（`res/font/jf_open_huninn.ttf`，OFL）。
+它是圓體不是手寫體，這是刻意的：數字已經是手寫的 Neucha，中文再用手寫體兩種會
+互相打架，而且中文手寫體筆畫一軟，在紀錄列第二行那種 10sp 就糊掉。圓體的圓頭
+收筆給的是同一種柔和調性，但粗細均勻、小字級撐得住。
+
+**套用方式是 `Base = Typography().withFamily(TextFontFamily)`。** M3 的 `Typography`
+沒有 `defaultFontFamily`，不這樣做就得在每個 `.copy()` 裡各寫一次 `fontFamily`，
+漏一個就是某一種元件字型不一致、而且很難發現。**新增文字樣式時不用管字型**，
+從 `Base` 衍生就對了。
+
+粉圓整支 4.7 MB 直接收進 APK，**沒有做子集化** —— 食物名稱是使用者自己打的，
+事先不會知道要哪些字，子集化只會換來「某些字忽然變成另一種長相」。涵蓋 11,988
+個字符（漢字 10,045），Big5 常用字涵蓋率 99.1%，常見食物名稱實測零缺字；落在
+那 0.9% 之外的字會掉回系統字型。純數字／英文另外套 `theme/NumberFontFamily`，那是**內嵌的
 Neucha**（`res/font/neucha.ttf`，OFL，Jovanny Lemonad）——一支手寫體。用內嵌
 字型是因為 Android 沒有任何內建手寫體可以指定；挑手寫體是因為這個 app 是「每天
 隨手記一筆」的東西，數字長得像手寫的比像印刷品更貼近它在做的事。
@@ -159,8 +171,7 @@ kern 是照原本過緊的 metrics 調的、幾乎全是負值，補完側邊留
 換字型時兩件都要重新確認：新字型的側邊留白是否均勻（見 [NumberFontFamily]），
 以及固定下限在最小字級（`labelSmall` 10sp）上夠不夠。
 
-設計稿上的小標原本是襯線中文，Android 上做不到（全字集動輒十幾 MB），所以
-**小標改用無襯線＋拉開字距**（`labelSmall` 的 `letterSpacing = 2.4.sp`、
+小標的層級**靠字距而不是靠字重或另一支字型**（`labelSmall` 的 `letterSpacing = 2.4.sp`、
 `titleSmall` 是 `4.sp`）。字距就是這套設計裡「這是標題」的唯一訊號，改字距等於
 改階層。
 

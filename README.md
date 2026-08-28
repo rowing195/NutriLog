@@ -70,7 +70,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 - 🔒 **完全離線** — 唯一的對外連線是影像辨識與條碼查詢兩支公開 API，兩者都是你主動觸發才會發生。
 - 🍱 **四條輸入路徑** — 自己填數字、拍照或打一句話交給 Gemini 估、掃商品條碼查 Open Food Facts。
 - 🔢 **五段雙速份數縮放** — 支援 `±1` 與 `±0.1` 步進，自動縮放公克/毫升/份量文字與所有營養素，具備基準持久化無損還原。
-- 📰 **「紙與墨」出版物排版美學** — 內嵌 Neucha 手寫數字、自繪精準向量圖示、形狀即層級，無任何預設 Material 容器與色塊。
+- 📰 **「紙與墨」出版物排版美學** — 內嵌 jf open 粉圓中文與 Neucha 手寫數字、自繪精準向量圖示、形狀即層級，無任何預設 Material 容器與色塊。
 - ✅ **AI 的數字一律要你點頭** — 模型給的是估算值，一定先經過確認畫面才入庫。
 - 📅 **看得出空白** — 月曆式歷史讓「哪幾天忘了記」一眼就有形狀，清單做不到這件事。
 - 📤 **CSV 匯出** — 唯一能把資料帶出手機的路徑，定位是完整備份，預設全部匯出。
@@ -141,7 +141,8 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
     │       │   │           └── Theme.kt
     │       │   └── res/
     │       │       ├── font/
-    │       │       │   └── neucha.ttf
+    │       │       │   ├── jf_open_huninn.ttf
+│       │       │   └── neucha.ttf
     │       │       └── values/
     │       │           ├── strings.xml
     │       │           └── themes.xml
@@ -388,7 +389,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 			</thead>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/theme/Theme.kt'>Theme.kt</a></b></td>
-					<td style='padding: 8px;'>「紙與墨」出版物色票（淺色米紙 `#F8F7F2`、深色暖黑 `#17150F`）、三大營養素色階、兩級超標警示（橘 `#D97706` / 紅 `#D8462A`），以及內嵌 Neucha 數字字型。</td>
+					<td style='padding: 8px;'>「紙與墨」出版物色票（淺色米紙 `#F8F7F2`、深色暖黑 `#17150F`）、三大營養素色階、兩級超標警示（橘 `#D97706` / 紅 `#D8462A`），以及內嵌的 jf open 粉圓中文字型與 Neucha 數字字型。</td>
 				</tr>
 			</table>
 		</blockquote>
@@ -625,7 +626,7 @@ Key 僅安全儲存於本地 DataStore，**不會打包進 APK 或上傳第三�
 
 - **色票**：淺色米紙底色 `#F8F7F2`、深色暖黑 `#17150F`、朱紅焦點 `#D8462A`、琥珀警示 `#D97706`。
 - **規線取代色塊**：版面層次完全依靠 2px 墨線（`Rule`）與 1px 細線（`Hairline`）劃分，堅決不用 Material 浮凸色塊卡片。
-- **字型**：純數字、日期、單位與按鍵採用內嵌 **Neucha**（`res/font/neucha.ttf`）手寫體，並已正規化數字與標點的側邊留白（原版 `1/2/3/4/5/7` 側邊留白為 0，導致 `11`、`0.2` 等組合會黏在一起） —— 每天隨手記一筆的東西，數字長得像手寫的比像印刷品更貼近它在做的事；中文保持清爽無襯線（Roboto / Noto Sans CJK），標題輔以拉開字距（`letterSpacing`）建立清晰層級。
+- **字型**：純數字、日期、單位與按鍵採用內嵌 **Neucha**（`res/font/neucha.ttf`）手寫體，並已正規化數字與標點的側邊留白（原版 `1/2/3/4/5/7` 側邊留白為 0，導致 `11`、`0.2` 等組合會黏在一起） —— 每天隨手記一筆的東西，數字長得像手寫的比像印刷品更貼近它在做的事；中文採用內嵌 **jf open 粉圓**（`res/font/jf_open_huninn.ttf`）—— 圓體的柔和調性搭配手寫數字，而粗細均勻、小字級撐得住；標題輔以拉開字距（`letterSpacing`）建立清晰層級。
 
 ### 形狀即層級：自繪向量元件
 
@@ -714,6 +715,7 @@ NutriLog 採用 [MIT License](LICENSE) 授權。
 - [Google Gemini API](https://ai.google.dev) —— 多模態影像與自然語言營養估算。
 - [Google Code Scanner](https://developers.google.com/ml-kit/vision/barcode-scanning/code-scanner) —— 免相機權限之系統級條碼掃描模組。
 - [Neucha](https://fonts.google.com/specimen/Neucha) —— 手寫風格數字字型（OFL，Jovanny Lemonad）。
+- [jf open 粉圓](https://github.com/justfont/open-huninn-font) —— 台灣在地化圓體中文字型（OFL，justfont）。
 
 <div align="left"><a href="#top">回到頂端</a></div>
 

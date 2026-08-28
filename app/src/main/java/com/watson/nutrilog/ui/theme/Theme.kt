@@ -291,7 +291,48 @@ fun TextStyle.numeric(): TextStyle = copy(
     fontFeatureSettings = "\"kern\" 0",
 )
 
-private val Base = Typography()
+/**
+ * 中文與一般文字用的字型：內嵌的 jf open 粉圓（OFL，justfont）。
+ *
+ * 圓體而不是手寫體，是刻意的取捨。數字用的 [NumberFontFamily] 是手寫的 Neucha，
+ * 中文如果也用手寫體，兩種手寫擺在一起會互相打架，而且中文手寫體筆畫一軟，在
+ * 紀錄列第二行那種 10sp 的地方就糊掉了。圓體的圓頭收筆給的是同一種柔和的調性，
+ * 但粗細均勻、小字級撐得住 —— 軟的無襯線配手寫數字，兩邊各自做自己擅長的事。
+ *
+ * 粉圓涵蓋 11,988 個字符（漢字 10,045），Big5 常用字涵蓋率 99.1%，常見食物名稱
+ * 實測零缺字。落在那 0.9% 之外的字會掉回系統字型，那是可接受的。
+ *
+ * 整支 4.7 MB 直接收進 APK，沒有做子集化 —— 食物名稱是使用者自己打的，事先不會
+ * 知道要哪些字，子集化只會換來「某些字忽然變成另一種長相」。
+ */
+val TextFontFamily = FontFamily(Font(R.font.jf_open_huninn))
+
+/**
+ * 把字族灌進 [Typography] 的全部 15 個樣式。
+ *
+ * M3 的 `Typography` 沒有 `defaultFontFamily`，不這樣做就得在下面每一個 `.copy()`
+ * 裡各寫一次 `fontFamily`，漏一個就是一處字型不一致，而且只有那一種元件會出錯、
+ * 很難發現。
+ */
+private fun Typography.withFamily(family: FontFamily) = Typography(
+    displayLarge = displayLarge.copy(fontFamily = family),
+    displayMedium = displayMedium.copy(fontFamily = family),
+    displaySmall = displaySmall.copy(fontFamily = family),
+    headlineLarge = headlineLarge.copy(fontFamily = family),
+    headlineMedium = headlineMedium.copy(fontFamily = family),
+    headlineSmall = headlineSmall.copy(fontFamily = family),
+    titleLarge = titleLarge.copy(fontFamily = family),
+    titleMedium = titleMedium.copy(fontFamily = family),
+    titleSmall = titleSmall.copy(fontFamily = family),
+    bodyLarge = bodyLarge.copy(fontFamily = family),
+    bodyMedium = bodyMedium.copy(fontFamily = family),
+    bodySmall = bodySmall.copy(fontFamily = family),
+    labelLarge = labelLarge.copy(fontFamily = family),
+    labelMedium = labelMedium.copy(fontFamily = family),
+    labelSmall = labelSmall.copy(fontFamily = family),
+)
+
+private val Base = Typography().withFamily(TextFontFamily)
 
 private val NutriTypography = Typography(
     // 今日頁的大熱量數字。行高刻意壓得比字級小，不然數字上下會留出一大片空白
