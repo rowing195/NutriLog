@@ -63,7 +63,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.db.Meal
+import androidx.compose.ui.unit.TextUnit
 import com.watson.nutrilog.ui.theme.NumberFontFamily
+import com.watson.nutrilog.ui.theme.NumberTracking
 import com.watson.nutrilog.ui.theme.numeric
 import com.watson.nutrilog.ui.theme.NutrientColors
 import java.time.LocalDate
@@ -137,22 +139,27 @@ fun LocalDate.displayLabel(today: LocalDate = LocalDate.now()): String {
  * 被巧合的相同字串框錯段（要標熱量 330，結果框到份量裡的 330）；標所有數字段是
  * 確定的，句子怎麼組都不會標錯。
  *
- * 跟 [numeric] 一樣要關掉 kerning，理由見那裡。
+ * [letterSpacing] 預設補上跟 `numeric()` 同一個字距下限。傳
+ * [TextUnit.Unspecified] 可以改成沿用外層樣式的字距 —— `StampButton` 就是這樣，
+ * 它那顆按鍵的 5sp 字距是設計的一部分，數字要跟中文一起被拉開。
  */
-fun withNumerals(text: String): AnnotatedString = buildAnnotatedString {
+fun withNumerals(
+    text: String,
+    letterSpacing: TextUnit = NumberTracking,
+): AnnotatedString = buildAnnotatedString {
     append(text)
+    val span = SpanStyle(
+        fontFamily = NumberFontFamily,
+        fontFeatureSettings = "\"kern\" 0",
+        letterSpacing = letterSpacing,
+    )
     for (m in NumeralRun.findAll(text)) {
-        addStyle(NumeralSpan, m.range.first, m.range.last + 1)
+        addStyle(span, m.range.first, m.range.last + 1)
     }
 }
 
 // 小數點只有夾在數字中間才算數字的一部分，句尾的句號不要被吃進去
 private val NumeralRun = Regex("""\d+(?:\.\d+)*""")
-
-private val NumeralSpan = SpanStyle(
-    fontFamily = NumberFontFamily,
-    fontFeatureSettings = "\"kern\" 0",
-)
 
 /** 紀錄列的第二行：「大碗 · 蛋白 19 · 脂肪 21 · 碳水 78」。份量沒填就不留空的分隔點。 */
 fun detailLine(servingText: String, proteinG: Double, fatG: Double, carbsG: Double): String =
@@ -638,8 +645,8 @@ fun StampButton(
                     Box(Modifier.size(11.dp))
                 }
                 Text(
-                    // 這裡不歸零字距：5sp 是這顆按鍵的設計，數字要跟中文一起被拉開
-                    withNumerals(label),
+                    // 沿用外層的 5sp：那是這顆按鍵的設計，數字要跟中文一起被拉開
+                    withNumerals(label, letterSpacing = TextUnit.Unspecified),
                     style = MaterialTheme.typography.titleSmall.copy(letterSpacing = 5.sp),
                     color = labelColor,
                     // 字距會在最後一個字後面也留一格，靠左推回來才是真的置中

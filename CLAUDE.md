@@ -133,19 +133,31 @@ kern 是照原本過緊的 metrics 調的、幾乎全是負值，補完側邊留
 
 **套用數字字型一律呼叫 `theme/Theme.kt` 的 `TextStyle.numeric()`，不要自己
 `.copy(fontFamily = NumberFontFamily)`。** `numeric()` 除了換字型還會把
-`letterSpacing` **歸零**，這是刻意的：基礎樣式各自帶著給中文標題用的字距
-（`titleSmall` 4sp、`labelSmall` 2.4sp），不歸零數字會跟著被拉開。
+`letterSpacing` 覆寫成 `NumberTracking`（0.5sp）。覆寫是刻意的：基礎樣式各自帶著
+給中文標題用的字距（`titleSmall` 4sp、`labelSmall` 2.4sp），不覆寫數字會跟著被
+拉開。
 
 **不要對數字字距寫死負值。** `displayLarge`／`displaySmall`（今日頁大熱量數字、
 表單熱量格）曾經各自寫死 `letterSpacing = -1.5.sp` / `-0.5.sp`，是抄一般無襯線
 標題「收緊變醒目」那招，但數字禁不起再往內壓，那正是使用者反應「數字細長難讀」
 的原因。
 
-字型換過兩輪，值得記住教訓：中間版本是 Instrument Serif，字腔窄，字級一大筆畫間
-的空隙就被壓成一條線，只好加一套「`fontSize × 比例 + 固定底量`」的浮動字距去補
-——補到剛好很難拿捏，使用者最後仍然覺得不好看。**字距補不出字腔。** Neucha 側邊
-留白天生就夠，那套公式在任何字級上算出來都不到 1sp，所以連同兩個常數整個拆掉。
-換字型時要重新確認這件事，不要預設又要一套補償公式。
+### 字距的分工：側邊留白管比例，`NumberTracking` 管下限
+
+這件事來回試了三輪才定案，結論值得記住：
+
+- **側邊留白（字型裡的 41 units）負責比例。** 它天生隨字級縮放，任何字級都是 0.08em。
+- **`NumberTracking`（固定 0.5sp）負責絕對下限。** 0.08em 在 10sp、420dpi 上換算
+  只剩約 2px，抗鋸齒一吃就看不見；補上 0.5sp 之後是 3.4px。而 66sp 的大數字只從
+  15px 變成 16.3px，看不出來。
+
+**這兩件事不能互相取代，也不能重複做。** Instrument Serif 時代那套
+「`fontSize × 比例 + 固定底量`」失敗，錯在比例項 —— 側邊留白已經處理過比例了，
+再乘一次就是大字級被拉散、小字級仍然不夠。**所以 `NumberTracking` 永遠是固定值，
+不要改成隨字級縮放。**
+
+換字型時兩件都要重新確認：新字型的側邊留白是否均勻（見 [NumberFontFamily]），
+以及固定下限在最小字級（`labelSmall` 10sp）上夠不夠。
 
 設計稿上的小標原本是襯線中文，Android 上做不到（全字集動輒十幾 MB），所以
 **小標改用無襯線＋拉開字距**（`labelSmall` 的 `letterSpacing = 2.4.sp`、

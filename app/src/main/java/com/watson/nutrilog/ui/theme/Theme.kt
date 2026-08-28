@@ -262,21 +262,32 @@ private val DarkColors = darkColorScheme(
 val NumberFontFamily = FontFamily(Font(R.font.neucha))
 
 /**
+ * 數字之間的固定字距下限。
+ *
+ * 側邊留白（見 [NumberFontFamily]）給的是 0.08em，**比例是對的，但小字級撐不住**：
+ * 10sp 在 420dpi 上換算只剩約 2px，抗鋸齒一吃就看不見了，實測 12sp 以上才讀得開。
+ * 這個固定值補的就是那個絕對下限 —— 10sp 的間隙從 2.1px 變成 3.4px，而 66sp 的
+ * 大數字只從 15px 變成 16.3px，看不出來。
+ *
+ * **不要改成隨字級縮放的比例。** 比例的部分側邊留白已經做完了，再乘一次就是當年
+ * Instrument Serif 那套公式失敗的原因：大字級被拉得太散，小字級還是不夠。
+ */
+val NumberTracking = 0.5.sp
+
+/**
  * 套用數字字型。所有純數字／英文的 [Text] 都該用這個，不要自己
  * `.copy(fontFamily = NumberFontFamily)`。
  *
- * 字距明確歸零，不是「沒設」：基礎樣式各自帶著給中文標題用的字距
- * （titleSmall 4sp、labelSmall 2.4sp），不歸零的話數字會跟著被拉開。
- * **不要在這裡加浮動字距**，理由見 [NumberFontFamily]。
+ * 字距明確設成 [NumberTracking] 而不是「不設」：基礎樣式各自帶著給中文標題用的
+ * 字距（titleSmall 4sp、labelSmall 2.4sp），不覆寫的話數字會跟著被拉開。
  *
- * 關掉 kerning 是為了搭配那支動過側邊留白的 neucha.ttf：字型裡的 kern 是照
- * 原本過緊的 metrics 調的，全是負值（`zero`+`period` 是 −52），補完側邊留白
- * 之後它們會把字又拉回去。側邊留白已經整排補成一致的 41 units，這裡不需要
- * 任何逐對微調。
+ * 關掉 kerning 是為了搭配那支動過側邊留白的 neucha.ttf：字型裡的 kern 是照原本
+ * 過緊的 metrics 調的，全是負值（`zero`+`period` 是 −52），補完側邊留白之後
+ * 它們會把字又拉回去。
  */
 fun TextStyle.numeric(): TextStyle = copy(
     fontFamily = NumberFontFamily,
-    letterSpacing = 0.sp,
+    letterSpacing = NumberTracking,
     fontFeatureSettings = "\"kern\" 0",
 )
 
