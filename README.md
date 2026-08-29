@@ -389,7 +389,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 			</thead>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/theme/Theme.kt'>Theme.kt</a></b></td>
-					<td style='padding: 8px;'>「紙與墨」出版物色票（淺色米紙 `#F8F7F2`、深色暖黑 `#17150F`）、三大營養素色階、兩級超標警示（橘 `#D97706` / 紅 `#D8462A`），以及內嵌的 jf open 粉圓中文字型與 Neucha 數字字型。</td>
+					<td style='padding: 8px;'>「紙與墨」出版物色票（淺色米紙 `#F7F3E9`、深色暖黑 `#17150F`）、三大營養素色階、兩級超標警示（橘 `#B8791F` / 紅 `#D8462A`），以及內嵌的 jf open 粉圓中文字型與 Neucha 數字字型。</td>
 				</tr>
 			</table>
 		</blockquote>
@@ -624,9 +624,16 @@ Key 僅安全儲存於本地 DataStore，**不會打包進 APK 或上傳第三�
 
 ### 「紙與墨」出版物風格與內嵌字型
 
-- **色票**：淺色米紙底色 `#F8F7F2`、深色暖黑 `#17150F`、朱紅焦點 `#D8462A`、琥珀警示 `#D97706`。
+- **色票**：淺色米紙底色 `#F7F3E9`、深色暖黑 `#17150F`、朱紅焦點 `#D8462A`、琥珀警示 `#B8791F`。
 - **規線取代色塊**：版面層次完全依靠 2px 墨線（`Rule`）與 1px 細線（`Hairline`）劃分，堅決不用 Material 浮凸色塊卡片。
 - **字型**：純數字、日期、單位與按鍵採用內嵌 **Neucha**（`res/font/neucha.ttf`）手寫體，並已正規化數字與標點的側邊留白（原版 `1/2/3/4/5/7` 側邊留白為 0，導致 `11`、`0.2` 等組合會黏在一起） —— 每天隨手記一筆的東西，數字長得像手寫的比像印刷品更貼近它在做的事；中文採用內嵌 **jf open 粉圓**（`res/font/jf_open_huninn.ttf`）—— 圓體的柔和調性搭配手寫數字，而粗細均勻、小字級撐得住；標題輔以拉開字距（`letterSpacing`）建立清晰層級。
+
+### 深淺主題：語意帶「inverse」的顏色角色會對調
+
+不用 Material 成品容器就得自己承擔兩件事，兩者都曾經在深色模式下造成整段文字看不見。
+
+- **`LocalContentColor` 的預設值是純黑**，只有 M3 的 `Surface` 會覆蓋它。本專案的畫面是 `Modifier.background()` 疊出來的，畫在 `Scaffold` 之外的覆蓋層（新增選單、`Dialog`）裡沒指定 `color` 的 `Text` 會一路吃到黑色 —— 淺色模式下黑字配米底剛好正確，所以只有深色模式會現形。現已於 `NutriLogTheme` 根部統一提供 `LocalContentColor = onSurface`。
+- **遮罩用 `scrim` 而非 `inverseSurface`**。`inverseSurface` 的語意是「與目前主題相反的表面」，深色模式下它是亮色，拿來當遮罩會把背景刷亮、使面板成為畫面上最暗的一塊。`scrim` 於兩套配色皆明確指定為 `Paper.Ink`，永遠是壓暗。
 
 ### 形狀即層級：自繪向量元件
 
@@ -670,8 +677,8 @@ POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateCon
 推動 `v*` 格式之 Git Tag 將自動觸發 GitHub Actions 進行正式 APK 編譯與 Release 建立：
 
 ```bash
-git tag -a v1.9.0 -m "Release v1.9.0: Paper & Ink UI Redesign, Portion Multiplier Stepper, Instrument Serif Typography"
-git push origin v1.9.0
+git tag -a v1.10.0 -m "Release v1.10.0: 中文換成 jf open 粉圓"
+git push origin v1.10.0
 ```
 
 版號由 Tag 動態注入，確保發佈檔名與內部版本號完全一致。
@@ -690,6 +697,8 @@ git push origin v1.9.0
 | 網路通訊 | OkHttp 4.12.0 + kotlinx-serialization 1.7.3 |
 | 條碼辨識 | Google Play services Code Scanner 16.1.0 |
 | 測試框架 | JUnit 4 + Kotlin Test |
+| 內嵌字型 | jf open 粉圓 2.1（中文）+ Neucha（數字，已正規化側邊留白） |
+| 發佈 APK 大小 | 約 11.4 MB（其中內嵌字型約 2.9 MB） |
 | 應用權限 | `android.permission.INTERNET` |
 
 ---
