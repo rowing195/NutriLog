@@ -1,10 +1,46 @@
 # NutriLog
 
 Android 每日飲食營養素紀錄器（Kotlin + Compose）。這個 repo 的根目錄就是 gradle 專案。
-狀態與已驗證項目看 [HANDOFF.md](HANDOFF.md)，功能與設計決策看 [README.md](README.md)。
+功能與設計決策看 [README.md](README.md)，已知問題與修法的紀錄看
+[GitHub Issues](https://github.com/rowing195/NutriLog/issues?q=is%3Aissue)（都關掉了，是當紀錄用的）。
 
 跨專案的共用規則（模擬器、SDK 路徑）在上一層的 `../CLAUDE.md`，那份**不在版控裡**，
 是這台機器的環境設定。
+
+## 換機器接手
+
+**clone 完就能建置，不需要任何額外檔案。** 實測過一次乾淨 clone：沒有
+`local.properties`、沒有 keystore，`./gradlew assembleDebug` 22 秒成功，
+`./gradlew test` 與 `./gradlew assembleRelease` 也都過。gradle wrapper（含
+`gradle-wrapper.jar`）、version catalog、兩支內嵌字型、`tools/` 三支腳本都在版控裡。
+
+要另外準備的只有機器層級的東西：
+
+| 項目 | 說明 |
+|---|---|
+| JDK 17、Android SDK | 外部安裝，設好 `ANDROID_HOME`（或讓 Android Studio 產 `local.properties`）|
+| 模擬器 AVD | `tools/emu.ps1` 預設 `localreader_api35`，換機器用 `-AvdName` 指別的即可 |
+| 簽章 keystore | 只有**本機**要出正式版才需要，跑 `tools/setup-signing.sh` |
+
+**發版不受影響。** 四個 secret（`KEYSTORE_BASE64` / `KEY_ALIAS` / `KEY_PASSWORD` /
+`STORE_PASSWORD`）存在 GitHub repo 上，所以從任何機器推 `v*` tag 都能發出簽章正確
+的 release，本機完全不需要 keystore。
+
+### ⚠️ 本機的 `assembleRelease` 會出 debug 簽章的 APK
+
+沒有 keystore 時 `build.gradle.kts` 會自動退回 debug 簽章，而且**建置照樣成功、
+不會有任何警告**。實測那顆 APK 的簽章是：
+
+```
+Signer #1 certificate DN: C=US, O=Android, CN=Android Debug
+```
+
+這種 APK 裝到手機上之後**無法被正式版覆蓋更新**，使用者得先解除安裝 —— 而這個
+app 沒有雲端備份，飲食紀錄會跟著全部消失。
+
+CI 有 `Refuse to release without a signing key` 那一步擋著，但**本機手動跑
+`assembleRelease` 沒有任何防護**。所以：交給使用者的一律是 `assembleDebug` 的
+APK，正式版一律走推 tag 讓 CI 產生，不要在本機做。
 
 ## 建置與部署
 
