@@ -47,8 +47,7 @@ import com.watson.nutrilog.ui.theme.numeric
 @Composable
 fun SettingsScreen(
     settings: NutriSettings,
-    exportMessage: String?,
-    importMessage: String?,
+    dataMessage: String?,
     importPreview: ImportPreview?,
     onChange: (NutriSettings) -> Unit,
     onExportCsv: () -> Unit,
@@ -169,8 +168,10 @@ fun SettingsScreen(
             Hairline(Modifier.padding(vertical = 10.dp))
 
             SectionTitle(stringResource(R.string.settings_data))
+            // 匯出與匯入是同一件事的兩個方向，所以共用一段敘述、擺在一起，
+            // 結果訊息也只有一行 —— 兩行訊息並排會分不清哪一行是誰的。
             Text(
-                stringResource(R.string.export_csv_help),
+                stringResource(R.string.csv_help),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -179,33 +180,20 @@ fun SettingsScreen(
                 onClick = onExportCsv,
                 modifier = Modifier.padding(top = 4.dp),
             )
-            exportMessage?.let {
-                Text(
-                    withNumerals(it),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-
-            Hairline(Modifier.padding(vertical = 10.dp))
-
-            Text(
-                stringResource(R.string.import_csv_help),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            // 藥丸而不是第二顆印章：一個畫面只有一顆主要動作，
-            // 而這一頁的主角是匯出（沒有它資料就帶不出去）。
-            PillButton(
-                stringResource(R.string.import_csv),
+            // 同樣是章，只有底色退一階：形狀相同才讀得出「這兩個是一對」，
+            // 深灰負責講「這一顆是反方向的那個」。
+            StampButton(
+                label = stringResource(R.string.import_csv),
                 onClick = onImportCsv,
-                modifier = Modifier.padding(top = 4.dp),
+                color = NutrientColors.StampSecondary,
+                modifier = Modifier.padding(top = 8.dp),
             )
-            importMessage?.let {
+            dataMessage?.let {
                 Text(
                     withNumerals(it),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 4.dp),
                 )
             }
         }

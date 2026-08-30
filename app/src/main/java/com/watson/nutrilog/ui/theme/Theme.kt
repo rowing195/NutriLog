@@ -96,6 +96,8 @@ data class NutriPalette(
     /** 報頭與區段用的 2px 重規線 */
     val rule: Color,
     val keypad: Color,
+    /** 成對的第二顆印章（匯出／匯入）。比主印章退一階，但仍然是實心章不是外框章 */
+    val stampSecondary: Color,
 )
 
 private val LightNutri = NutriPalette(
@@ -110,6 +112,7 @@ private val LightNutri = NutriPalette(
     fieldBorder = Paper.FieldBorder,
     rule = Paper.Ink,
     keypad = Paper.Container,
+    stampSecondary = Paper.Ink2,
 )
 
 private val DarkNutri = NutriPalette(
@@ -124,6 +127,7 @@ private val DarkNutri = NutriPalette(
     fieldBorder = Paper.DarkFieldBorder,
     rule = Paper.DarkInk,
     keypad = Paper.DarkContainer,
+    stampSecondary = Paper.DarkInk2,
 )
 
 val LocalNutriPalette = staticCompositionLocalOf { LightNutri }
@@ -155,6 +159,15 @@ object NutrientColors {
 
     /** 報頭與區段的 2px 重規線 */
     val Rule: Color @Composable get() = LocalNutriPalette.current.rule
+
+    /**
+     * 成對的兩顆印章裡，退一階的那一顆（匯出是墨、匯入是深灰）。
+     *
+     * 深淺兩套的方向相反但關係一樣：淺色底上主印章是墨黑、次要的是暖深灰；
+     * 深色底上主印章是亮米、次要的退成中灰 —— 兩邊都仍然壓得住 inverseOnSurface
+     * 的字，所以不必為了它另外換字色。
+     */
+    val StampSecondary: Color @Composable get() = LocalNutriPalette.current.stampSecondary
 }
 
 private val LightColors = lightColorScheme(

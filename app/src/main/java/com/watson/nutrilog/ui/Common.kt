@@ -643,7 +643,9 @@ fun BackspaceMark(color: Color, size: Dp = 26.dp) {
  * 印章：主要動作（記一筆／儲存）。
  *
  * 滿版墨底，裡面再退 4dp 畫一條細框 —— 是印章的雙框，不是一塊填滿的色。
- * 這一層一個畫面只會有一顆。
+ * 這一層一個畫面只會有一顆，**唯一的例外是成對的動作**（設定頁的匯出／匯入）：
+ * 它們是同一件事的兩個方向，做成不同形狀反而像在說其中一個比較次要。
+ * 那種情況兩顆都是章，用 [color] 讓退一階的那顆轉 [NutrientColors.StampSecondary]。
  *
  * 不能按的時候整顆退成**外框章**而不是灰掉的實心塊：灰掉的實心塊看起來像壞了，
  * 外框章看得出它還在、只是還沒輪到它。理由用 [helper] 講，不彈東西。
@@ -656,15 +658,17 @@ fun StampButton(
     enabled: Boolean = true,
     withPlus: Boolean = false,
     helper: String? = null,
+    color: Color? = null,
 ) {
     val scheme = MaterialTheme.colorScheme
+    val fill = color ?: scheme.inverseSurface
     val labelColor = if (enabled) scheme.inverseOnSurface else scheme.outline
     androidx.compose.foundation.layout.Column(modifier) {
         Box(
             Modifier
                 .fillMaxWidth()
                 .height(54.dp)
-                .background(if (enabled) scheme.inverseSurface else Color.Transparent)
+                .background(if (enabled) fill else Color.Transparent)
                 .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
                 .padding(4.dp)
         ) {

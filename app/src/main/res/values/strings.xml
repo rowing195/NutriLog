@@ -118,11 +118,10 @@
     <string name="settings_paste">貼上</string>
     <string name="settings_data">資料</string>
     <string name="export_csv">匯出 CSV</string>
-    <string name="export_csv_help">把全部飲食紀錄存成 CSV，可用 Excel 或 Google 試算表打開。這是把資料帶出手機的唯一方式 —— 紀錄只存在本機，沒有雲端備份，換手機前記得先匯出。</string>
+    <string name="csv_help">把全部飲食紀錄存成 CSV，可用 Excel 或 Google 試算表打開，也可以把之前匯出的檔讀回來。紀錄只存在本機、沒有雲端備份，所以換手機前記得先匯出，裝好新手機再匯入接回原本的紀錄。已經有的紀錄匯入時會自動略過，同一份檔案匯兩次不會變成兩份。</string>
     <string name="export_done">已匯出 %1$d 筆紀錄</string>
     <string name="export_failed">匯出失敗：%1$s</string>
     <string name="import_csv">匯入 CSV</string>
-    <string name="import_csv_help">把之前匯出的 CSV 讀回來，換手機或重裝之後可以接回原本的紀錄。已經有的紀錄會自動略過，同一份檔案匯入兩次也不會變成兩份。</string>
     <string name="import_confirm_title">要匯入這些紀錄嗎？</string>
     <string name="import_confirm">匯入</string>
     <string name="import_summary_new">會新增 %1$d 筆紀錄（%2$s ～ %3$s）。</string>

@@ -296,10 +296,8 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         private set
 
     /** 匯出結果訊息。顯示完就該清掉，離開設定頁時一併清。 */
-    var exportMessage by mutableStateOf<String?>(null)
-        private set
-
-    var importMessage by mutableStateOf<String?>(null)
+    /** 匯出與匯入共用一行結果訊息：它們在畫面上是同一區，兩行訊息會分不清是誰的。 */
+    var dataMessage by mutableStateOf<String?>(null)
         private set
 
     /** 有值就代表確認面板開著。null 是「沒有正在進行的匯入」。 */
@@ -361,8 +359,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     fun goTo(target: Screen) { screen = target }
 
     fun backToToday() {
-        exportMessage = null
-        importMessage = null
+        dataMessage = null
         importPreview = null
         pendingMeal = null
         screen = Screen.Today
@@ -613,7 +610,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun exportCsv(uri: Uri) {
         viewModelScope.launch {
-            exportMessage = runCatching {
+            dataMessage = runCatching {
                 val entries = dao.allEntries()
                 val csv = CsvExport.build(entries)
                 getApplication<Application>().contentResolver.openOutputStream(uri)?.use { out ->
@@ -658,10 +655,10 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
                 ImportPreview(newEntries = fresh, duplicates = duplicates, skipped = parsed.skipped)
             }.fold(
                 onSuccess = { preview ->
-                    importMessage = null
+                    dataMessage = null
                     // 一筆都不會新增就不必開確認面板，直接把結論講完
                     if (preview.newEntries.isEmpty()) {
-                        importMessage = getApplication<Application>().getString(
+                        dataMessage = getApplication<Application>().getString(
                             R.string.import_nothing_new,
                             preview.duplicates,
                         )
@@ -671,7 +668,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
                 },
                 onFailure = { cause ->
                     importPreview = null
-                    importMessage = if (cause is CsvImport.NotNutriLogCsv) {
+                    dataMessage = if (cause is CsvImport.NotNutriLogCsv) {
                         getApplication<Application>().getString(R.string.import_bad_format)
                     } else {
                         getApplication<Application>().getString(
@@ -688,7 +685,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         val preview = importPreview ?: return
         importPreview = null
         viewModelScope.launch {
-            importMessage = runCatching {
+            dataMessage = runCatching {
                 dao.insertAll(preview.newEntries)
                 preview.newEntries.size
             }.fold(

@@ -212,8 +212,7 @@ fun NutriLogApp(viewModel: NutriViewModel) {
             BackHandler { viewModel.backToToday() }
             SettingsScreen(
                 settings = viewModel.settings,
-                exportMessage = viewModel.exportMessage,
-                importMessage = viewModel.importMessage,
+                dataMessage = viewModel.dataMessage,
                 importPreview = viewModel.importPreview,
                 onChange = viewModel::updateSettings,
                 onExportCsv = { createCsv.launch(viewModel.suggestedCsvName()) },
