@@ -1047,7 +1047,9 @@ fun NutriDialog(
             Column(Modifier.padding(horizontal = 22.dp, vertical = 18.dp)) {
                 Text(title, style = MaterialTheme.typography.titleSmall)
                 Text(
-                    message,
+                    // 呼叫端直接傳 String 就好，數字字型在元件內部套 ——
+                    // 同 NutriTextField 的 placeholder 與 StampButton 的 label
+                    withNumerals(message),
                     style = MaterialTheme.typography.bodyMedium,
                     color = scheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 12.dp),

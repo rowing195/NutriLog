@@ -76,6 +76,10 @@ fun NutriLogApp(viewModel: NutriViewModel) {
         ActivityResultContracts.CreateDocument(CsvExport.MIME_TYPE)
     ) { uri -> uri?.let(viewModel::exportCsv) }
 
+    val openCsv = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri -> uri?.let(viewModel::importCsv) }
+
     val startScanner = {
         val options = GmsBarcodeScannerOptions.Builder()
             .setBarcodeFormats(Barcode.FORMAT_EAN_13, Barcode.FORMAT_EAN_8, Barcode.FORMAT_UPC_A, Barcode.FORMAT_UPC_E)
@@ -209,8 +213,16 @@ fun NutriLogApp(viewModel: NutriViewModel) {
             SettingsScreen(
                 settings = viewModel.settings,
                 exportMessage = viewModel.exportMessage,
+                importMessage = viewModel.importMessage,
+                importPreview = viewModel.importPreview,
                 onChange = viewModel::updateSettings,
                 onExportCsv = { createCsv.launch(viewModel.suggestedCsvName()) },
+                // 篩 text/csv 會讓一半的檔案在選擇器裡是灰的 —— 各家檔案管理員
+                // 回報的 MIME 從 text/plain 到 application/octet-stream 都有。
+                // 寧可全部讓選，解析不出來時有明確的訊息接住。
+                onImportCsv = { openCsv.launch(arrayOf("*/*")) },
+                onConfirmImport = viewModel::confirmImport,
+                onCancelImport = viewModel::cancelImport,
                 onClose = viewModel::backToToday,
             )
         }

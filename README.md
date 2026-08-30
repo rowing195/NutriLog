@@ -47,7 +47,7 @@
     - [四種輸入方式](#四種輸入方式)
     - [歷史（月曆）](#歷史月曆)
     - [搜尋與個人食物庫](#搜尋與個人食物庫)
-    - [匯出 CSV](#匯出-csv)
+    - [匯出／匯入 CSV](#匯出匯入-csv)
 - [設定 Gemini API key](#設定-gemini-api-key)
 - [設計決策](#設計決策)
 - [外部 API](#外部-api)
@@ -86,8 +86,8 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 | 🔩 | **程式品質** | <ul><li>KDoc 寫繁體中文，解釋「為什麼」而不是「做了什麼」</li><li>版本統一收在 `gradle/libs.versions.toml`</li><li>Compose BOM 管理所有 compose 函式庫版號</li></ul> |
 | 📄 | **文件** | <ul><li>README（本檔）＋ `CLAUDE.md`（環境與慣例）</li><li>踩過的坑與設計考量寫在原地註解裡，不另開 wiki</li></ul> |
 | 🔌 | **整合** | <ul><li>Google Gemini（照片／文字結構化輸出辨識）</li><li>Open Food Facts（條碼營養資訊查詢）</li><li>Play 服務 Code Scanner（免相機權限掃描 UI）</li><li>GitHub Actions 推 tag 自動發佈 Release APK</li></ul> |
-| 🧩 | **模組化** | <ul><li>`data/db` Room、`data/net` 外部 API、`ui` 畫面、`ui/theme` 色票與字階</li><li>`PortionMultiplier` 份數縮放與無損還原演算法</li><li>`CsvExport` 是純函式、不碰 Android API</li></ul> |
-| 🧪 | **測試** | <ul><li>JUnit 單元測試套件（`NutrientScalingTest.kt`）驗證份數縮放與基準推導無損計算</li><li>`tools/ui.ps1` 提供依元件文字定位的手動 UI 自動化驗證</li><li>核心回歸清單：新增→編輯→刪除、換日滑動無跳躍、force-stop 狀態持久化</li></ul> |
+| 🧩 | **模組化** | <ul><li>`data/db` Room、`data/net` 外部 API、`ui` 畫面、`ui/theme` 色票與字階</li><li>`PortionMultiplier` 份數縮放與無損還原演算法</li><li>`CsvExport` / `CsvImport` 是純函式、不碰 Android API</li></ul> |
+| 🧪 | **測試** | <ul><li>JUnit 單元測試套件（`NutrientScalingTest.kt`、`CsvRoundTripTest.kt`）驗證份數縮放無損計算與 CSV 匯出／匯入來回一致</li><li>`tools/ui.ps1` 提供依元件文字定位的手動 UI 自動化驗證</li><li>核心回歸清單：新增→編輯→刪除、換日滑動無跳躍、force-stop 狀態持久化</li></ul> |
 | ⚡️ | **效能** | <ul><li>每日／每月合計由 SQL `GROUP BY` 算，不把明細撈進記憶體</li><li>相片長邊壓到 1024 px 才送出，節省流量與辨識延遲</li><li>全 app 共用一個 `OkHttpClient` 連線池</li><li>條碼結果存 Room 本機快取</li></ul> |
 | 🛡️ | **安全** | <ul><li>只有 `INTERNET` 權限</li><li>Gemini API key 存 DataStore，**不編進 APK**</li><li>key 走 `x-goog-api-key` header 而非 query string</li><li>`keystore.properties` 與 `release.jks` 都在 gitignore</li></ul> |
 | 📦 | **相依** | <ul><li>Room、DataStore、OkHttp、kotlinx-serialization、play-services-code-scanner</li><li>刻意不用 Retrofit —— 只有兩支端點，手寫維持最精簡依賴</li></ul> |
@@ -112,6 +112,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
     │       │   │   ├── MainActivity.kt
     │       │   │   ├── data/
     │       │   │   │   ├── CsvExport.kt
+    │       │   │   │   ├── CsvImport.kt
     │       │   │   │   ├── SettingsStore.kt
     │       │   │   │   ├── db/
     │       │   │   │   │   ├── CachedProduct.kt
@@ -148,6 +149,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
     │       │           └── themes.xml
     │       └── test/
     │           └── java/com/watson/nutrilog/
+    │               ├── CsvRoundTripTest.kt
     │               └── NutrientScalingTest.kt
     ├── design/
     │   ├── canvas.json
@@ -233,7 +235,11 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 			</thead>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/CsvExport.kt'>CsvExport.kt</a></b></td>
-					<td style='padding: 8px;'>把飲食紀錄轉成 CSV，是唯一能把資料帶出手機的路徑。<br>- 純函式、不碰 Android API。<br>- 檔頭有 UTF-8 BOM，避免 Excel 中文亂碼。</td>
+					<td style='padding: 8px;'>把飲食紀錄轉成 CSV，是把資料帶出手機的路徑。<br>- 純函式、不碰 Android API。<br>- 檔頭有 UTF-8 BOM，避免 Excel 中文亂碼。<br>- 欄位名稱本身就是格式：`CsvImport` 靠名字對應欄位。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/CsvImport.kt'>CsvImport.kt</a></b></td>
+					<td style='padding: 8px;'>把匯出的 CSV 讀回資料庫，換手機或重裝之後接回原本的紀錄。<br>- 靠欄位名稱對應，舊版少兩欄的匯出檔也讀得回來。<br>- 依「日期＋名稱＋份量＋記錄時間」去重，同一份檔匯入兩次不會變兩份。<br>- 壞掉的資料列跳過並回報，不讓整份檔案失敗。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/SettingsStore.kt'>SettingsStore.kt</a></b></td>
@@ -411,6 +417,10 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/test/java/com/watson/nutrilog/NutrientScalingTest.kt'>NutrientScalingTest.kt</a></b></td>
 					<td style='padding: 8px;'>單元測試：驗證份量文字縮放、DetectedFood 營養素等比計算、EntryDraft 基準導出與還原無損計算。</td>
 				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/test/java/com/watson/nutrilog/CsvRoundTripTest.kt'>CsvRoundTripTest.kt</a></b></td>
+					<td style='padding: 8px;'>單元測試：CSV 匯出→匯入來回逐欄一致、逗號／引號／換行跳脫、缺資料維持 null、舊版欄位相容、去重鍵與壞資料列跳過。</td>
+				</tr>
 			</table>
 		</blockquote>
 	</details>
@@ -526,10 +536,19 @@ Windows 平台可使用隨附腳本：
 ❯ ./gradlew test
 ```
 
-單元測試（[`NutrientScalingTest.kt`](app/src/test/java/com/watson/nutrilog/NutrientScalingTest.kt)）覆蓋：
+單元測試覆蓋：
+
+[`NutrientScalingTest.kt`](app/src/test/java/com/watson/nutrilog/NutrientScalingTest.kt)
 - 份量字串縮放演算法（克、毫升、碗、份）
 - `DetectedFood` 浮點營養素精確度與可空欄位保持
 - `EntryDraft` 基準值導出與無損還原（避免浮點進位累積漂移）
+
+[`CsvRoundTripTest.kt`](app/src/test/java/com/watson/nutrilog/CsvRoundTripTest.kt)
+- 匯出→匯入來回逐欄一致（含份數倍率與記錄時間）
+- 食物名稱裡的逗號、引號與換行照 RFC 4180 跳脫與還原
+- 缺資料維持 `null` 而不是變成 0
+- 舊版（少「記錄時間」「份數倍率」兩欄）的匯出檔仍可匯入
+- 去重鍵：同一筆重複匯入會撞在一起，但同名不同時間的兩筆不會
 
 UI 部分使用 [`tools/ui.ps1`](tools/ui.ps1) 依元件文字進行模擬器自動化操作：
 
@@ -589,11 +608,14 @@ UI 部分使用 [`tools/ui.ps1`](tools/ui.ps1) 依元件文字進行模擬器自
 - **輸入關鍵字時**：切換為即時全文搜尋模式，支援多關鍵字空白分割比對（名稱 + 份量文字）。
 - 點擊任一項目直接帶入編輯表單，兼顧便捷與可編輯性。
 
-### 匯出 CSV
+### 匯出／匯入 CSV
 
-- 經由 Android 儲存存取框架（Storage Access Framework, SAF）將全量飲食紀錄匯出為標準 CSV。
+- 經由 Android 儲存存取框架（Storage Access Framework, SAF）將全量飲食紀錄匯出為標準 CSV，或把匯出過的 CSV 讀回來。
 - 檔案開頭內嵌 **UTF-8 BOM**，確保 Excel 與 Google 試算表正確辨識繁體中文。
-- 缺失營養素輸出為空白欄位而非 0，忠實保留原始資料型態。
+- 缺失營養素輸出為空白欄位而非 0，匯入時也維持 `null`，忠實保留原始資料型態。
+- **匯入前先停在確認面板**：會先算好「新增幾筆、日期範圍、略過幾筆重複、跳過幾列壞資料」再問要不要寫進去。
+- **重複自動略過**：以「日期＋名稱＋份量＋記錄時間」辨識同一筆，同一份檔案匯入兩次不會變成兩份，也能把兩支手機的紀錄合併起來。
+- 匯出→匯入→再匯出實測為完全相同的檔案，換手機可以無損接回。
 
 ---
 

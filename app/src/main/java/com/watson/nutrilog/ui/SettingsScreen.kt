@@ -48,8 +48,13 @@ import com.watson.nutrilog.ui.theme.numeric
 fun SettingsScreen(
     settings: NutriSettings,
     exportMessage: String?,
+    importMessage: String?,
+    importPreview: ImportPreview?,
     onChange: (NutriSettings) -> Unit,
     onExportCsv: () -> Unit,
+    onImportCsv: () -> Unit,
+    onConfirmImport: () -> Unit,
+    onCancelImport: () -> Unit,
     onClose: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -181,9 +186,64 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.primary,
                 )
             }
+
+            Hairline(Modifier.padding(vertical = 10.dp))
+
+            Text(
+                stringResource(R.string.import_csv_help),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            // 藥丸而不是第二顆印章：一個畫面只有一顆主要動作，
+            // 而這一頁的主角是匯出（沒有它資料就帶不出去）。
+            PillButton(
+                stringResource(R.string.import_csv),
+                onClick = onImportCsv,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            importMessage?.let {
+                Text(
+                    withNumerals(it),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
         }
     }
+
+    importPreview?.let { preview ->
+        NutriDialog(
+            title = stringResource(R.string.import_confirm_title),
+            message = importSummary(preview),
+            confirmLabel = stringResource(R.string.import_confirm),
+            cancelLabel = stringResource(R.string.cancel),
+            onConfirm = onConfirmImport,
+            onDismiss = onCancelImport,
+        )
+    }
 }
+
+/**
+ * 確認面板的內文。三句話分開放，是因為後兩種情況常常不存在 ——
+ * 硬湊成一句就會變成「另外 0 筆已經有了」這種讀起來像出錯的句子。
+ */
+@Composable
+private fun importSummary(preview: ImportPreview): String = buildList {
+    add(
+        stringResource(
+            R.string.import_summary_new,
+            preview.newEntries.size,
+            preview.firstDate.orEmpty(),
+            preview.lastDate.orEmpty(),
+        )
+    )
+    if (preview.duplicates > 0) {
+        add(stringResource(R.string.import_summary_duplicates, preview.duplicates))
+    }
+    if (preview.skipped > 0) {
+        add(stringResource(R.string.import_summary_skipped, preview.skipped))
+    }
+}.joinToString(" ")
 
 @Composable
 private fun SectionTitle(text: String) {

@@ -10,6 +10,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.CsvExport
+import com.watson.nutrilog.data.CsvImport
 import com.watson.nutrilog.data.NutriSettings
 import com.watson.nutrilog.data.SettingsStore
 import com.watson.nutrilog.data.db.CachedProduct
@@ -95,6 +96,25 @@ sealed interface BarcodeState {
      * 讓失敗方自己把話講完，畫面就不會在掃描器出問題時叫使用者去檢查網路。
      */
     data class Failed(val message: String) : BarcodeState
+}
+
+/**
+ * 匯入前的預覽。
+ *
+ * CSV 是外部資料，而且匯入是一次寫進去一整批 —— 和 AI 辨識結果一樣，
+ * 要先讓使用者看過再入庫。差別在於這裡不逐筆勾選：CSV 裡的數字是使用者
+ * 自己記過的，不是模型猜的，需要確認的只有「這一批是什麼、會加幾筆」。
+ */
+data class ImportPreview(
+    /** 扣掉重複之後真正要寫進去的紀錄。 */
+    val newEntries: List<FoodEntry>,
+    /** 資料庫裡已經有、或檔案裡自己重複的筆數。 */
+    val duplicates: Int,
+    /** 認不得而跳過的資料列數。 */
+    val skipped: Int,
+) {
+    val firstDate: String? get() = newEntries.minOfOrNull { it.date }
+    val lastDate: String? get() = newEntries.maxOfOrNull { it.date }
 }
 
 /**
@@ -279,6 +299,13 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     var exportMessage by mutableStateOf<String?>(null)
         private set
 
+    var importMessage by mutableStateOf<String?>(null)
+        private set
+
+    /** 有值就代表確認面板開著。null 是「沒有正在進行的匯入」。 */
+    var importPreview by mutableStateOf<ImportPreview?>(null)
+        private set
+
     /**
      * 今日頁的日／週分頁各自訂閱自己那天／那週的資料，不跟著 [selectedDate] 走 ——
      * 分頁滑動時左右兩頁都要能各自顯示正確內容，不能只有目前選到的那頁有資料。
@@ -335,6 +362,8 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
 
     fun backToToday() {
         exportMessage = null
+        importMessage = null
+        importPreview = null
         pendingMeal = null
         screen = Screen.Today
     }
@@ -604,6 +633,79 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
     }
+
+    /**
+     * 讀檔、解析、和現有紀錄比對，然後停在確認面板 —— **這一步不寫資料庫**。
+     *
+     * 去重的鍵見 [CsvImport.dedupeKey]。用同一個 seen 集合連檔案內部的重複也一起
+     * 擋掉：使用者可能把兩次匯出貼成同一個檔，那時候「已經有的」判斷不到，
+     * 但同一筆確實會出現兩次。
+     */
+    fun importCsv(uri: Uri) {
+        viewModelScope.launch {
+            runCatching {
+                val text = getApplication<Application>().contentResolver.openInputStream(uri)?.use {
+                    it.readBytes().toString(Charsets.UTF_8)
+                } ?: error("無法讀取檔案")
+                val parsed = CsvImport.parse(text)
+
+                val seen = dao.allEntries().mapTo(mutableSetOf()) { CsvImport.dedupeKey(it) }
+                val fresh = mutableListOf<FoodEntry>()
+                var duplicates = 0
+                parsed.entries.forEach { entry ->
+                    if (seen.add(CsvImport.dedupeKey(entry))) fresh += entry else duplicates++
+                }
+                ImportPreview(newEntries = fresh, duplicates = duplicates, skipped = parsed.skipped)
+            }.fold(
+                onSuccess = { preview ->
+                    importMessage = null
+                    // 一筆都不會新增就不必開確認面板，直接把結論講完
+                    if (preview.newEntries.isEmpty()) {
+                        importMessage = getApplication<Application>().getString(
+                            R.string.import_nothing_new,
+                            preview.duplicates,
+                        )
+                    } else {
+                        importPreview = preview
+                    }
+                },
+                onFailure = { cause ->
+                    importPreview = null
+                    importMessage = if (cause is CsvImport.NotNutriLogCsv) {
+                        getApplication<Application>().getString(R.string.import_bad_format)
+                    } else {
+                        getApplication<Application>().getString(
+                            R.string.import_failed,
+                            cause.message ?: "unknown",
+                        )
+                    }
+                },
+            )
+        }
+    }
+
+    fun confirmImport() {
+        val preview = importPreview ?: return
+        importPreview = null
+        viewModelScope.launch {
+            importMessage = runCatching {
+                dao.insertAll(preview.newEntries)
+                preview.newEntries.size
+            }.fold(
+                onSuccess = { count ->
+                    getApplication<Application>().getString(R.string.import_done, count)
+                },
+                onFailure = { cause ->
+                    getApplication<Application>().getString(
+                        R.string.import_failed,
+                        cause.message ?: "unknown",
+                    )
+                },
+            )
+        }
+    }
+
+    fun cancelImport() { importPreview = null }
 
     fun updateSettings(newSettings: NutriSettings) {
         // 先更新 UI 再落地，避免打字或拉 slider 時卡頓
