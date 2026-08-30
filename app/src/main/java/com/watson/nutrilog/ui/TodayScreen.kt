@@ -604,8 +604,15 @@ private fun DayColumn(
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(26.dp)
-                .background(if (isFuture) scheme.surfaceVariant else scheme.surfaceContainerHigh),
+                .height(34.dp)
+                // 未來那幾格壓淡：柱子拉高之後，一週裡多半是空的格子，
+                // 整排等重的色塊會在報頭底下變成一片搶戲的方塊。
+                // 用 alpha 往頁面底色混而不是另外開一個色票 —— 這一格永遠疊在
+                // background 上，混出來的結果深淺兩套都自動對，不必各給一個值。
+                .background(
+                    if (isFuture) scheme.surfaceVariant.copy(alpha = 0.55f)
+                    else scheme.surfaceContainerHigh
+                ),
             contentAlignment = Alignment.BottomCenter,
         ) {
             if (kcal > 0) {

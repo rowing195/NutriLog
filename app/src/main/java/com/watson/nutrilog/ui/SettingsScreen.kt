@@ -74,7 +74,9 @@ fun SettingsScreen(
                 // 同 EditEntryScreen：不加的話鍵盤會蓋住下半部的欄位
                 .imePadding()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 22.dp, vertical = 8.dp),
+                // 底部留得比上面多：捲到最後一顆章時，8dp 加上手勢列的內距
+                // 看起來像貼在畫面邊緣上，整頁會有一種還沒排完就被切掉的感覺。
+                .padding(start = 22.dp, end = 22.dp, top = 8.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             SectionTitle(stringResource(R.string.settings_appearance))
