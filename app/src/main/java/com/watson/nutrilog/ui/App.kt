@@ -5,10 +5,12 @@ import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -79,6 +81,19 @@ fun NutriLogApp(viewModel: NutriViewModel) {
     val openCsv = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri -> uri?.let(viewModel::importCsv) }
+
+    // Drive 授權的同意畫面。它是 PendingIntent 不是普通 Intent，所以走
+    // StartIntentSenderForResult —— ViewModel 拿不到 Activity，發射一定要在這裡。
+    val driveConsent = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result -> viewModel.onConsentResult(result.data) }
+
+    viewModel.pendingConsent?.let { pending ->
+        LaunchedEffect(pending) {
+            driveConsent.launch(IntentSenderRequest.Builder(pending.intentSender).build())
+            viewModel.consentLaunched()
+        }
+    }
 
     val startScanner = {
         val options = GmsBarcodeScannerOptions.Builder()
@@ -222,6 +237,11 @@ fun NutriLogApp(viewModel: NutriViewModel) {
                 onImportCsv = { openCsv.launch(arrayOf("*/*")) },
                 onConfirmImport = viewModel::confirmImport,
                 onCancelImport = viewModel::cancelImport,
+                driveMessage = viewModel.driveMessage,
+                driveBusy = viewModel.driveBusy,
+                onConnectDrive = viewModel::connectDrive,
+                onBackupNow = viewModel::backupNow,
+                onDisconnectDrive = viewModel::disconnectDrive,
                 onClose = viewModel::backToToday,
             )
         }

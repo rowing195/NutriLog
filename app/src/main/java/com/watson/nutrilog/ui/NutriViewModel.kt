@@ -1,6 +1,8 @@
 package com.watson.nutrilog.ui
 
 import android.app.Application
+import android.app.PendingIntent
+import android.content.Intent
 import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -11,8 +13,13 @@ import androidx.lifecycle.viewModelScope
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.CsvExport
 import com.watson.nutrilog.data.CsvImport
+import com.watson.nutrilog.data.DriveBackup
 import com.watson.nutrilog.data.NutriSettings
+import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.common.api.CommonStatusCodes
+import com.watson.nutrilog.data.DriveAuth
 import com.watson.nutrilog.data.SettingsStore
+import com.watson.nutrilog.work.BackupWorker
 import com.watson.nutrilog.data.db.CachedProduct
 import com.watson.nutrilog.data.db.DayTotal
 import com.watson.nutrilog.data.db.EntrySource
@@ -304,6 +311,23 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     var importPreview by mutableStateOf<ImportPreview?>(null)
         private set
 
+    /** Drive 那一區自己的訊息。和匯出／匯入分開，因為它們是兩個獨立的區塊。 */
+    var driveMessage by mutableStateOf<String?>(null)
+        private set
+
+    /** 正在跟 Drive 講話。按鍵要能擋住重複點擊，不然會同時跑兩次備份。 */
+    var driveBusy by mutableStateOf(false)
+        private set
+
+    /**
+     * 需要使用者同意時，要由 Activity 送出去的同意畫面。
+     *
+     * ViewModel 拿不到 Activity，而 PendingIntent 一定要從 Activity 發 ——
+     * 所以這裡只是把它交出去，發射與清空由 App.kt 負責。
+     */
+    var pendingConsent by mutableStateOf<PendingIntent?>(null)
+        private set
+
     /**
      * 今日頁的日／週分頁各自訂閱自己那天／那週的資料，不跟著 [selectedDate] 走 ——
      * 分頁滑動時左右兩頁都要能各自顯示正確內容，不能只有目前選到的那頁有資料。
@@ -360,6 +384,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
 
     fun backToToday() {
         dataMessage = null
+        driveMessage = null
         importPreview = null
         pendingMeal = null
         screen = Screen.Today
@@ -644,15 +669,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
                 val text = getApplication<Application>().contentResolver.openInputStream(uri)?.use {
                     it.readBytes().toString(Charsets.UTF_8)
                 } ?: error("無法讀取檔案")
-                val parsed = CsvImport.parse(text)
-
-                val seen = dao.allEntries().mapTo(mutableSetOf()) { CsvImport.dedupeKey(it) }
-                val fresh = mutableListOf<FoodEntry>()
-                var duplicates = 0
-                parsed.entries.forEach { entry ->
-                    if (seen.add(CsvImport.dedupeKey(entry))) fresh += entry else duplicates++
-                }
-                ImportPreview(newEntries = fresh, duplicates = duplicates, skipped = parsed.skipped)
+                previewOf(text)
             }.fold(
                 onSuccess = { preview ->
                     dataMessage = null
@@ -681,6 +698,23 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * 把一份 CSV 和目前資料庫比對出「會新增什麼」。
+     *
+     * 本地匯入與雲端還原共用這一段 —— 兩邊的去重規則本來就該一樣，
+     * 分成兩份遲早會走樣。同一個 seen 集合連檔案內部的重複也一起擋掉。
+     */
+    private suspend fun previewOf(csv: String): ImportPreview {
+        val parsed = CsvImport.parse(csv)
+        val seen = dao.allEntries().mapTo(mutableSetOf()) { CsvImport.dedupeKey(it) }
+        val fresh = mutableListOf<FoodEntry>()
+        var duplicates = 0
+        parsed.entries.forEach { entry ->
+            if (seen.add(CsvImport.dedupeKey(entry))) fresh += entry else duplicates++
+        }
+        return ImportPreview(newEntries = fresh, duplicates = duplicates, skipped = parsed.skipped)
+    }
+
     fun confirmImport() {
         val preview = importPreview ?: return
         importPreview = null
@@ -703,6 +737,122 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun cancelImport() { importPreview = null }
+
+    // --- Google Drive 備份 ---
+
+    private val driveBackup by lazy { DriveBackup(application) }
+    private val driveAuth by lazy { DriveAuth(application) }
+
+    /** 同意畫面回來之後要繼續做的事。授權本身不是目的，使用者按的是「備份」或「還原」。 */
+    private var afterConsent: (suspend (String) -> Unit)? = null
+
+    /**
+     * 連結 Drive：授權 → 打開每日排程 → **先看雲端有沒有東西可以接回來**。
+     *
+     * 換手機的情境裡，使用者按這顆鈕想要的是「把我的紀錄接回來」，不是「開始備份」。
+     * 所以有找到雲端備份就停在確認面板（和本地匯入同一條路、同一套去重），
+     * 沒有才立刻備份一次 —— 只把開關打開的話，使用者要等到明天才知道這件事有沒有
+     * 成功，而那時候他已經不在設定頁了。
+     *
+     * **有東西可以還原時絕對不能先備份。** 備份檔名是當天日期，會把雲端那份完整的
+     * 蓋成這支新手機上還空空如也的狀態 —— 正好毀掉使用者要救的東西。
+     */
+    fun connectDrive() = runDrive(R.string.drive_connecting) { token ->
+        settingsStore.save(settingsStore.current().copy(driveBackupEnabled = true))
+        BackupWorker.schedule(getApplication())
+
+        val preview = driveBackup.latestBackupCsv(token).getOrNull()?.let { previewOf(it) }
+        if (preview != null && preview.newEntries.isNotEmpty()) {
+            importPreview = preview
+            null
+        } else {
+            val name = driveBackup.backupNow(token).getOrThrow()
+            getApplication<Application>().getString(R.string.drive_backup_done, name)
+        }
+    }
+
+    fun backupNow() = runDrive(R.string.drive_backing_up) { token ->
+        val name = driveBackup.backupNow(token).getOrThrow()
+        getApplication<Application>().getString(R.string.drive_backup_done, name)
+    }
+
+    /** 只停掉自動備份，不動雲端已經備份好的東西 —— 那是使用者的檔案，不是我們的。 */
+    fun disconnectDrive() {
+        viewModelScope.launch {
+            BackupWorker.cancel(getApplication())
+            settingsStore.save(settingsStore.current().copy(driveBackupEnabled = false))
+            driveMessage = getApplication<Application>().getString(R.string.drive_disconnected)
+        }
+    }
+
+    /** App.kt 發射完同意畫面就呼叫這個，避免同一個 PendingIntent 被送兩次。 */
+    fun consentLaunched() { pendingConsent = null }
+
+    fun onConsentResult(data: Intent?) {
+        val next = afterConsent
+        afterConsent = null
+        val token = driveAuth.tokenFromConsent(data).getOrElse { cause ->
+            driveBusy = false
+            // 使用者自己按返回不是錯誤，不要留一行紅字說「Drive 出錯：User cancelled flow」——
+            // 他知道自己取消了，那行只會看起來像壞掉。
+            driveMessage = if (isCancellation(cause)) null else failureText(cause)
+            return
+        }
+        viewModelScope.launch {
+            runCatching { next?.invoke(token) }
+                .onFailure { driveMessage = failureText(it) }
+            driveBusy = false
+        }
+    }
+
+    /**
+     * Drive 的動作長得都一樣：先拿權杖（可能要先問使用者），成功就跑事情、
+     * 失敗就把原因講出來。把這段收在一起，三個入口才不會各寫一次而慢慢走樣。
+     *
+     * [block] 回傳要顯示的訊息；回 null 代表「這次不是用訊息收尾」
+     * （還原會開確認面板，那時候再蓋一行訊息只是噪音）。
+     */
+    private fun runDrive(busyLabel: Int, block: suspend (String) -> String?) {
+        if (driveBusy) return
+        driveBusy = true
+        driveMessage = getApplication<Application>().getString(busyLabel)
+        viewModelScope.launch {
+            val outcome = driveAuth.authorize()
+            outcome.fold(
+                onSuccess = { result ->
+                    when (result) {
+                        is DriveAuth.Outcome.Token -> {
+                            runCatching { block(result.accessToken) }
+                                .onSuccess { message -> message?.let { driveMessage = it } }
+                                .onFailure { driveMessage = failureText(it) }
+                            driveBusy = false
+                        }
+                        is DriveAuth.Outcome.NeedsConsent -> {
+                            // 同意畫面是非同步的，driveBusy 要等 onConsentResult 才放掉
+                            afterConsent = { token ->
+                                block(token)?.let { driveMessage = it }
+                            }
+                            pendingConsent = result.pendingIntent
+                        }
+                    }
+                },
+                onFailure = {
+                    driveMessage = failureText(it)
+                    driveBusy = false
+                },
+            )
+        }
+    }
+
+    /** GMS 的取消是一個狀態碼，不是一種例外型別，所以只能認碼。 */
+    private fun isCancellation(cause: Throwable): Boolean =
+        cause is ApiException && cause.statusCode == CommonStatusCodes.CANCELED
+
+    private fun failureText(cause: Throwable): String =
+        getApplication<Application>().getString(
+            R.string.drive_failed,
+            cause.message ?: cause.javaClass.simpleName,
+        )
 
     fun updateSettings(newSettings: NutriSettings) {
         // 先更新 UI 再落地，避免打字或拉 slider 時卡頓

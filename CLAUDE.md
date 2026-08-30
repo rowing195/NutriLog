@@ -438,6 +438,71 @@ true / false；數字鍵盤看「正在填：<欄位>」那行在不在，並且
 `CsvExport` / `CsvImport` 都是純函式、不碰 Android API：格式對不對用單元測試看就
 知道，不必為了驗證跑一次完整的 SAF 流程。
 
+## Google Drive 備份：授權、範圍、與那支精靈
+
+雲端備份是**選配**：不連結的話 app 完全不碰網路，也不會排任何背景工作。連結之後
+每天備份一次到 Drive 主頁的 `NutriLog/`，一天一個日期檔、只留最近 30 天
+（`DriveBackup.namesToPrune`，有測試守著 —— 刪錯了使用者不會馬上發現，等到要還原
+才發現備份不見就來不及了）。
+
+**備份內容就是本地匯出的同一份 CSV**，不是另一種雲端格式。還原也走
+`CsvImport` 同一條路、同一套去重、同一個確認面板。這樣使用者可以自己去 Drive 下載
+那個檔、用試算表打開、或用本地匯入讀回來 —— 就算這個 app 哪天不在了，資料也不會被
+鎖住。**不要為了雲端另外設計一種格式。**
+
+四件會咬人的事：
+
+- **範圍只能是 `drive.file`。** 它只碰得到 app 自己建立的檔案，而且**不是 Google
+  定義的受限範圍**，不需要付費安全評估（`drive` / `drive.readonly` 需要，那要跑好
+  幾週）。要加功能時先確認新需求能不能用 `drive.file` 做到，不要順手把範圍放寬。
+- **授權走 `Identity.getAuthorizationClient`，不是 `GoogleSignIn`**（已淘汰）。
+  差別不只新舊：這個 app 沒有帳號系統，要的從來不是「這個人是誰」而是「能不能寫進
+  你的 Drive」。帳號 email 是事後跟 Drive 問的（`DriveClient.accountEmail`），
+  不是登入拿到的。
+- **app 裡沒有任何 client id，也不需要有。** Android 的 OAuth client 是靠
+  「套件名 + 簽章 SHA-1」認的，所以設定全在 Google Cloud Console 那一側，
+  跑 `tools/setup-google-drive.sh`（bash，同 setup-signing.sh）。
+  **debug 與 release 兩組 SHA-1 都要註冊**，一個 client 只放得下一組，要建兩個。
+  只註冊 debug 的話：自己測都正常，使用者裝了正式版一按就失敗。
+- **release 的 SHA-1 沒辦法從 GitHub secret 讀回來** —— secret 是唯寫的。改成從
+  已發佈的 APK 讀（`apksigner verify --print-certs`）。不要用
+  `keytool -printcert -jarfile`：minSdk 26 讓 AGP 關掉了 v1(JAR) 簽章，那個指令
+  會失敗。
+
+背景排程用 **WorkManager 而不是 AlarmManager**：Doze 底下 alarm 會被延到不確定的
+時間，而且開機後不會自己回來。代價是「一天一次」是大約值，對備份完全夠。失敗一律
+`Result.retry()`（沒網路、權杖過期都會自己好），只有「需要重新授權」回 `failure`
+—— 背景沒有畫面可以問，重試再多次也一樣。
+
+**`BackupWorker.schedule()` 的 `setInitialDelay` 不能拿掉**，它扛著兩件事：
+
+一、**擋掉「排程當下立刻跑一次」**。週期性工作預設會這樣，而排程發生在「連結
+Drive」那一刻 —— 那時候使用者可能正看著還原的確認面板還沒決定。備份檔名是當天
+日期，那一次立刻執行會把雲端那份完整的紀錄蓋成新手機上空空如也的狀態，**正好毀掉
+他要救回來的東西**。這個 bug 真的發生過：logcat 的 `WM-WorkerWrapper` 顯示 worker
+在按下連結的同一秒就跑完了一次備份。連結時該不該立刻備份由 `connectDrive` 自己
+判斷（有東西可還原就不備份）。
+
+二、**把週期對齊到凌晨 3 點**（`minutesUntilNextRun`，純函式、有測試）。固定延遲
+一天的話，錨點會是「使用者按下連結的那個隨機時刻」—— 卡在傍晚的話，那份以當天
+日期命名的檔案永遠只有半天的內容。對齊之後每個日期檔就是「前一天結束時的完整狀態」。
+
+**但不要期待它準時。** 凌晨手機多半在 Doze 深睡，實際執行會被延到裝置下次醒來
+（通常是早上第一次拿起手機）。WorkManager 保證的是「大約一天一次」而不是準點；
+看到執行時間是早上八點不代表壞了。驗排程對不對不要等一天，看
+`adb shell dumpsys jobscheduler` 裡那個 job 的 `Minimum latency`。
+
+還有一個和程式無關但會讓人查很久的行為：**使用者在系統設定裡「強制停止」app 之後，
+Android 會把它的排程一起取消**，要等下次手動打開 app 才恢復。某些廠商的省電管理也
+會這樣做。
+
+**「連結 Google Drive」順便做還原**，不是另外一顆按鈕。換手機時使用者按那顆鈕想要
+的是「把紀錄接回來」，不是「開始備份」；而且還原走的是本地匯入同一條路
+（`previewOf` 共用，含同一套去重），外部資料一樣要過確認面板。
+
+**使用者按取消不是錯誤。** GMS 用狀態碼 `CommonStatusCodes.CANCELED` 表示，
+要特別認出來把訊息清掉；照著丟 `Drive 出錯：User cancelled flow` 會讓人以為壞了。
+
 ## 改動慣例
 
 - 註解寫**繁體中文**，解釋「為什麼」而不是「做了什麼」。

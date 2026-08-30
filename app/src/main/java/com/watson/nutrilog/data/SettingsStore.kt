@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -30,6 +31,12 @@ data class NutriSettings(
     /** 關掉時，輸入表單的進階營養素區塊預設收合 */
     val showExtendedNutrients: Boolean = false,
     val darkMode: DarkModePreference = DarkModePreference.SYSTEM,
+    /** 每天自動備份到 Drive。關著的時候完全不碰網路，也不會排任何背景工作。 */
+    val driveBackupEnabled: Boolean = false,
+    /** 備份到哪個 Google 帳號。空字串代表還沒授權過。只拿來顯示，授權本身不靠它。 */
+    val driveAccount: String = "",
+    /** 上次備份成功的時間（epoch millis）。0 代表還沒備份過。 */
+    val lastBackupAt: Long = 0,
 ) {
     companion object {
         // 模型會改朝換代，所以設定頁可以改。注意 gemini-2.0-flash 已經下架，別填。
@@ -57,6 +64,9 @@ class SettingsStore(context: Context) {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     val settingsFlow: Flow<NutriSettings> = store.data.map { decode(it[KEY_SETTINGS]) }
+
+    /** 背景工作沒有 UI 可以訂閱 Flow，就地讀一次目前的設定。 */
+    suspend fun current(): NutriSettings = settingsFlow.first()
 
     suspend fun save(settings: NutriSettings) {
         store.edit { prefs ->

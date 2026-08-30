@@ -107,6 +107,11 @@ dependencies {
     implementation(libs.okhttp)
     // 條碼掃描：UI 跑在 Play 服務裡，因此不需要 CAMERA 權限也不用自己寫 CameraX 預覽
     implementation(libs.play.services.code.scanner)
+    // Drive 備份的授權。只拿 access token，不做「Google 登入」那一套身分驗證 ——
+    // 這個 app 沒有帳號系統，需要的只是「能不能寫進你的 Drive」。
+    implementation(libs.play.services.auth)
+    // 每天一次的背景備份。AlarmManager 在 Doze 底下不可靠，這是官方的做法。
+    implementation(libs.androidx.work.runtime.ktx)
 
     testImplementation(libs.junit)
 }

@@ -49,11 +49,16 @@ fun SettingsScreen(
     settings: NutriSettings,
     dataMessage: String?,
     importPreview: ImportPreview?,
+    driveMessage: String?,
+    driveBusy: Boolean,
     onChange: (NutriSettings) -> Unit,
     onExportCsv: () -> Unit,
     onImportCsv: () -> Unit,
     onConfirmImport: () -> Unit,
     onCancelImport: () -> Unit,
+    onConnectDrive: () -> Unit,
+    onBackupNow: () -> Unit,
+    onDisconnectDrive: () -> Unit,
     onClose: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -169,6 +174,67 @@ fun SettingsScreen(
 
             Hairline(Modifier.padding(vertical = 10.dp))
 
+            // 雲端擺在本地上面：連結之後備份是自動發生的，這一區才是預設的路；
+            // 匯出／匯入是不依賴帳號的退路，退路擺在下面。
+            SectionTitle(stringResource(R.string.drive_section))
+            Text(
+                stringResource(R.string.drive_help),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                stringResource(R.string.drive_scope_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline,
+            )
+            if (!settings.driveBackupEnabled) {
+                // 還沒連結時這是整頁的主要動作，所以是實心墨章，跟匯出同一個長相。
+                StampButton(
+                    label = stringResource(R.string.drive_connect),
+                    onClick = onConnectDrive,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            } else {
+                // 帳號與上次備份時間都要講：少了它們，使用者沒辦法確認這件事到底
+                // 有沒有在動，而備份最怕的就是「以為有在備份」。
+                if (settings.driveAccount.isNotBlank()) {
+                    Text(
+                        withNumerals(stringResource(R.string.drive_account, settings.driveAccount)),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Text(
+                    withNumerals(
+                        stringResource(R.string.drive_last_backup, lastBackupLabel(settings.lastBackupAt))
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                // 連結之後備份就是自動的了，這顆只是「現在就跑一次」——
+                // 形狀留著（看得出跟下面幾顆是同一類東西），份量用空心退掉。
+                StampButton(
+                    label = stringResource(R.string.drive_backup_now),
+                    onClick = onBackupNow,
+                    color = Color.Transparent,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                TextAction(stringResource(R.string.drive_disconnect), onClick = onDisconnectDrive)
+            }
+            // 轉圈的圓形在這個滿是規線的版面上很突兀，用規線自己的語彙表達等待
+            if (driveBusy) {
+                IndeterminateRule(Modifier.padding(top = 4.dp))
+            }
+            driveMessage?.let {
+                Text(
+                    withNumerals(it),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+
+            Hairline(Modifier.padding(vertical = 10.dp))
+
             SectionTitle(stringResource(R.string.settings_data))
             // 匯出與匯入是同一件事的兩個方向，所以共用一段敘述、擺在一起，
             // 結果訊息也只有一行 —— 兩行訊息並排會分不清哪一行是誰的。
@@ -234,6 +300,18 @@ private fun importSummary(preview: ImportPreview): String = buildList {
         add(stringResource(R.string.import_summary_skipped, preview.skipped))
     }
 }.joinToString(" ")
+
+/** 上次備份的時間。今天以內講時分，跨天就講日期 —— 「昨天備份過」是使用者真正在意的事。 */
+@Composable
+private fun lastBackupLabel(millis: Long): String {
+    if (millis <= 0) return stringResource(R.string.drive_never)
+    val moment = java.time.Instant.ofEpochMilli(millis)
+        .atZone(java.time.ZoneId.systemDefault())
+        .toLocalDateTime()
+    val time = "%02d:%02d".format(moment.hour, moment.minute)
+    return if (moment.toLocalDate() == java.time.LocalDate.now()) time
+    else moment.toLocalDate().toString() + " " + time
+}
 
 @Composable
 private fun SectionTitle(text: String) {

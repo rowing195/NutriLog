@@ -647,6 +647,10 @@ fun BackspaceMark(color: Color, size: Dp = 26.dp) {
  * 它們是同一件事的兩個方向，做成不同形狀反而像在說其中一個比較次要。
  * 那種情況兩顆都是章，用 [color] 讓退一階的那顆轉 [NutrientColors.StampSecondary]。
  *
+ * [color] 傳 `Color.Transparent` 會得到**空心章**：形狀還在（所以看得出跟上面那幾顆
+ * 是同一類東西），但份量退掉。字色會自動跟著翻成墨色 —— 實心章的字是反白的，
+ * 直接畫在紙上等於看不見。
+ *
  * 不能按的時候整顆退成**外框章**而不是灰掉的實心塊：灰掉的實心塊看起來像壞了，
  * 外框章看得出它還在、只是還沒輪到它。理由用 [helper] 講，不彈東西。
  */
@@ -662,7 +666,9 @@ fun StampButton(
 ) {
     val scheme = MaterialTheme.colorScheme
     val fill = color ?: scheme.inverseSurface
-    val labelColor = if (enabled) scheme.inverseOnSurface else scheme.outline
+    // 底透明就代表字直接畫在紙上，反白的字色在那裡是隱形的
+    val onFill = if (fill.alpha == 0f) scheme.onSurface else scheme.inverseOnSurface
+    val labelColor = if (enabled) onFill else scheme.outline
     androidx.compose.foundation.layout.Column(modifier) {
         Box(
             Modifier

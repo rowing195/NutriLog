@@ -48,6 +48,7 @@
     - [歷史（月曆）](#歷史月曆)
     - [搜尋與個人食物庫](#搜尋與個人食物庫)
     - [匯出／匯入 CSV](#匯出匯入-csv)
+    - [Google Drive 雲端備份](#google-drive-雲端備份)
 - [設定 Gemini API key](#設定-gemini-api-key)
 - [設計決策](#設計決策)
 - [外部 API](#外部-api)
@@ -85,9 +86,9 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 | ⚙️ | **架構** | <ul><li>單一 activity-scoped `NutriViewModel` 串起所有畫面狀態與導航</li><li>`sealed interface Screen` + `when` 分派，刻意不引入複雜導航函式庫</li><li>畫面本身無狀態，只吃資料與 lambda</li></ul> |
 | 🔩 | **程式品質** | <ul><li>KDoc 寫繁體中文，解釋「為什麼」而不是「做了什麼」</li><li>版本統一收在 `gradle/libs.versions.toml`</li><li>Compose BOM 管理所有 compose 函式庫版號</li></ul> |
 | 📄 | **文件** | <ul><li>README（本檔）＋ `CLAUDE.md`（環境與慣例）</li><li>踩過的坑與設計考量寫在原地註解裡，不另開 wiki</li></ul> |
-| 🔌 | **整合** | <ul><li>Google Gemini（照片／文字結構化輸出辨識）</li><li>Open Food Facts（條碼營養資訊查詢）</li><li>Play 服務 Code Scanner（免相機權限掃描 UI）</li><li>GitHub Actions 推 tag 自動發佈 Release APK</li></ul> |
-| 🧩 | **模組化** | <ul><li>`data/db` Room、`data/net` 外部 API、`ui` 畫面、`ui/theme` 色票與字階</li><li>`PortionMultiplier` 份數縮放與無損還原演算法</li><li>`CsvExport` / `CsvImport` 是純函式、不碰 Android API</li></ul> |
-| 🧪 | **測試** | <ul><li>JUnit 單元測試套件（`NutrientScalingTest.kt`、`CsvRoundTripTest.kt`）驗證份數縮放無損計算與 CSV 匯出／匯入來回一致</li><li>`tools/ui.ps1` 提供依元件文字定位的手動 UI 自動化驗證</li><li>核心回歸清單：新增→編輯→刪除、換日滑動無跳躍、force-stop 狀態持久化</li></ul> |
+| 🔌 | **整合** | <ul><li>Google Gemini（照片／文字結構化輸出辨識）</li><li>Google Drive（每日自動備份，僅 <code>drive.file</code> 範圍）</li><li>Open Food Facts（條碼營養資訊查詢）</li><li>Play 服務 Code Scanner（免相機權限掃描 UI）</li><li>GitHub Actions 推 tag 自動發佈 Release APK</li></ul> |
+| 🧩 | **模組化** | <ul><li>`data/db` Room、`data/net` 外部 API、`ui` 畫面、`ui/theme` 色票與字階</li><li>`PortionMultiplier` 份數縮放與無損還原演算法</li><li>`CsvExport` / `CsvImport` 是純函式、不碰 Android API</li><li>`DriveClient` 手寫 REST，不引官方 Drive client 函式庫</li></ul> |
+| 🧪 | **測試** | <ul><li>JUnit 單元測試套件（`NutrientScalingTest.kt`、`CsvRoundTripTest.kt`、`DriveBackupPruneTest.kt`）驗證份數縮放無損計算、CSV 匯出／匯入來回一致與雲端備份保留規則</li><li>`tools/ui.ps1` 提供依元件文字定位的手動 UI 自動化驗證</li><li>核心回歸清單：新增→編輯→刪除、換日滑動無跳躍、force-stop 狀態持久化</li></ul> |
 | ⚡️ | **效能** | <ul><li>每日／每月合計由 SQL `GROUP BY` 算，不把明細撈進記憶體</li><li>相片長邊壓到 1024 px 才送出，節省流量與辨識延遲</li><li>全 app 共用一個 `OkHttpClient` 連線池</li><li>條碼結果存 Room 本機快取</li></ul> |
 | 🛡️ | **安全** | <ul><li>只有 `INTERNET` 權限</li><li>Gemini API key 存 DataStore，**不編進 APK**</li><li>key 走 `x-goog-api-key` header 而非 query string</li><li>`keystore.properties` 與 `release.jks` 都在 gitignore</li></ul> |
 | 📦 | **相依** | <ul><li>Room、DataStore、OkHttp、kotlinx-serialization、play-services-code-scanner</li><li>刻意不用 Retrofit —— 只有兩支端點，手寫維持最精簡依賴</li></ul> |
@@ -113,6 +114,8 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
     │       │   │   ├── data/
     │       │   │   │   ├── CsvExport.kt
     │       │   │   │   ├── CsvImport.kt
+    │       │   │   │   ├── DriveAuth.kt
+    │       │   │   │   ├── DriveBackup.kt
     │       │   │   │   ├── SettingsStore.kt
     │       │   │   │   ├── db/
     │       │   │   │   │   ├── CachedProduct.kt
@@ -121,10 +124,13 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
     │       │   │   │   │   ├── NutriDao.kt
     │       │   │   │   │   └── NutriDatabase.kt
     │       │   │   │   └── net/
+    │       │   │   │       ├── DriveClient.kt
     │       │   │   │       ├── GeminiClient.kt
     │       │   │   │       ├── ImageCompressor.kt
     │       │   │   │       ├── OpenFoodFactsClient.kt
     │       │   │   │       └── SharedHttp.kt
+    │       │   │   ├── work/
+    │       │   │   │   └── BackupWorker.kt
     │       │   │   └── ui/
     │       │   │       ├── App.kt
     │       │   │       ├── BarcodeScreen.kt
@@ -150,6 +156,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
     │       └── test/
     │           └── java/com/watson/nutrilog/
     │               ├── CsvRoundTripTest.kt
+    │               ├── DriveBackupPruneTest.kt
     │               └── NutrientScalingTest.kt
     ├── design/
     │   ├── canvas.json
@@ -242,6 +249,14 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 					<td style='padding: 8px;'>把匯出的 CSV 讀回資料庫，換手機或重裝之後接回原本的紀錄。<br>- 靠欄位名稱對應，舊版少兩欄的匯出檔也讀得回來。<br>- 依「日期＋名稱＋份量＋記錄時間」去重，同一份檔匯入兩次不會變兩份。<br>- 壞掉的資料列跳過並回報，不讓整份檔案失敗。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/DriveAuth.kt'>DriveAuth.kt</a></b></td>
+					<td style='padding: 8px;'>Drive 授權（Identity AuthorizationClient，非已淘汰的 GoogleSignIn）。<br>- 只索取 <code>drive.file</code>：僅能存取本 app 自行建立的檔案，非受限範圍、免安全評估。<br>- app 內不含任何 client id：Android OAuth client 以套件名 + 簽章 SHA-1 辨識。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/DriveBackup.kt'>DriveBackup.kt</a></b></td>
+					<td style='padding: 8px;'>備份與還原的流程編排：建立 Drive 主頁 <code>NutriLog/</code> 資料夾、上傳當日 CSV、保留最近 30 天。<br>- 備份內容與本地匯出完全相同，可自行下載或改用本地匯入讀回。<br>- 保留規則為純函式並有測試涵蓋。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/SettingsStore.kt'>SettingsStore.kt</a></b></td>
 					<td style='padding: 8px;'>使用者設定與每日目標。用 DataStore Preferences 儲存單份無關聯之輕量偏好設定。</td>
 				</tr>
@@ -300,6 +315,10 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/net/GeminiClient.kt'>GeminiClient.kt</a></b></td>
 					<td style='padding: 8px;'>照片與文字描述的營養估算。以 `responseSchema` 強制結構化 JSON 輸出，自動重試 5xx 與網路逾時。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/net/DriveClient.kt'>DriveClient.kt</a></b></td>
+					<td style='padding: 8px;'>Google Drive REST v3，僅實作備份所需的四支端點（建資料夾、上傳／覆蓋、列檔、下載）。<br>- 以 OkHttp 手寫，不引官方 Drive client 函式庫（會拖進 google-api-client 與 guava）。<br>- 錯誤訊息帶上 Drive 回傳內容，權杖過期與配額不足才分得開。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/net/OpenFoodFactsClient.kt'>OpenFoodFactsClient.kt</a></b></td>
@@ -400,6 +419,26 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 			</table>
 		</blockquote>
 	</details>
+	<!-- work Submodule -->
+	<details>
+		<summary><b>work</b></summary>
+		<blockquote>
+			<div class='directory-path' style='padding: 8px 0; color: #666;'>
+				<code><b>⦿ app/src/main/java/com/watson/nutrilog/work</b></code>
+			<table style='width: 100%; border-collapse: collapse;'>
+			<thead>
+				<tr style='background-color: #f8f9fa;'>
+					<th style='width: 30%; text-align: left; padding: 8px;'>檔案</th>
+					<th style='text-align: left; padding: 8px;'>說明</th>
+				</tr>
+			</thead>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/work/BackupWorker.kt'>BackupWorker.kt</a></b></td>
+					<td style='padding: 8px;'>每日一次的 Drive 備份排程（WorkManager）。<br>- 選用 WorkManager 而非 AlarmManager：Doze 與重新開機後仍可靠。<br>- 網路類失敗一律 retry；僅「需重新授權」回 failure，因背景無畫面可詢問使用者。</td>
+				</tr>
+			</table>
+		</blockquote>
+	</details>
 	<!-- test Submodule -->
 	<details>
 		<summary><b>test</b></summary>
@@ -420,6 +459,10 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/test/java/com/watson/nutrilog/CsvRoundTripTest.kt'>CsvRoundTripTest.kt</a></b></td>
 					<td style='padding: 8px;'>單元測試：CSV 匯出→匯入來回逐欄一致、逗號／引號／換行跳脫、缺資料維持 null、舊版欄位相容、去重鍵與壞資料列跳過。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/test/java/com/watson/nutrilog/DriveBackupPruneTest.kt'>DriveBackupPruneTest.kt</a></b></td>
+					<td style='padding: 8px;'>單元測試：雲端備份的 30 天保留規則 —— 只刪自己產生的日期檔、跨月跨年排序正確、使用者自行放入的檔案一律不動。</td>
 				</tr>
 			</table>
 		</blockquote>
@@ -543,6 +586,9 @@ Windows 平台可使用隨附腳本：
 - `DetectedFood` 浮點營養素精確度與可空欄位保持
 - `EntryDraft` 基準值導出與無損還原（避免浮點進位累積漂移）
 
+[`DriveBackupPruneTest.kt`](app/src/test/java/com/watson/nutrilog/DriveBackupPruneTest.kt)
+- 雲端備份的 30 天保留規則：只刪自己產生的日期檔、跨月跨年排序正確、使用者自行放入的檔案一律不動
+
 [`CsvRoundTripTest.kt`](app/src/test/java/com/watson/nutrilog/CsvRoundTripTest.kt)
 - 匯出→匯入來回逐欄一致（含份數倍率與記錄時間）
 - 食物名稱裡的逗號、引號與換行照 RFC 4180 跳脫與還原
@@ -616,6 +662,17 @@ UI 部分使用 [`tools/ui.ps1`](tools/ui.ps1) 依元件文字進行模擬器自
 - **匯入前先停在確認面板**：會先算好「新增幾筆、日期範圍、略過幾筆重複、跳過幾列壞資料」再問要不要寫進去。
 - **重複自動略過**：以「日期＋名稱＋份量＋記錄時間」辨識同一筆，同一份檔案匯入兩次不會變成兩份，也能把兩支手機的紀錄合併起來。
 - 匯出→匯入→再匯出實測為完全相同的檔案，換手機可以無損接回。
+
+### Google Drive 雲端備份
+
+- 於設定頁連結 Google 帳號後，**每天自動**將紀錄備份至雲端硬碟主頁 `NutriLog/` 資料夾，一天一個日期檔、僅保留最近 30 天。
+- 背景排程採用 **WorkManager**（非 AlarmManager），可於 Doze 省電模式與重新開機後維持運作。排程對齊至每日凌晨 3 時，因此每個日期檔即為「前一日結束時的完整狀態」；實際執行時間會受 Doze 影響而順延至裝置下次喚醒，WorkManager 保證的是頻率而非準點。
+- 每份備份皆為**資料庫完整快照**而非當日增量，最新一份永遠包含全部紀錄。
+- 授權範圍僅 **`drive.file`**：只能存取本 app 自行建立的檔案，讀不到雲端硬碟上的其他資料。此範圍非 Google 定義之受限範圍，無需安全評估審查。
+- 備份內容與本地匯出**完全相同**，可直接於 Drive 下載、以試算表開啟，或改用本地匯入讀回 —— 資料不會被鎖在 app 裡。
+- 「連結 Google Drive」會**順便把雲端的紀錄接回來**：換手機時自動比對雲端備份，走與本地匯入相同的確認面板（新增幾筆／略過幾筆重複），確認後才寫入資料庫。
+- 此功能為選配。未連結時 app 不會存取網路，也不會排入任何背景工作。
+- 首次使用需自行於 Google Cloud 建立 OAuth client，可執行 [`tools/setup-google-drive.sh`](tools/setup-google-drive.sh) 精靈完成設定。
 
 ---
 
@@ -720,6 +777,7 @@ git push origin v1.10.0
 | 本地儲存 | Room 2.6.1 + DataStore Preferences 1.1.1 |
 | 網路通訊 | OkHttp 4.12.0 + kotlinx-serialization 1.7.3 |
 | 條碼辨識 | Google Play services Code Scanner 16.1.0 |
+| 雲端備份 | Google Play services Auth 22.0.0（`drive.file`）+ WorkManager 2.10.0 |
 | 測試框架 | JUnit 4 + Kotlin Test |
 | 內嵌字型 | jf open 粉圓 2.1（中文）+ Neucha（數字，已正規化側邊留白） |
 | 發佈 APK 大小 | 約 11.4 MB（其中內嵌字型約 2.9 MB） |

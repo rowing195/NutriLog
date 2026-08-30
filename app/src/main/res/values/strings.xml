@@ -118,7 +118,7 @@
     <string name="settings_paste">貼上</string>
     <string name="settings_data">資料</string>
     <string name="export_csv">匯出 CSV</string>
-    <string name="csv_help">把全部飲食紀錄存成 CSV，可用 Excel 或 Google 試算表打開，也可以把之前匯出的檔讀回來。紀錄只存在本機、沒有雲端備份，所以換手機前記得先匯出，裝好新手機再匯入接回原本的紀錄。已經有的紀錄匯入時會自動略過，同一份檔案匯兩次不會變成兩份。</string>
+    <string name="csv_help">存成 CSV 給試算表看，或把之前匯出的檔讀回來。不依賴任何帳號的那條路。匯入時已經有的紀錄會自動略過。</string>
     <string name="export_done">已匯出 %1$d 筆紀錄</string>
     <string name="export_failed">匯出失敗：%1$s</string>
     <string name="import_csv">匯入 CSV</string>
@@ -131,6 +131,20 @@
     <string name="import_nothing_new">檔案裡的 %1$d 筆紀錄都已經有了，沒有新增任何東西</string>
     <string name="import_bad_format">這個檔案不是 NutriLog 匯出的 CSV：找不到「日期」與「食物名稱」欄位</string>
     <string name="import_failed">匯入失敗：%1$s</string>
+    <string name="drive_section">雲端備份</string>
+    <string name="drive_help">每天自動備份到雲端硬碟的 NutriLog 資料夾，只留最近 30 天。備份就是同一份 CSV，隨時可以自己下載。</string>
+    <string name="drive_scope_note">只碰得到這個 app 自己建立的檔案。</string>
+    <string name="drive_connect">連結 Google Drive</string>
+    <string name="drive_backup_now">立即備份</string>
+    <string name="drive_disconnect">停止自動備份</string>
+    <string name="drive_backing_up">備份中…</string>
+    <string name="drive_connecting">連結中…</string>
+    <string name="drive_backup_done">已備份到 NutriLog／%1$s</string>
+    <string name="drive_disconnected">已停止自動備份，雲端的檔案沒有動。</string>
+    <string name="drive_failed">Drive 出錯：%1$s</string>
+    <string name="drive_account">備份帳號 %1$s</string>
+    <string name="drive_last_backup">上次備份 %1$s</string>
+    <string name="drive_never">還沒備份過</string>
 
     <!-- 條碼 -->
     <string name="barcode_title">掃條碼</string>
