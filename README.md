@@ -365,11 +365,11 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/SettingsScreen.kt'>SettingsScreen.kt</a></b></td>
-					<td style='padding: 8px;'>外觀模式（系統/淺色/深色）、Gemini API Key/模型下拉選單、每日營養目標滑桿、進階營養素開關與 CSV 備份匯出。</td>
+					<td style='padding: 8px;'>外觀模式（系統/淺色/深色）、Gemini API Key 與模型攤開圈選（刻意不用下拉選單）、每日營養目標數字欄位、進階營養素開關與 CSV 備份匯出。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/Common.kt'>Common.kt</a></b></td>
-					<td style='padding: 8px;'>「紙與墨」設計系統元件：`Hairline`（1px）、`Rule`（2px）、`StampButton`、`PillButton`、`TextAction`、`RoundKey`、`BallotRow`、`SquareCheck`、`NutriTextField` 與全自繪向量 `*Mark` 圖示。</td>
+					<td style='padding: 8px;'>「紙與墨」設計系統元件：`Hairline`（1px）、`Rule`（2px）、`StampButton`、`PillButton`、`TextAction`、`RoundKey`、`BallotRow`、`SquareCheck`、`NutriTextField`、`dismissKeyboardOnTap`（點空白處收鍵盤）與全自繪向量 `*Mark` 圖示。</td>
 				</tr>
 			</table>
 		</blockquote>
@@ -573,6 +573,8 @@ UI 部分使用 [`tools/ui.ps1`](tools/ui.ps1) 依元件文字進行模擬器自
 | **拍照辨識** | 拍照或自相簿選取 → 壓縮長邊至 1024 px → Gemini 結構化辨識 → **確認畫面**逐項勾選與微調後入庫。 |
 | **常吃／文字輸入** | 上半部為個人食物庫快捷帶入；下半部支援自然語言描述（如「無糖綠茶 700ml」）由 Gemini 解析估算。 |
 | **掃條碼** | 掃描條碼或手動輸入 → 優先讀取本機快取，無快取則查詢 Open Food Facts → 輸入食用公克數自動換算。 |
+
+所有有輸入的畫面（上表三條打字路徑 ＋ 搜尋 ＋ 設定的每日目標）共通一件事：**點輸入框與鍵盤以外的空白處即可收鍵盤**，回到沒在打字的版面，已經打的字與數值都保留。編輯表單裡自繪的數字鍵盤同樣照這個方式收 —— 對使用者而言那與系統鍵盤是同一件事。
 
 ### 歷史（月曆）
 
