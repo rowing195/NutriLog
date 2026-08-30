@@ -47,6 +47,7 @@ fun TextLookupScreen(
     val submit = { if (query.isNotBlank()) onLookup(query) }
 
     Scaffold(
+        modifier = Modifier.dismissKeyboardOnTap(),
         topBar = {
             ScreenTopBar(
                 title = stringResource(R.string.text_lookup_title),

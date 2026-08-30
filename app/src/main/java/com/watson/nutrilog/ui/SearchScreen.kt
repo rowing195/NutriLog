@@ -67,6 +67,7 @@ fun SearchScreen(
     onClose: () -> Unit,
 ) {
     Scaffold(
+        modifier = Modifier.dismissKeyboardOnTap(),
         topBar = {
             ScreenTopBar(
                 title = stringResource(R.string.search_title),

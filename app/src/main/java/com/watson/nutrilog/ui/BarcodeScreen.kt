@@ -51,6 +51,7 @@ fun BarcodeScreen(
     var code by remember { mutableStateOf("") }
 
     Scaffold(
+        modifier = Modifier.dismissKeyboardOnTap(),
         topBar = {
             ScreenTopBar(
                 title = stringResource(R.string.barcode_title),

@@ -42,7 +42,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
@@ -351,6 +354,25 @@ fun NutriTextField(
             )
         }
     }
+}
+
+/**
+ * 點空白處收鍵盤，回到沒在打字的樣子。
+ *
+ * 搜尋打到一半改變主意時，這套版面沒有明顯的「取消打字」出口：系統返回鍵會把
+ * 整個畫面關掉，而使用者其實只是想把鍵盤收起來、看回底下被鍵盤擠掉的清單。
+ *
+ * 用 [detectTapGestures] 而不是再疊一層 `clickable`：clickable 會把整片區域
+ * 都變成可點的，蓋掉底下每一列自己的點擊，還會帶進 ripple 與無障礙焦點。
+ * 這裡要的是「沒有人接的那些點擊」—— 手勢在 Main pass 是子先父後，列、按鍵
+ * 與輸入框自己會先消費掉，能傳上來的就只剩真正的空白處。
+ *
+ * 掛在 Scaffold 的 modifier 上（而不是內容那層），報頭那一條空白也才算數。
+ */
+@Composable
+fun Modifier.dismissKeyboardOnTap(): Modifier {
+    val focusManager = LocalFocusManager.current
+    return this.pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } }
 }
 
 // ─────────────────────────── 按鍵 ───────────────────────────
