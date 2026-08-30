@@ -30,7 +30,8 @@ class DriveBackup(
     class NeedsConsent(val pendingIntent: android.app.PendingIntent) : Exception("需要 Google 授權")
 
     /**
-     * 跑一次備份。回傳寫上去的檔名。
+     * 跑一次備份。回傳備份的日期（不是檔名 —— 呼叫端要顯示的是「備份到哪一天」，
+     * 整串 nutrilog-2026-08-30.csv 塞進訊息裡只會換行）。
      *
      * 順手把帳號 email 與時間記進設定 —— 設定頁要講「備份到哪個帳號、上次是什麼時候」，
      * 少了這兩個，使用者沒辦法確認備份到底有沒有在動。
@@ -38,7 +39,8 @@ class DriveBackup(
     suspend fun backupNow(token: String? = null): Result<String> = runCatching {
         val accessToken = token ?: requireToken()
         val folderId = drive.ensureFolder(accessToken, FOLDER_NAME).getOrThrow()
-        val name = CsvExport.fileName(LocalDate.now())
+        val today = LocalDate.now()
+        val name = CsvExport.fileName(today)
         val csv = CsvExport.build(dao.allEntries())
         drive.upload(accessToken, folderId, name, csv).getOrThrow()
 
@@ -52,7 +54,7 @@ class DriveBackup(
                 lastBackupAt = System.currentTimeMillis(),
             )
         )
-        name
+        today.toString()
     }
 
     /** 雲端最新那一份的內容。沒有任何備份時回傳 null。 */

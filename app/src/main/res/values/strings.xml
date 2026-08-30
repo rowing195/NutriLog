@@ -139,7 +139,7 @@
     <string name="drive_disconnect">停止自動備份</string>
     <string name="drive_backing_up">備份中…</string>
     <string name="drive_connecting">連結中…</string>
-    <string name="drive_backup_done">已備份到 NutriLog／%1$s</string>
+    <string name="drive_backup_done">已備份 %1$s</string>
     <string name="drive_disconnected">已停止自動備份，雲端的檔案沒有動。</string>
     <string name="drive_failed">Drive 出錯：%1$s</string>
     <string name="drive_account">備份帳號 %1$s</string>

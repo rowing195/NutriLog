@@ -651,6 +651,10 @@ fun BackspaceMark(color: Color, size: Dp = 26.dp) {
  * 是同一類東西），但份量退掉。字色會自動跟著翻成墨色 —— 實心章的字是反白的，
  * 直接畫在紙上等於看不見。
  *
+ * [destructive] 是空心章再轉朱紅（同 [NutriDialog] 的同名參數）。**不做成實心紅塊**：
+ * 朱紅在這套色票裡的意思是「看這裡」，整顆填滿會變成設定頁上最搶眼的東西，
+ * 而它其實是個次要動作。空心紅講的是「這顆要想一下再按」，剛好。
+ *
  * 不能按的時候整顆退成**外框章**而不是灰掉的實心塊：灰掉的實心塊看起來像壞了，
  * 外框章看得出它還在、只是還沒輪到它。理由用 [helper] 講，不彈東西。
  */
@@ -663,11 +667,16 @@ fun StampButton(
     withPlus: Boolean = false,
     helper: String? = null,
     color: Color? = null,
+    destructive: Boolean = false,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val fill = color ?: scheme.inverseSurface
+    val fill = if (destructive) Color.Transparent else color ?: scheme.inverseSurface
     // 底透明就代表字直接畫在紙上，反白的字色在那裡是隱形的
-    val onFill = if (fill.alpha == 0f) scheme.onSurface else scheme.inverseOnSurface
+    val onFill = when {
+        destructive -> scheme.error
+        fill.alpha == 0f -> scheme.onSurface
+        else -> scheme.inverseOnSurface
+    }
     val labelColor = if (enabled) onFill else scheme.outline
     androidx.compose.foundation.layout.Column(modifier) {
         Box(
@@ -681,7 +690,14 @@ fun StampButton(
             Row(
                 Modifier
                     .fillMaxSize()
-                    .border(1.dp, if (enabled) scheme.onSurfaceVariant else NutrientColors.FieldBorder),
+                    .border(
+                        1.dp,
+                        when {
+                            !enabled -> NutrientColors.FieldBorder
+                            destructive -> scheme.error
+                            else -> scheme.onSurfaceVariant
+                        },
+                    ),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {

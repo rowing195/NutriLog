@@ -219,7 +219,14 @@ fun SettingsScreen(
                     color = Color.Transparent,
                     modifier = Modifier.padding(top = 4.dp),
                 )
-                TextAction(stringResource(R.string.drive_disconnect), onClick = onDisconnectDrive)
+                // 同樣是章，只是轉朱紅：形狀一致才看得出它跟上面那顆是同一層的動作，
+                // 顏色負責講「這顆會關掉一直在幫你做事的東西」。
+                StampButton(
+                    label = stringResource(R.string.drive_disconnect),
+                    onClick = onDisconnectDrive,
+                    destructive = true,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
             }
             // 轉圈的圓形在這個滿是規線的版面上很突兀，用規線自己的語彙表達等待
             if (driveBusy) {
