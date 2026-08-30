@@ -38,6 +38,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -368,11 +369,23 @@ fun NutriTextField(
  * 與輸入框自己會先消費掉，能傳上來的就只剩真正的空白處。
  *
  * 掛在 Scaffold 的 modifier 上（而不是內容那層），報頭那一條空白也才算數。
+ * 例外是編輯表單：它底部那塊是自製數字鍵盤，掛整張會連「按鍵之間的縫」都算成
+ * 空白，瞄歪一點就把鍵盤關掉，所以那裡只掛在內容那層。
+ *
+ * [onTap] 給還有別套鍵盤要收的畫面（編輯表單的數字鍵盤不吃焦點，clearFocus
+ * 收不到它）。用 rememberUpdatedState 是因為 pointerInput(Unit) 只會啟動一次，
+ * 直接捕捉會永遠停在第一次組成的那一份 lambda。
  */
 @Composable
-fun Modifier.dismissKeyboardOnTap(): Modifier {
+fun Modifier.dismissKeyboardOnTap(onTap: () -> Unit = {}): Modifier {
     val focusManager = LocalFocusManager.current
-    return this.pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } }
+    val latestOnTap = rememberUpdatedState(onTap)
+    return this.pointerInput(Unit) {
+        detectTapGestures {
+            focusManager.clearFocus()
+            latestOnTap.value()
+        }
+    }
 }
 
 // ─────────────────────────── 按鍵 ───────────────────────────

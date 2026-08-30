@@ -199,6 +199,11 @@ fun EditEntryScreen(
             Modifier
                 .fillMaxSize()
                 .padding(inner)
+                // 點空白處收鍵盤。數字格用的是自製鍵盤、不吃焦點，clearFocus 收不到，
+                // 所以要自己把 focused 清掉 —— 對使用者來說那兩套是同一件事。
+                // 掛在內容這層而不是整張 Scaffold：底部那塊就是數字鍵盤本身，
+                // 掛整張會連按鍵之間的縫都算成空白，瞄歪一點就把鍵盤關掉。
+                .dismissKeyboardOnTap { focused = null }
                 // 名稱與份量還是走系統鍵盤（那是文字），所以這行仍然要留
                 .imePadding()
                 .verticalScroll(rememberScrollState())

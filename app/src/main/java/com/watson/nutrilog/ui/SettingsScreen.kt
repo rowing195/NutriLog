@@ -54,6 +54,7 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     Scaffold(
+        modifier = Modifier.dismissKeyboardOnTap(),
         topBar = {
             ScreenTopBar(
                 title = stringResource(R.string.settings_title),
