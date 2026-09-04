@@ -210,8 +210,9 @@ class GeminiClient(private val client: OkHttpClient = SharedHttp.client) {
      * 「看照片認食物」不需要推理，但 Gemini 3.x 預設是 thinking medium，
      * 延遲會拉到讓請求逾時（實際踩到：3.7-flash 一直斷線）。
      *
-     * 兩個系列的參數不一樣，**混用會回 400**：
-     *   Gemini 3.x        -> thinkingLevel（minimal 最接近關閉；flash 系列無法完全關）
+     * 參數策略：
+     *   Gemini 3.7 / 3.8  -> thinkingLevel = "low"（這兩代不支援 minimal，最低只能設 low）
+     *   Gemini 3.x        -> thinkingLevel = "minimal"（最接近關閉；flash 系列無法完全關）
      *   Gemini 2.5 Flash  -> thinkingBudget = 0（這一系列才能真的完全關閉）
      *
      * 2.5 **Pro** 特別排除：它的 thinkingBudget 下限是 128，不接受 0，
@@ -221,8 +222,12 @@ class GeminiClient(private val client: OkHttpClient = SharedHttp.client) {
     private fun thinkingConfigFor(model: String): JsonObject? {
         val id = model.trim().lowercase()
         return when {
-            id.startsWith("gemini-3") -> buildJsonObject { put("thinkingLevel", "minimal") }
-            id.startsWith("gemini-2.5-flash") -> buildJsonObject { put("thinkingBudget", 0) }
+            id.startsWith("gemini-3.7") || id.startsWith("gemini-3.8") ->
+                buildJsonObject { put("thinkingLevel", "low") }
+            id.startsWith("gemini-3") ->
+                buildJsonObject { put("thinkingLevel", "minimal") }
+            id.startsWith("gemini-2.5-flash") ->
+                buildJsonObject { put("thinkingBudget", 0) }
             else -> null
         }
     }

@@ -354,17 +354,22 @@ private fun TargetField(label: String, value: Int, max: Int, onChange: (Int) -> 
     )
 }
 
-/** 目前只有這三個模型能用，改下拉選單就不會再有「名稱打錯」這種輸入錯誤。 */
-private val GEMINI_MODELS = listOf("gemini-3.6-flash", "gemini-3.7-flash", "gemini-3.5-flash-lite")
+/** 目前支援的模型，改清單就不會再有「名稱打錯」這種輸入錯誤。 */
+private val GEMINI_MODELS = listOf(
+    "gemini-3.8-flash",
+    "gemini-3.7-flash",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash-lite",
+)
 
 /**
- * 模型選擇：三個選項直接攤開，不用下拉選單。
+ * 模型選擇：選項直接攤開，不用下拉選單。
  *
  * 原本是 `ExposedDropdownMenuBox` —— 但它彈出來的浮層是 M3 自己的容器
  * （圓角、陰影、Material 的底色），在這套方角紙面上是整個 app 唯一一個
- * 浮起來的 Material 元件，而且為了三個選項去蓋一整套 popup 樣式並不划算。
+ * 浮起來的 Material 元件，而且為了少數幾個選項去蓋一整套 popup 樣式並不划算。
  *
- * 只有三個而且不會再多，攤開反而少一次點擊，也看得到彼此的差別。
+ * 選項不多，直接攤開反而少一次點擊，也看得到彼此的差別。
  * 用垂直的圈選（而不是 [BallotRow] 那種橫排）是因為模型名稱很長，排不成一列。
  */
 @Composable
