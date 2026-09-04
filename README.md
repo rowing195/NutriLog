@@ -394,7 +394,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/Common.kt'>Common.kt</a></b></td>
-					<td style='padding: 8px;'>「紙與墨」設計系統元件：`Hairline`（1px）、`Rule`（2px）、`StampButton`、`PillButton`、`TextAction`、`RoundKey`、`BallotRow`、`SquareCheck`、`NutriTextField`、`dismissKeyboardOnTap`（點空白處收鍵盤）與全自繪向量 `*Mark` 圖示。</td>
+					<td style='padding: 8px;'>「紙與墨」設計系統元件：`Hairline`（1px）、`Rule`（2px）、`StampButton`、`PillButton`、`TextAction`、`RoundKey`、`BallotRow`、`SquareCheck`、`NutriTextField`、`dismissKeyboardOnTap`（點空白處收鍵盤）、`SwipeToReveal` / `UndoStamp`（左滑刪除與復原）與全自繪向量 `*Mark` 圖示。</td>
 				</tr>
 			</table>
 		</blockquote>
@@ -619,6 +619,7 @@ UI 部分使用 [`tools/ui.ps1`](tools/ui.ps1) 依元件文字進行模擬器自
   - 下方進階營養素（糖／鈉／膳食纖維／飽和脂肪）支援橫向滑動檢視。
 - **固定四餐區塊**：早餐、午餐、晚餐、點心四格永遠列出，未記錄時提供直接補登入口，並自動預選該餐別。
 - **五合一懸浮章印選單**：右下角自繪墨印按鈕展開拍照、相簿、常吃/文字、條碼與手動五大入口。
+- **左滑刪除與復原**：紀錄列左滑露出刪除區，點擊後刪除，左下角浮出與「記一筆」同尺寸的深灰復原章，提供 5 秒復原視窗。復原以原 id 還原紀錄，備份與去重鍵均不受影響。
 
 ### 份數縮放
 

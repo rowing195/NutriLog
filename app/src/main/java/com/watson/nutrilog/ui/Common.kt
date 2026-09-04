@@ -9,6 +9,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -18,14 +19,19 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -35,6 +41,8 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,6 +51,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.pointer.pointerInput
@@ -61,7 +70,10 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -75,6 +87,8 @@ import com.watson.nutrilog.ui.theme.NutrientColors
 import java.time.LocalDate
 import java.time.format.TextStyle as JavaTextStyle
 import java.util.Locale
+import kotlinx.coroutines.launch
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 @Composable
@@ -384,6 +398,173 @@ fun Modifier.dismissKeyboardOnTap(onTap: () -> Unit = {}): Modifier {
         detectTapGestures {
             focusManager.clearFocus()
             latestOnTap.value()
+        }
+    }
+}
+
+// ─────────────────────────── 左滑露出動作 ───────────────────────────
+
+/**
+ * 左滑把一列推開，右邊露出一塊動作區（今日頁的刪除）。
+ *
+ * **不用 M3 的 SwipeToDismissBox**：它自帶容器色與動畫曲線，而且是「滑到底就直接
+ * 執行」的語意——這裡要的是滑開之後停住、再點一次才算數，誤觸的代價才不會是少一筆
+ * 紀錄。
+ *
+ * **動的是動作區，不是列本身。** 一般 swipe-to-reveal 是把列往左推，但這套版面的
+ * 列只內縮 22dp，推開 88dp 之後短名稱會整個被推出左邊界——結果是「知道要刪東西，
+ * 但不知道要刪哪一筆」。改成紅塊從右邊滑進來蓋住熱量數字，名稱永遠留在原位。
+ *
+ * 手勢是自己寫的，因為它要跟今日頁的日分頁器共存。**關著的時候只接往左的拖曳**：
+ * 往右不消費，讓事件穿過去給分頁器換到前一天。代價是紀錄列上「往左換下一天」沒了
+ * ——那個手勢還可以從週長條、月曆或空白處做，而左滑刪除只有在列上才有意義。
+ * 垂直方向先過門檻就整個放手，清單照樣捲得動。
+ *
+ * [revealed] 由呼叫端持有，這樣同一份清單可以保證「同時只有一列是開的」。
+ */
+@Composable
+fun SwipeToReveal(
+    revealed: Boolean,
+    onRevealedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    actionWidth: Dp = 88.dp,
+    action: @Composable () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val revealPx = with(LocalDensity.current) { actionWidth.toPx() }
+    val slop = LocalViewConfiguration.current.touchSlop
+    val offsetX = remember { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+
+    // 外面把它關掉時（點了別列、或這一筆被刪了）要跟著收回去
+    LaunchedEffect(revealed, revealPx) {
+        offsetX.animateTo(if (revealed) -revealPx else 0f, tween(200))
+    }
+
+    Box(
+        modifier
+            // 收起來時紅塊是停在這一列右邊界外面的，不裁會畫到畫面的右側留白上
+            .clipToBounds()
+            // 手勢掛在外層而不是另外疊一片透明的攔截層：疊一層會把列自己的點擊
+            // 蓋掉，而掛在外層時列的 clickable 先收到 down、拖曳的位移才輪到這裡，
+            // 兩者剛好各司其職（一被判定成拖曳，點擊就會自己取消）。
+            .pointerInput(revealPx) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val startedOpen = offsetX.value < 0f
+                    // **一定要是「真的拖過」才算**，不能因為列已經開著就把觸碰當拖曳：
+                    // 那樣每一次點擊在放開時都會重新宣告一次 onRevealedChange(true)，
+                    // 蓋掉刪除鍵與列自己剛剛設好的「關起來」——症狀是點了沒反應。
+                    var dragging = false
+                    var last = down.position
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!change.pressed) break
+                        if (!dragging) {
+                            val dx = change.position.x - down.position.x
+                            val dy = change.position.y - down.position.y
+                            // 垂直先過門檻 → 這是在捲清單，整個放手
+                            if (abs(dy) > slop && abs(dy) > abs(dx)) break
+                            if (abs(dx) < slop) {
+                                last = change.position
+                                continue
+                            }
+                            // 關著時往右 → 不消費，讓日分頁器去換前一天。
+                            // 已經開著時往右是「把它收回去」，那要接。
+                            if (dx > 0 && !startedOpen) break
+                            dragging = true
+                        }
+                        val delta = change.position.x - last.x
+                        last = change.position
+                        change.consume()
+                        scope.launch {
+                            offsetX.snapTo((offsetX.value + delta).coerceIn(-revealPx, 0f))
+                        }
+                    }
+                    if (dragging) {
+                        // 過半就吸開，沒過就收回 —— 停在中間看起來像卡住了
+                        val open = offsetX.value < -revealPx / 2
+                        onRevealedChange(open)
+                        scope.launch {
+                            offsetX.animateTo(if (open) -revealPx else 0f, tween(200))
+                        }
+                    }
+                }
+            },
+    ) {
+        content()
+        Box(
+            Modifier
+                .matchParentSize()
+                .wrapContentSize(Alignment.CenterEnd)
+                // 收起來時整塊停在右邊界外（+revealPx），拖到底才剛好貼齊
+                .offset { IntOffset((revealPx + offsetX.value).roundToInt(), 0) },
+        ) { action() }
+    }
+}
+
+/**
+ * 左滑露出來的刪除塊。
+ *
+ * 這裡**刻意用實心紅**，跟「破壞性動作用空心紅」那條規則不一樣：那條講的是常駐在
+ * 畫面上的按鍵（設定頁的停止自動備份），實心紅會變成整頁最搶眼的東西。這一塊只在
+ * 使用者主動滑開的那幾秒存在，而且那個當下它本來就該是最醒目的——空心紅藏在列的
+ * 右邊反而看不出是可以按的。
+ */
+@Composable
+fun DeleteReveal(onClick: () -> Unit, width: Dp = 88.dp) {
+    Box(
+        Modifier
+            .width(width)
+            .fillMaxHeight()
+            .background(MaterialTheme.colorScheme.error)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        TrashMark(MaterialTheme.colorScheme.inverseOnSurface)
+    }
+}
+
+/**
+ * 刪除之後左下角跳出來的復原章。
+ *
+ * 跟右下角「記一筆」那顆是同一個長相與同一個尺寸（60dp 方章、內縮 4dp 細框），
+ * 只是退一階轉深灰 —— 兩個下角各站一顆章，一個是「加」一個是「收回剛剛那一下」，
+ * 對稱本身就在講它們是同一層的東西。左下角是刻意的：右下角被記一筆佔著。
+ *
+ * 不用 M3 的 Snackbar：它是圓角、有陰影、還會自己排隊，在這套方角紙面上很突兀，
+ * 而且橫躺一長條會壓住底下那一列紀錄。
+ */
+@Composable
+fun UndoStamp(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scheme = MaterialTheme.colorScheme
+    Box(
+        modifier
+            .size(60.dp)
+            .background(NutrientColors.StampSecondary)
+            .clickable(onClick = onClick)
+            .padding(4.dp),
+    ) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .border(1.dp, scheme.onSurfaceVariant),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                label,
+                // 對面那顆章裡的加號是 22dp，字級太小這一邊會顯得沒份量。
+                // titleSmall 原本帶著給中文標題用的 4sp 字距，在 52dp 的框裡太寬，收掉。
+                style = MaterialTheme.typography.titleSmall.copy(letterSpacing = 1.sp),
+                color = scheme.inverseOnSurface,
+                // 字距會在最後一個字後面也留一格，靠左推回來才是真的置中
+                modifier = Modifier.padding(start = 1.dp),
+            )
         }
     }
 }

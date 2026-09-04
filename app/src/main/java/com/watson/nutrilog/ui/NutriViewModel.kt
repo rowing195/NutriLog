@@ -33,6 +33,8 @@ import com.watson.nutrilog.data.net.ImageCompressor
 import com.watson.nutrilog.data.net.OpenFoodFactsClient
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -311,6 +313,12 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     var importPreview by mutableStateOf<ImportPreview?>(null)
         private set
 
+    /** 剛刪掉、還在復原視窗裡的那一筆。null＝左下角那條不顯示。 */
+    var pendingUndo by mutableStateOf<FoodEntry?>(null)
+        private set
+
+    private var undoJob: Job? = null
+
     /** Drive 那一區自己的訊息。和匯出／匯入分開，因為它們是兩個獨立的區塊。 */
     var driveMessage by mutableStateOf<String?>(null)
         private set
@@ -466,6 +474,33 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
             pendingMeal = null
             screen = Screen.Today
         }
+    }
+
+    /**
+     * 今日頁左滑刪除的那一筆。刪完把它留在手上，[UNDO_WINDOW_MS] 之內可以復原。
+     *
+     * 資料庫是**立刻**刪的，不是等倒數結束才刪 —— 這樣列會馬上消失、熱量馬上更新，
+     * 使用者看到的就是刪掉了。復原是把同一個物件原封不動塞回去（`upsert` 會沿用它
+     * 原本的 id），所以連 CSV 的去重鍵都不會變，備份不會多出一筆。
+     */
+    fun deleteEntry(entry: FoodEntry) {
+        // 前一筆的復原機會就此作廢（它已經刪掉了，只是不再提供復原）
+        undoJob?.cancel()
+        viewModelScope.launch {
+            dao.delete(entry)
+            pendingUndo = entry
+            undoJob = launch {
+                delay(UNDO_WINDOW_MS)
+                pendingUndo = null
+            }
+        }
+    }
+
+    fun undoDelete() {
+        val entry = pendingUndo ?: return
+        undoJob?.cancel()
+        pendingUndo = null
+        viewModelScope.launch { dao.upsert(entry) }
     }
 
     /** 刪掉正在編輯的那一筆。新增中的草稿還沒進資料庫，沒得刪。 */
@@ -876,6 +911,9 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
 
         /** 「常吃」只算最近這麼多天 —— 它該反映現在的習慣，不是三個月前戒掉的東西。 */
         private const val FREQUENT_WINDOW_DAYS = 90L
+
+        /** 復原視窗。太短來不及反應，太長會讓「已經刪掉了」這件事一直懸著。 */
+        private const val UNDO_WINDOW_MS = 5_000L
         private const val LIBRARY_LIMIT = 60
         private const val SEARCH_DEBOUNCE_MS = 250L
         private val WHITESPACE = Regex("\\s+")

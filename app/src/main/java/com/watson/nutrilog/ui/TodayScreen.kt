@@ -101,6 +101,10 @@ fun TodayScreen(
     onShiftWeek: (Long) -> Unit,
     onBackToToday: () -> Unit,
     onOpenEntry: (FoodEntry) -> Unit,
+    onDeleteEntry: (FoodEntry) -> Unit,
+    /** 剛刪掉、還能復原的那一筆。null＝左下角那條不顯示。 */
+    pendingUndo: FoodEntry?,
+    onUndoDelete: () -> Unit,
     onAddManual: () -> Unit,
     /** 告訴 ViewModel「接下來這一筆要記進哪一餐」。null＝沒指定，照時間猜。 */
     onTargetMeal: (Meal?) -> Unit,
@@ -288,12 +292,26 @@ fun TodayScreen(
                 entriesCache = entriesCache,
                 settings = settings,
                 onOpenEntry = onOpenEntry,
+                onDeleteEntry = onDeleteEntry,
                 // 「還沒記」開的是同一個新增選單，不是直接跳空白表單 ——
                 // 那個 ＋ 跟角落那顆章長得像，就該做一樣的事，只是多帶了一個餐別。
                 onAddForMeal = { meal -> openAddMenu(meal) },
             )
         }
     }
+
+        // 復原章擺左下角，內距跟右下角那顆章一樣，兩邊才對得齊。
+        // 放在最外層的 Box 而不是 Scaffold 裡，才不會跟著日分頁一起被換掉。
+        if (pendingUndo != null) {
+            UndoStamp(
+                label = stringResource(R.string.undo),
+                onClick = onUndoDelete,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .navigationBarsPadding()
+                    .padding(20.dp),
+            )
+        }
 
         AddMenu(
             expanded = showAddSheet,
@@ -671,8 +689,13 @@ private fun DayPage(
     entriesCache: MutableMap<LocalDate, List<FoodEntry>>,
     settings: NutriSettings,
     onOpenEntry: (FoodEntry) -> Unit,
+    onDeleteEntry: (FoodEntry) -> Unit,
     onAddForMeal: (Meal) -> Unit,
 ) {
+    // 同時只有一列是開的：滑開第二列時第一列自己收回去，
+    // 不然畫面上會留著一排半開的列，看起來像壞掉。
+    var revealedId by remember(date) { mutableStateOf<Long?>(null) }
+
     val entries by produceState(
         initialValue = entriesCache[date] ?: emptyList(),
         key1 = date,
@@ -716,7 +739,22 @@ private fun DayPage(
             } else {
                 items(ofMeal, key = { it.id }) { entry ->
                     Box(Modifier.animateItem(fadeInSpec = itemFade, placementSpec = itemPlacement, fadeOutSpec = itemFade)) {
-                        EntryRow(entry, onClick = { onOpenEntry(entry) })
+                        SwipeToReveal(
+                            revealed = revealedId == entry.id,
+                            onRevealedChange = { open -> revealedId = if (open) entry.id else null },
+                            action = {
+                                DeleteReveal(onClick = {
+                                    revealedId = null
+                                    onDeleteEntry(entry)
+                                })
+                            },
+                        ) {
+                            EntryRow(entry, onClick = {
+                                // 有列開著的時候，點任何一列都先當成「收起來」——
+                                // 這是使用者滑開之後改變主意最直覺的出路。
+                                if (revealedId != null) revealedId = null else onOpenEntry(entry)
+                            })
+                        }
                     }
                 }
             }

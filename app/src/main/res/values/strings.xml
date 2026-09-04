@@ -65,6 +65,7 @@
     <string name="portion_increase">增加份數</string>
     <string name="entry_advanced">進階營養素</string>
     <string name="save">儲存</string>
+    <string name="undo">復原</string>
     <string name="cancel">取消</string>
     <string name="delete">刪除</string>
     <string name="close">關閉</string>

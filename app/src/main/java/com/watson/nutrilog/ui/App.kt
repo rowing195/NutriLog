@@ -127,6 +127,9 @@ fun NutriLogApp(viewModel: NutriViewModel) {
             onShiftWeek = { weeks -> viewModel.shiftDay(weeks * 7) },
             onBackToToday = { viewModel.showDate(LocalDate.now()) },
             onOpenEntry = viewModel::startEdit,
+            onDeleteEntry = viewModel::deleteEntry,
+            pendingUndo = viewModel.pendingUndo,
+            onUndoDelete = viewModel::undoDelete,
             onAddManual = { viewModel.startNewEntry() },
             // 從某一餐的「還沒記」點進來只是「記住這一餐」，開哪一條路由選單決定
             onTargetMeal = viewModel::setPendingMeal,
