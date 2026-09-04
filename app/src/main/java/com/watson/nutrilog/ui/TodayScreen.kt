@@ -1,6 +1,11 @@
 package com.watson.nutrilog.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.updateTransition
@@ -25,6 +30,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.PagerSnapDistance
@@ -47,6 +53,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
@@ -300,16 +307,28 @@ fun TodayScreen(
         }
     }
 
-        // 復原章擺左下角，內距跟右下角那顆章一樣，兩邊才對得齊。
-        // 放在最外層的 Box 而不是 Scaffold 裡，才不會跟著日分頁一起被換掉。
-        if (pendingUndo != null) {
+        // 復原章擺左下角，放在最外層的 Box 而不是 Scaffold 裡，才不會跟著日分頁被換掉。
+        //
+        // pendingUndo 在離場動畫播完之前就已經變回 null，所以倒數線不能直接綁它 ——
+        // 那會讓線在滑出去的途中跳回滿格。記住最後一筆的 id，換人了才重新倒數。
+        var lastUndoId by remember { mutableStateOf<Long?>(null) }
+        LaunchedEffect(pendingUndo) { pendingUndo?.let { lastUndoId = it.id } }
+
+        AnimatedVisibility(
+            visible = pendingUndo != null,
+            // 從左緣滑出來，跟「記一筆」那五列滑出是同一套語彙；離場原路滑回去。
+            enter = slideInHorizontally { -it } + fadeIn(tween(200)),
+            exit = slideOutHorizontally { -it } + fadeOut(tween(200)),
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .navigationBarsPadding()
+                // 跟右下角那顆章同一個內距，兩邊才對得齊
+                .padding(20.dp),
+        ) {
             UndoStamp(
                 label = stringResource(R.string.undo),
                 onClick = onUndoDelete,
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .navigationBarsPadding()
-                    .padding(20.dp),
+                countdownKey = lastUndoId,
             )
         }
 
@@ -713,7 +732,13 @@ private fun DayPage(
     val itemPlacement = tween<IntOffset>(400)
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            // 滑開刪除塊之後，點畫面上任何「沒人接的」空白處就收回去 —— 和點那一列
+            // 本身同一個意思。手勢子先父後：列、餐別標題、「還沒記」自己會先消費掉，
+            // 能傳上來的就只剩真正的空白。捲動也不會誤觸發（scrollable 一拖就消費掉
+            // 位移，tap 會被取消）。
+            .pointerInput(Unit) { detectTapGestures { revealedId = null } },
         contentPadding = PaddingValues(horizontal = 22.dp),
     ) {
         item { Hairline() }

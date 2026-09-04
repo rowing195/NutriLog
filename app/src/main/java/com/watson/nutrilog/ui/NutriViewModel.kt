@@ -912,8 +912,6 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         /** 「常吃」只算最近這麼多天 —— 它該反映現在的習慣，不是三個月前戒掉的東西。 */
         private const val FREQUENT_WINDOW_DAYS = 90L
 
-        /** 復原視窗。太短來不及反應，太長會讓「已經刪掉了」這件事一直懸著。 */
-        private const val UNDO_WINDOW_MS = 5_000L
         private const val LIBRARY_LIMIT = 60
         private const val SEARCH_DEBOUNCE_MS = 250L
         private val WHITESPACE = Regex("\\s+")

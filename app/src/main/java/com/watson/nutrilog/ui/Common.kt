@@ -527,11 +527,30 @@ fun DeleteReveal(onClick: () -> Unit, width: Dp = 88.dp) {
 }
 
 /**
+ * 復原視窗的長度。
+ *
+ * ViewModel 的倒數與 [UndoStamp] 的倒數線讀**同一個值** —— 各寫各的話遲早會漂，
+ * 症狀是線走完了章還在（或線還沒走完章就消失），而那正好會讓使用者不敢按。
+ */
+const val UNDO_WINDOW_MS = 5_000L
+
+/**
  * 刪除之後左下角跳出來的復原章。
  *
  * 跟右下角「記一筆」那顆是同一個長相與同一個尺寸（60dp 方章、內縮 4dp 細框），
  * 只是退一階轉深灰 —— 兩個下角各站一顆章，一個是「加」一個是「收回剛剛那一下」，
  * 對稱本身就在講它們是同一層的東西。左下角是刻意的：右下角被記一筆佔著。
+ *
+ * 章的**下沿線**是它存在的另一半理由：不畫的話，使用者不知道自己還剩幾秒，猶豫
+ * 一下就沒了。它貼著章的下緣、蓋在灰底上，退掉的部分露出原本的灰 —— 用線而不是
+ * 進度圈，是因為整個 app 的層次本來就靠 `Rule` 和 `Hairline` 撐著。
+ *
+ * **線一定要線性收**（[LinearEasing]）：倒數用 ease 會騙人 —— 前面走很快、
+ * 最後拖很久，看起來還有時間但其實已經到了。
+ *
+ * 線的顏色跟著主題走（[NutrientColors.Rule]：淺色是墨、深色是米），不是兩邊都用
+ * 墨色。深色模式下這顆章本身是淺灰的，墨色線壓上去對比很硬；米色線和章的關係
+ * 比較接近淺色模式那組，整體也安靜一些 —— 這是刻意選的柔和，不是沒注意到對比。
  *
  * 不用 M3 的 Snackbar：它是圓角、有陰影、還會自己排隊，在這套方角紙面上很突兀，
  * 而且橫躺一長條會壓住底下那一列紀錄。
@@ -540,19 +559,27 @@ fun DeleteReveal(onClick: () -> Unit, width: Dp = 88.dp) {
 fun UndoStamp(
     label: String,
     onClick: () -> Unit,
+    /** 換一筆就重新倒數。連續刪兩筆時這顆章不會被重建，只靠這個值認出「換人了」。 */
+    countdownKey: Any?,
     modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
+    val progress = remember { Animatable(1f) }
+    LaunchedEffect(countdownKey) {
+        progress.snapTo(1f)
+        progress.animateTo(0f, tween(UNDO_WINDOW_MS.toInt(), easing = LinearEasing))
+    }
+
     Box(
         modifier
             .size(60.dp)
             .background(NutrientColors.StampSecondary)
-            .clickable(onClick = onClick)
-            .padding(4.dp),
+            .clickable(onClick = onClick),
     ) {
         Box(
             Modifier
                 .fillMaxSize()
+                .padding(4.dp)
                 .border(1.dp, scheme.onSurfaceVariant),
             contentAlignment = Alignment.Center,
         ) {
@@ -566,6 +593,15 @@ fun UndoStamp(
                 modifier = Modifier.padding(start = 1.dp),
             )
         }
+        // 貼著下緣、剛好填滿內縮那 4dp，看起來就是這顆章的下沿線。
+        // 佔的是章自己的空間，所以左右兩顆章的下緣仍然對得齊。
+        Box(
+            Modifier
+                .align(Alignment.BottomStart)
+                .width(60.dp * progress.value)
+                .height(4.dp)
+                .background(NutrientColors.Rule)
+        )
     }
 }
 
