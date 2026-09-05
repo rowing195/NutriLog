@@ -2,6 +2,8 @@ package com.watson.nutrilog.ui
 
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -411,9 +413,13 @@ fun Modifier.dismissKeyboardOnTap(onTap: () -> Unit = {}): Modifier {
  * 執行」的語意——這裡要的是滑開之後停住、再點一次才算數，誤觸的代價才不會是少一筆
  * 紀錄。
  *
- * **動的是動作區，不是列本身。** 一般 swipe-to-reveal 是把列往左推，但這套版面的
- * 列只內縮 22dp，推開 88dp 之後短名稱會整個被推出左邊界——結果是「知道要刪東西，
- * 但不知道要刪哪一筆」。改成紅塊從右邊滑進來蓋住熱量數字，名稱永遠留在原位。
+ * **拖曳時字卡跟著走，放開之後彈回原位。** 拖的當下整列往左移，紅塊緊貼在它右邊
+ * 一起進來（兩者剛好接成一列，中間沒有縫）——這樣手感是「把卡片推開」，而不是
+ * 「有東西從邊緣長出來」。放手時字卡用帶回彈的 spring 彈回 0，像撞到牆反彈一下，
+ * 紅塊留在原地；靜止畫面因此仍然是「名稱在原位、紅塊蓋住熱量數字」。
+ *
+ * 靜止時不讓字卡停在左邊是刻意的：這套版面的列只內縮 22dp，停在 -88dp 的話短名稱
+ * 會整個留在左邊界外，變成「知道要刪東西，但不知道要刪哪一筆」。
  *
  * 手勢是自己寫的，因為它要跟今日頁的日分頁器共存。**關著的時候只接往左的拖曳**：
  * 往右不消費，讓事件穿過去給分頁器換到前一天。代價是紀錄列上「往左換下一天」沒了
@@ -433,7 +439,10 @@ fun SwipeToReveal(
 ) {
     val revealPx = with(LocalDensity.current) { actionWidth.toPx() }
     val slop = LocalViewConfiguration.current.touchSlop
+    // 紅塊的位置。0＝完全收在右邊界外，-revealPx＝貼齊右緣。
     val offsetX = remember { Animatable(0f) }
+    // 字卡的位移。拖曳時跟著 offsetX 走，放手後永遠彈回 0 —— 它的休息位置只有一個。
+    val cardX = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
 
     // 外面把它關掉時（點了別列、或這一筆被刪了）要跟著收回去
@@ -452,11 +461,18 @@ fun SwipeToReveal(
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     val startedOpen = offsetX.value < 0f
+                    // 紅塊與字卡**各自從自己的起點累加**，不能共用同一個值：
+                    // 已經展開時紅塊停在 -revealPx 而字卡在 0，把字卡設成紅塊的位置
+                    // 會讓它一被碰到就瞬間跳到 -revealPx（看起來像畫面閃回拖曳中）。
+                    val blockStart = offsetX.value
+                    val cardStart = cardX.value
+                    // 手指真正開始拖的位置。從 down 算會多含一段 slop，
+                    // 那會讓字卡一進入拖曳就先跳一小格。
+                    var dragStartX = 0f
                     // **一定要是「真的拖過」才算**，不能因為列已經開著就把觸碰當拖曳：
                     // 那樣每一次點擊在放開時都會重新宣告一次 onRevealedChange(true)，
                     // 蓋掉刪除鍵與列自己剛剛設好的「關起來」——症狀是點了沒反應。
                     var dragging = false
-                    var last = down.position
                     while (true) {
                         val event = awaitPointerEvent()
                         val change = event.changes.firstOrNull { it.id == down.id } ?: break
@@ -466,20 +482,20 @@ fun SwipeToReveal(
                             val dy = change.position.y - down.position.y
                             // 垂直先過門檻 → 這是在捲清單，整個放手
                             if (abs(dy) > slop && abs(dy) > abs(dx)) break
-                            if (abs(dx) < slop) {
-                                last = change.position
-                                continue
-                            }
+                            if (abs(dx) < slop) continue
                             // 關著時往右 → 不消費，讓日分頁器去換前一天。
                             // 已經開著時往右是「把它收回去」，那要接。
                             if (dx > 0 && !startedOpen) break
                             dragging = true
+                            dragStartX = change.position.x
                         }
-                        val delta = change.position.x - last.x
-                        last = change.position
+                        val total = change.position.x - dragStartX
                         change.consume()
                         scope.launch {
-                            offsetX.snapTo((offsetX.value + delta).coerceIn(-revealPx, 0f))
+                            // 關著時兩者一起走（接成一列往左推）；已經開著時紅塊卡在
+                            // 底了不動，字卡照樣跟著手指走，放手再彈回來。
+                            offsetX.snapTo((blockStart + total).coerceIn(-revealPx, 0f))
+                            cardX.snapTo((cardStart + total).coerceIn(-revealPx, 0f))
                         }
                     }
                     if (dragging) {
@@ -489,16 +505,29 @@ fun SwipeToReveal(
                         scope.launch {
                             offsetX.animateTo(if (open) -revealPx else 0f, tween(200))
                         }
+                        // 撞到牆反彈：字卡永遠彈回 0，紅塊留在原地。
+                        // 用帶回彈的 spring 是這套設計裡唯一一處刻意的 Q 彈 ——
+                        // 它不是裝飾，是「推到底了，卡片被彈回來」這個物理回饋。
+                        scope.launch {
+                            cardX.animateTo(
+                                0f,
+                                spring(
+                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                    stiffness = Spring.StiffnessMedium,
+                                ),
+                            )
+                        }
                     }
                 }
             },
     ) {
-        content()
+        Box(Modifier.offset { IntOffset(cardX.value.roundToInt(), 0) }) { content() }
         Box(
             Modifier
                 .matchParentSize()
                 .wrapContentSize(Alignment.CenterEnd)
-                // 收起來時整塊停在右邊界外（+revealPx），拖到底才剛好貼齊
+                // 收起來時整塊停在右邊界外（+revealPx），拖到底才剛好貼齊。
+                // 拖曳中它的左緣正好接在字卡的右緣上，所以中間不會露出底色。
                 .offset { IntOffset((revealPx + offsetX.value).roundToInt(), 0) },
         ) { action() }
     }
