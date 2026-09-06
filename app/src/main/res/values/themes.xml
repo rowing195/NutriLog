@@ -4,5 +4,12 @@
       啟動時套用的 XML 主題（app 進程起來、Compose 還沒接手的那一瞬間）。
       真正的畫面配色由 Compose 的 MaterialTheme 決定，見 ui/theme/Theme.kt。
     -->
-    <style name="Theme.NutriLog" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.NutriLog" parent="android:Theme.Material.Light.NoActionBar">
+        <!--
+          平台主題給的底色是 #FAFAFA，深色模式下啟動時會整片白閃一下才被 Compose
+          蓋掉。換成自己的紙／墨色（見 values/colors.xml），淺色模式也順便不再從
+          #FAFAFA 跳到 #F7F3E9。
+        -->
+        <item name="android:windowBackground">@color/window_background</item>
+    </style>
 </resources>

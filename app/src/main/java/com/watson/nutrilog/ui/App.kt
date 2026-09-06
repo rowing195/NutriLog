@@ -9,12 +9,17 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
 import com.google.mlkit.vision.barcode.common.Barcode
@@ -110,6 +115,13 @@ fun NutriLogApp(viewModel: NutriViewModel) {
     // Crossfade 而不是直接 when：原本畫面切換是硬切，Today 開設定/歷史等
     // 附屬畫面時整個畫面瞬間跳掉，跟其他地方陸續做掉的動畫比起來特別突兀。
     // 預設 300ms 太快、人眼幾乎看不出有淡入淡出，拉到 500ms 才看得明顯。
+    //
+    // Crossfade 的兩個畫面在交叉的那段期間都是半透明的，穿過去看到的是 Activity 的
+    // windowBackground —— 而那個是 XML 主題給的淺色（themes.xml 是 Material.Light，
+    // 而且深色模式是 app 內部的偏好設定，XML 那一側根本不知道使用者選了什麼）。
+    // 深色模式下兩層暗畫面各透一點，白底就從縫裡透出來，看起來像每換一次畫面就閃一下。
+    // 墊一層跟著 Compose 主題走的不透明底色，透出來的就會是這個主題自己的背景色。
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
     Crossfade(
         targetState = viewModel.screen,
         animationSpec = tween(durationMillis = 500),
@@ -248,6 +260,7 @@ fun NutriLogApp(viewModel: NutriViewModel) {
                 onClose = viewModel::backToToday,
             )
         }
+    }
     }
     }
 }

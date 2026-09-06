@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      啟動視窗的底色（app 進程起來、Compose 還沒畫出第一幀的那幾幀）。
+
+      這兩個值是 ui/theme/Theme.kt 裡 Paper.Bg / Paper.DarkBg 的複本 —— XML 讀不到
+      Compose 的色票，只能各寫一份。**改色票時兩邊都要改**，不然啟動那一瞬間會是
+      舊顏色。
+
+      -night 這個限定詞跟的是**系統**的深淺，而 app 的深淺是自己的偏好設定
+      (DarkModePreference)。所以「跟隨系統」永遠對，手動指定成跟系統相反的那一種時，
+      啟動的頭幾幀仍然會是另一邊的顏色 —— 要完全正確得在 onCreate 就同步讀到偏好值，
+      而它在 DataStore 裡是非同步的。
+    -->
+    <color name="window_background">#F7F3E9</color>
+</resources>
