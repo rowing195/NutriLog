@@ -237,6 +237,43 @@ scheme.onSurface)`，所以現在的預設是對的。**不要把它拿掉**，�
 - **浮在遮罩上的面板用 `surfaceContainerLow` 而不是 `background`。** 深色模式下
   `background` 跟壓暗後的背景幾乎同色，面板會讀成一個黑洞。
 
+## Compose 主題管不到的那一層：Activity 的 `windowBackground`
+
+**深淺是 app 自己的偏好設定（`DarkModePreference`），XML 那一側不知道使用者選了什麼。**
+`res/values/themes.xml` 的啟動主題本來直接繼承 `android:Theme.Material.Light.NoActionBar`，
+於是 `windowBackground` 永遠是 `#FAFAFA`。那片白窗在**兩個時機**會被看見，兩次都是
+深色模式下「閃一下亮的」：
+
+- **換畫面。** `App.kt` 的 `Crossfade` 交叉期間兩個畫面**都是半透明的**，白窗就從縫裡
+  透出來。實測攔中間那一幀，底色從 `#17150F` 被沖淡成 `#3A3833`。
+- **冷啟動。** Compose 畫出第一幀之前那幾幀就是整片白。
+
+淺色模式下白窗跟紙底只差一點點（`#FAFAFA` vs `#F7F3E9`），所以這件事跟上一節
+「`LocalContentColor` 的預設是純黑」一樣，**只有深色模式看得出來**。兩條的教訓是同一個：
+凡是 Compose 主題管不到的預設值（`LocalContentColor`、`windowBackground`），
+在深色模式下都會現形。
+
+修法也是兩個，缺一不可：
+
+- **半透明動畫底下要墊一層跟著 Compose 主題走的不透明底色。**
+  `App.kt` 把 `Crossfade` 包在 `Box(Modifier.fillMaxSize().background(scheme.background))`
+  裡。**以後再加任何會讓整個畫面變半透明的轉場都要記得這件事** —— 淡入淡出的過程中，
+  底下是誰在頂著，永遠要問一次。
+- **`windowBackground` 指向自己的色**（`values/colors.xml` 與 `values-night/colors.xml`
+  的 `window_background`）。**那兩個值是 `Theme.kt` 裡 `Paper.Bg` / `Paper.DarkBg`
+  的複本，改色票時兩邊都要改** —— XML 讀不到 Compose 的色票，只能各寫一份，
+  漏掉的症狀是啟動那一瞬間是舊顏色。
+
+**`values-night` 那條有個沒補的洞：它跟的是「系統」的深淺。** 「跟隨系統」永遠對，
+但手動指定成跟系統相反的那一種時，啟動的頭幾幀還是會閃錯邊。要根治得在 `onCreate`
+就同步讀到偏好值，而它在 DataStore 裡是非同步的 —— 為了幾幀多養一條同步讀取的路
+不划算，所以刻意留著。
+
+**驗這種 bug 不要用肉眼看畫面像不像**，那幾幀太短。做法是趁轉場中連拍
+`adb exec-out screencap -p`，挑檔案最大的那張（兩個畫面疊著，PNG 壓不動，
+會明顯比前後大），再去讀背景那點的像素值。冷啟動同理：`am force-stop` 之後
+一邊 `am start` 一邊連拍。
+
 ## 欄位與按鍵：形狀就是層級
 
 所有輸入框走 `Common.kt` 的 **`NutriTextField`**：完整外框 ＋ 一條比其他三邊重的
