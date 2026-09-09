@@ -697,9 +697,15 @@ Drive」那一刻 —— 那時候使用者可能正看著還原的確認面板�
 看到執行時間是早上八點不代表壞了。驗排程對不對不要等一天，看
 `adb shell dumpsys jobscheduler` 裡那個 job 的 `Minimum latency`。
 
-還有一個和程式無關但會讓人查很久的行為：**使用者在系統設定裡「強制停止」app 之後，
-Android 會把它的排程一起取消**，要等下次手動打開 app 才恢復。某些廠商的省電管理也
-會這樣做。
+**排程會被清掉，所以每次啟動要補排一次。** 使用者在系統設定裡「強制停止」app 之後，
+Android 會把 WorkManager 的佇列一起清掉，某些廠商的省電管理也會這樣做。而
+`schedule()` 原本只在 `connectDrive()` 那一刻呼叫 —— 清掉之後就再也沒有人重排，
+**備份從此靜悄悄地停**：設定頁仍然顯示「已連結」（`driveBackupEnabled` 留在
+DataStore 裡），底下卻沒有東西在跑，要到想還原時才發現。所以 `NutriViewModel` 的
+`init` 會在 `driveBackupEnabled` 為 true 時補呼叫一次。**這件事靠的是
+`ExistingPeriodicWorkPolicy.KEEP`** —— 已經有排程時那次呼叫會被丟掉、不會把週期從頭
+算，所以每次開 app 都補是安全的。改成 `UPDATE` 就會變成「常開 app 的人永遠等不到
+備份」。
 
 **「連結 Google Drive」順便做還原**，不是另外一顆按鈕。換手機時使用者按那顆鈕想要
 的是「把紀錄接回來」，不是「開始備份」；而且還原走的是本地匯入同一條路

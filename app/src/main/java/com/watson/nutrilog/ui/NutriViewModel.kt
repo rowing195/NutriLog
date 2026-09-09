@@ -348,6 +348,20 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         viewModelScope.launch { settingsStore.settingsFlow.collect { settings = it } }
+        // 每次啟動補排一次每日備份。
+        //
+        // 排程原本只在 connectDrive() 那一刻建立，而 WorkManager 的佇列是會被清掉的
+        // ——「強制停止」會清，某些廠商的省電管理也會。清掉之後就**再也沒有人重排**，
+        // 備份從此靜悄悄地停：設定頁仍然顯示「已連結」（driveBackupEnabled 這個旗標
+        // 留在 DataStore 裡），底下卻沒有任何東西在跑，使用者要到需要還原時才發現。
+        //
+        // schedule() 用的是 ExistingPeriodicWorkPolicy.KEEP，已經有排程時這次呼叫會
+        // 被丟掉，**不會把週期從頭算**，所以每次開 app 都補一次是安全的。
+        viewModelScope.launch {
+            if (settingsStore.current().driveBackupEnabled) {
+                BackupWorker.schedule(getApplication())
+            }
+        }
         // 換月份就換一條 Flow，和換日期同樣的道理
         viewModelScope.launch {
             snapshotFlow { visibleMonth }
