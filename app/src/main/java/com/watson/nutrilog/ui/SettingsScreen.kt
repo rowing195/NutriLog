@@ -38,6 +38,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.AiProvider
+import com.watson.nutrilog.data.ApiService
+import com.watson.nutrilog.data.SearchMode
 import com.watson.nutrilog.data.DarkModePreference
 import com.watson.nutrilog.data.NutriSettings
 import androidx.compose.foundation.layout.size
@@ -121,9 +123,7 @@ private fun SettingsPage.summary(settings: NutriSettings): String = when (this) 
     SettingsPage.APPEARANCE -> settings.darkMode.label()
     SettingsPage.TARGETS ->
         settings.calorieTarget.toString() + " " + stringResource(R.string.unit_kcal)
-    SettingsPage.AI -> stringResource(
-        if (settings.geminiApiKey.isBlank()) R.string.settings_key_unset else R.string.settings_key_set
-    )
+    SettingsPage.AI -> settings.textProvider.label
     SettingsPage.DRIVE -> stringResource(
         if (settings.driveBackupEnabled) R.string.drive_summary_on else R.string.drive_summary_off
     )
@@ -151,7 +151,7 @@ fun SettingsDetailScreen(
     onConnectDrive: () -> Unit,
     onBackupNow: () -> Unit,
     onDisconnectDrive: () -> Unit,
-    onOpenProvider: (AiProvider) -> Unit,
+    onOpenService: (ApiService) -> Unit,
     onBack: () -> Unit,
 ) {
     Scaffold(
@@ -180,7 +180,7 @@ fun SettingsDetailScreen(
             when (page) {
                 SettingsPage.APPEARANCE -> AppearanceSection(settings, onChange)
                 SettingsPage.TARGETS -> TargetsSection(settings, onChange)
-                SettingsPage.AI -> AiSection(settings, onChange, onOpenProvider)
+                SettingsPage.AI -> AiSection(settings, onChange, onOpenService)
                 SettingsPage.DRIVE -> DriveSection(
                     settings, driveMessage, driveBusy, onConnectDrive, onBackupNow, onDisconnectDrive,
                 )
@@ -264,8 +264,9 @@ private fun TargetsSection(settings: NutriSettings, onChange: (NutriSettings) ->
 private fun AiSection(
     settings: NutriSettings,
     onChange: (NutriSettings) -> Unit,
-    onOpenProvider: (AiProvider) -> Unit,
+    onOpenService: (ApiService) -> Unit,
 ) {
+    SectionLabel(stringResource(R.string.settings_text_provider))
     BallotRow(
         labels = AiProvider.entries.map { it.label },
         selectedIndex = AiProvider.entries.indexOf(settings.textProvider),
@@ -281,47 +282,84 @@ private fun AiSection(
 
     Hairline(Modifier.padding(vertical = 10.dp))
 
-    // 每家的 key 與模型各自一頁：欄位不一樣，全部攤在這裡又會變回長捲軸
-    AiProvider.entries.forEach { provider ->
+    // 搜尋的選擇擺在這裡而不是藏在某一家的子頁裡：它跟「用哪一家」是同一個決定的
+    // 兩半，分開放的話使用者得先猜「這個開關屬於誰」，而它其實兩家都影響。
+    SectionLabel(stringResource(R.string.settings_web_search))
+    BallotRow(
+        labels = SearchMode.entries.map { stringResource(it.labelRes()) },
+        selectedIndex = SearchMode.entries.indexOf(settings.searchMode),
+        onSelect = { onChange(settings.copy(searchMode = SearchMode.entries[it])) },
+    )
+    Text(
+        stringResource(R.string.settings_search_help),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    // 兩條路的限制完全不同，只在選到的時候講，不然三段說明擠在一起沒人讀
+    if (settings.searchMode != SearchMode.OFF) {
+        Text(
+            stringResource(
+                if (settings.searchMode == SearchMode.OPENROUTER)
+                    R.string.settings_search_openrouter_note
+                else R.string.settings_search_tavily_note
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.outline,
+        )
+    }
+
+    Hairline(Modifier.padding(vertical = 10.dp))
+
+    // 每個服務的 key 各自一頁：欄位不一樣，全部攤在這裡又會變回長捲軸
+    SectionLabel(stringResource(R.string.settings_keys), Modifier.padding(bottom = 4.dp))
+    ApiService.entries.forEach { service ->
         MenuRow(
-            title = provider.label,
+            title = service.label,
             summary = stringResource(
-                if (provider.keyOf(settings).isBlank()) R.string.settings_key_unset
+                if (service.keyOf(settings).isBlank()) R.string.settings_key_unset
                 else R.string.settings_key_set
             ),
-            onClick = { onOpenProvider(provider) },
+            onClick = { onOpenService(service) },
         )
         Hairline()
     }
 }
 
-private fun AiProvider.keyOf(settings: NutriSettings): String = when (this) {
-    AiProvider.GEMINI -> settings.geminiApiKey
-    AiProvider.OPENROUTER -> settings.openRouterApiKey
+@Composable
+private fun SearchMode.labelRes(): Int = when (this) {
+    SearchMode.OFF -> R.string.settings_search_off
+    SearchMode.OPENROUTER -> R.string.provider_openrouter_label
+    SearchMode.TAVILY -> R.string.provider_tavily_label
+}
+
+private fun ApiService.keyOf(settings: NutriSettings): String = when (this) {
+    ApiService.GEMINI -> settings.geminiApiKey
+    ApiService.OPENROUTER -> settings.openRouterApiKey
+    ApiService.TAVILY -> settings.tavilyApiKey
 }
 
 /**
- * 一家供應商的 key 與模型。設定裡唯一的第三層。
+ * 一個服務的 key（外加它自己的設定）。設定裡唯一的第三層。
  *
- * 兩家共用這個外框而不是各寫一頁：差別只有「help 文案、key 存到哪個欄位、
- * 模型選單長什麼樣」，各寫一份的話收鍵盤與內距的規則又要維護兩次。
+ * 三個服務共用這個外框而不是各寫一頁：差別只有「help 文案、key 存到哪個欄位、
+ * 底下要不要接模型選單」，各寫一份的話收鍵盤與內距的規則就要維護三次。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AiProviderScreen(
-    provider: AiProvider,
+fun ApiKeyScreen(
+    service: ApiService,
     settings: NutriSettings,
     onChange: (NutriSettings) -> Unit,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
-    val key = provider.keyOf(settings)
     val setKey: (String) -> Unit = { raw ->
         val value = raw.trim()
         onChange(
-            when (provider) {
-                AiProvider.GEMINI -> settings.copy(geminiApiKey = value)
-                AiProvider.OPENROUTER -> settings.copy(openRouterApiKey = value)
+            when (service) {
+                ApiService.GEMINI -> settings.copy(geminiApiKey = value)
+                ApiService.OPENROUTER -> settings.copy(openRouterApiKey = value)
+                ApiService.TAVILY -> settings.copy(tavilyApiKey = value)
             }
         )
     }
@@ -330,7 +368,7 @@ fun AiProviderScreen(
         modifier = Modifier.dismissKeyboardOnTap(),
         topBar = {
             ScreenTopBar(
-                title = provider.label,
+                title = service.label,
                 closeLabel = stringResource(R.string.settings_back),
                 onClose = onBack,
             )
@@ -347,16 +385,17 @@ fun AiProviderScreen(
         ) {
             Text(
                 stringResource(
-                    when (provider) {
-                        AiProvider.GEMINI -> R.string.settings_api_key_help
-                        AiProvider.OPENROUTER -> R.string.settings_openrouter_key_help
+                    when (service) {
+                        ApiService.GEMINI -> R.string.settings_api_key_help
+                        ApiService.OPENROUTER -> R.string.settings_openrouter_key_help
+                        ApiService.TAVILY -> R.string.settings_tavily_key_help
                     }
                 ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             NutriTextField(
-                value = key,
+                value = service.keyOf(settings),
                 onValueChange = setKey,
                 label = stringResource(R.string.settings_api_key),
                 placeholder = stringResource(R.string.settings_api_key_hint),
@@ -369,9 +408,9 @@ fun AiProviderScreen(
                 onClick = { clipboardText(context)?.let(setKey) },
             )
 
-            when (provider) {
+            when (service) {
                 // Gemini 的型號固定幾個，攤開讓人選
-                AiProvider.GEMINI -> {
+                ApiService.GEMINI -> {
                     ModelField(
                         value = settings.geminiModel,
                         onChange = { onChange(settings.copy(geminiModel = it)) },
@@ -383,7 +422,7 @@ fun AiProviderScreen(
                     )
                 }
                 // OpenRouter 有幾百個模型，列不完也不該替使用者挑，所以是自由文字
-                AiProvider.OPENROUTER -> {
+                ApiService.OPENROUTER -> {
                     NutriTextField(
                         value = settings.openRouterModel,
                         onValueChange = { onChange(settings.copy(openRouterModel = it.trim())) },
@@ -395,30 +434,9 @@ fun AiProviderScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-
-                    Hairline(Modifier.padding(vertical = 10.dp))
-
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f).padding(end = 16.dp)) {
-                            Text(stringResource(R.string.settings_web_search))
-                            Text(
-                                stringResource(R.string.settings_web_search_help),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        NutriSwitch(
-                            checked = settings.openRouterWebSearch,
-                            onCheckedChange = {
-                                onChange(settings.copy(openRouterWebSearch = it))
-                            },
-                        )
-                    }
                 }
+                // Tavily 只是搜尋，沒有模型可以挑
+                ApiService.TAVILY -> Unit
             }
         }
     }

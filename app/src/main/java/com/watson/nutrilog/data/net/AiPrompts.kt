@@ -11,6 +11,28 @@ package com.watson.nutrilog.data.net
  */
 internal object AiPrompts {
 
+    /**
+     * 組出文字辨識要送出去的那一段。兩家 client 共用這一份，不要各組各的 ——
+     * 「換一家之後回來的東西長得不一樣」最常見的成因就是這裡少接了一段。
+     *
+     * 搜尋結果放在**使用者輸入前面**，並且明講它是參考資料：它是外部來的、可能過期
+     * 或根本在講別的品項（實測搜尋結果裡混著部落格整理的表格，數字和官方頁差了將近
+     * 100 大卡），所以要讓模型知道優先順序，而不是把它當事實照抄。
+     */
+    fun textRequest(description: String, searchContext: String?): String = buildString {
+        append(TEXT_PROMPT)
+        if (!searchContext.isNullOrBlank()) {
+            append("\n\n以下是剛剛查到的網路資料，供你參考。")
+            append("**官方或品牌自己公布的營養標示優先**，")
+            append("部落格或新聞整理的表格可能過期或算法不同；")
+            append("和使用者問的不是同一個品項的就直接忽略。\n\n")
+            append(searchContext)
+        }
+        append("\n\n使用者輸入：")
+        append(description)
+    }
+
+
     val PHOTO_PROMPT = """
         你是營養師。看這張食物照片，列出裡面每一種可辨識的食物。
 

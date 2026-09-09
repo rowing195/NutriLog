@@ -15,6 +15,8 @@ import com.watson.nutrilog.data.CsvExport
 import com.watson.nutrilog.data.CsvImport
 import com.watson.nutrilog.data.DriveBackup
 import com.watson.nutrilog.data.AiProvider
+import com.watson.nutrilog.data.ApiService
+import com.watson.nutrilog.data.SearchMode
 import com.watson.nutrilog.data.NutriSettings
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.CommonStatusCodes
@@ -31,6 +33,7 @@ import com.watson.nutrilog.data.db.NutriDatabase
 import com.watson.nutrilog.data.net.DetectedFood
 import com.watson.nutrilog.data.net.GeminiClient
 import com.watson.nutrilog.data.net.OpenRouterClient
+import com.watson.nutrilog.data.net.TavilyClient
 import com.watson.nutrilog.data.net.ImageCompressor
 import com.watson.nutrilog.data.net.OpenFoodFactsClient
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -77,10 +80,10 @@ sealed interface Screen {
     data class SettingsDetail(val page: SettingsPage) : Screen
 
     /**
-     * 某一家 AI 供應商的 key 與模型。設定裡唯一的第三層 —— 每家的欄位不一樣，
+     * 某一個服務的 key。設定裡唯一的第三層 —— 每家的欄位不一樣，
      * 全部攤在同一頁的話「AI 影像辨識」又會變回一條長捲軸。
      */
-    data class AiProviderDetail(val provider: AiProvider) : Screen
+    data class ApiKeyDetail(val service: ApiService) : Screen
     data object EditEntry : Screen
     data object Barcode : Screen
     data object TextLookup : Screen
@@ -283,6 +286,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     private val openFoodFacts = OpenFoodFactsClient()
     private val gemini = GeminiClient()
     private val openRouter = OpenRouterClient()
+    private val tavily = TavilyClient()
 
     var screen by mutableStateOf<Screen>(Screen.Today)
         private set
@@ -432,7 +436,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
 
     fun openSettingsPage(page: SettingsPage) { screen = Screen.SettingsDetail(page) }
 
-    fun openAiProvider(provider: AiProvider) { screen = Screen.AiProviderDetail(provider) }
+    fun openApiKey(service: ApiService) { screen = Screen.ApiKeyDetail(service) }
 
     fun backToToday() {
         dataMessage = null
@@ -656,13 +660,27 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         screen = Screen.Review
         viewModelScope.launch {
             val model = if (useOpenRouter) settings.openRouterModel else settings.geminiModel
+            // Tavily 是自己先查、把結果當背景文字帶進去，所以兩家都適用；
+            // OpenRouter 內建那個是它自己在伺服器端查，只有走 OpenRouter 時才有作用。
+            // 查不到就是 null，讓模型照原本的方式估 —— 搜尋壞掉不該讓整條辨識失敗。
+            val searchContext = if (
+                source is AnalysisSource.Text && settings.searchMode == SearchMode.TAVILY
+            ) {
+                tavily.contextFor(source.query, settings.tavilyApiKey)
+            } else {
+                null
+            }
             val result = when (source) {
                 is AnalysisSource.Text ->
                     if (useOpenRouter)
                         openRouter.analyzeDescription(
-                            source.query, key, model, settings.openRouterWebSearch,
+                            source.query,
+                            key,
+                            model,
+                            webSearch = settings.searchMode == SearchMode.OPENROUTER,
+                            searchContext = searchContext,
                         )
-                    else gemini.analyzeDescription(source.query, key, model)
+                    else gemini.analyzeDescription(source.query, key, model, searchContext)
                 is AnalysisSource.Photo ->
                     // 壓縮失敗（檔案壞了、格式不支援）也要走同一條錯誤路徑，
                     // 不然使用者只會看到轉圈停住

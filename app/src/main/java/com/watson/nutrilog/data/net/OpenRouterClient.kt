@@ -45,6 +45,7 @@ class OpenRouterClient(private val client: okhttp3.OkHttpClient = SharedHttp.cli
         apiKey: String,
         model: String,
         webSearch: Boolean,
+        searchContext: String? = null,
     ): Result<List<DetectedFood>> = withContext(Dispatchers.IO) {
         runCatching {
             val payload = buildJsonObject {
@@ -52,7 +53,7 @@ class OpenRouterClient(private val client: okhttp3.OkHttpClient = SharedHttp.cli
                 putJsonArray("messages") {
                     addJsonObject {
                         put("role", "user")
-                        put("content", AiPrompts.TEXT_PROMPT + "\n\n使用者輸入：" + description)
+                        put("content", AiPrompts.textRequest(description, searchContext))
                     }
                 }
                 // 讓模型先查網路再答。實測「McDonalds Big Mac」開了之後會去讀

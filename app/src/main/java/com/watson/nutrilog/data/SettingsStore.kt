@@ -27,11 +27,10 @@ data class NutriSettings(
     /** 同上，只是換一家。空字串代表沒設定。 */
     val openRouterApiKey: String = "",
     val openRouterModel: String = DEFAULT_OPENROUTER_MODEL,
-    /**
-     * 讓 OpenRouter 的模型去查網路再回答。**每次查詢都要另外收費**，所以是個開關
-     * 而不是寫死 —— Gemini 那邊的搜尋就是因為免費層額度是 0 才整條掛掉的。
-     */
-    val openRouterWebSearch: Boolean = true,
+    /** 同上。Tavily 是搜尋服務不是模型，見 [SearchMode]。 */
+    val tavilyApiKey: String = "",
+    /** 文字辨識前要不要先查網路、用誰查。 */
+    val searchMode: SearchMode = SearchMode.OFF,
     /**
      * 文字描述要送去哪一家。**只管文字**，拍照永遠走 Gemini ——
      * 理由見 [AiProvider]。
@@ -80,11 +79,51 @@ data class NutriSettings(
  *
  * 以後要加 OpenAI 之類的就在這裡多一個 entry，設定頁的清單是照 entries 長出來的。
  */
+/**
+ * 每一個需要 API key 的外部服務。設定頁那份金鑰清單就是照 entries 長出來的，
+ * 以後要加 OpenAI 之類的在這裡多一個 entry 就好。
+ *
+ * 名稱是品牌名不是要翻譯的文案，所以直接寫在 enum 上而不是丟字串資源。
+ */
 @Serializable
-enum class AiProvider(val label: String) {
+enum class ApiService(val label: String) {
     GEMINI("Gemini"),
     OPENROUTER("OpenRouter"),
+    TAVILY("Tavily"),
 }
+
+/**
+ * 文字辨識要走哪一家**模型**。
+ *
+ * **這個選擇只管文字，不管拍照。** 拍照需要吃得下圖片的模型，而這條路上想用的
+ * OpenRouter 免費模型（見 [NutriSettings.DEFAULT_OPENROUTER_MODEL]）是純文字的 ——
+ * 做成一個總開關的話，使用者選了 OpenRouter 之後拍照會神祕地失敗或偷偷跑去別家，
+ * 兩種都比在設定頁講清楚差。所以設定頁那一欄叫「文字辨識用哪一家」。
+ *
+ * 它是 [ApiService] 的子集：不是每個有 key 的服務都能回答問題（Tavily 只會搜尋）。
+ */
+@Serializable
+enum class AiProvider(val service: ApiService) {
+    GEMINI(ApiService.GEMINI),
+    OPENROUTER(ApiService.OPENROUTER);
+
+    val label: String get() = service.label
+}
+
+/**
+ * 回答之前要不要先查網路、用誰查。
+ *
+ * 兩條路的差別不只是價錢：
+ *
+ * - [OPENROUTER] 是 OpenRouter 內建的外掛，**每次查詢另外收費**（預設抓 5 筆結果
+ *   約 $0.02），而且**只有文字走 OpenRouter 時才有作用**。實測它回的數字其實來自
+ *   部落格整理的表格，不是官方頁。
+ * - [TAVILY] 是自己打 Tavily 的搜尋 API，把結果當背景文字接在 prompt 前面。
+ *   免費層 1000 次/月，**兩家模型都適用**，而且實測第一筆就是台灣麥當勞的官方
+ *   產品頁、整張營養表原樣帶回來（503.17 kcal 那一份）。
+ */
+@Serializable
+enum class SearchMode { OFF, OPENROUTER, TAVILY }
 
 /** 深色模式要不要跟系統走。獨立成 enum 而不是單一 boolean，因為「跟系統」本身是第三種狀態。 */
 @Serializable

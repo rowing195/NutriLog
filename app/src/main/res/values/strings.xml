@@ -114,7 +114,14 @@
     <string name="settings_openrouter_model_help">要填 openrouter.ai 上的完整模型路徑。挑之前先確認它支援 tools（函式呼叫）—— 這個 app 靠它把回答鎖成固定格式。</string>
     <string name="settings_openrouter_model">模型路徑</string>
     <string name="settings_web_search">查網路資料</string>
-    <string name="settings_web_search_help">先去查再回答，連鎖店品項會直接讀官方營養標示，連糖、鈉、飽和脂肪都填得出來。每次查詢會另外收費，而且慢一點（實測約多 3 秒）。</string>
+    <string name="settings_search_off">關閉</string>
+    <string name="settings_search_help">回答之前先查一次網路，連鎖店品項可以讀到官方營養標示，連糖、鈉、飽和脂肪都填得出來。只影響文字描述那條路，拍照不受影響。</string>
+    <string name="settings_search_openrouter_note">OpenRouter 內建：由它在伺服器端查，只有文字辨識也走 OpenRouter 時才有作用，而且每次查詢另外收費（約 $0.02）。</string>
+    <string name="settings_search_tavily_note">Tavily：自己查完再把資料交給模型，兩家模型都適用，免費層每月 1000 次。要在下面填 Tavily 的 key。</string>
+    <string name="settings_tavily_key_help">Tavily 的 key 在 tavily.com 註冊後取得，免費層每月 1000 次、不用信用卡。同樣只存在這支手機裡。</string>
+    <string name="settings_keys">API 金鑰</string>
+    <string name="provider_openrouter_label">OpenRouter 內建</string>
+    <string name="provider_tavily_label">Tavily</string>
     <string name="drive_summary_on">已連結</string>
     <string name="drive_summary_off">未連結</string>
     <string name="settings_appearance">外觀</string>

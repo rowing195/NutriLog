@@ -77,8 +77,9 @@ class GeminiClient(private val client: OkHttpClient = SharedHttp.client) {
         description: String,
         apiKey: String,
         model: String,
+        searchContext: String? = null,
     ): Result<List<DetectedFood>> = analyze(apiKey, model) {
-        addJsonObject { put("text", AiPrompts.TEXT_PROMPT + "\n\n使用者輸入：" + description) }
+        addJsonObject { put("text", AiPrompts.textRequest(description, searchContext)) }
     }
 
     private suspend fun analyze(
