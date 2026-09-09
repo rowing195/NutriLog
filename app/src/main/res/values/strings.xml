@@ -113,6 +113,8 @@
     <string name="settings_openrouter_key_help">OpenRouter 的 key 在 openrouter.ai 的 Keys 頁面申請。同樣只存在這支手機裡。</string>
     <string name="settings_openrouter_model_help">要填 openrouter.ai 上的完整模型路徑。挑之前先確認它支援 tools（函式呼叫）—— 這個 app 靠它把回答鎖成固定格式。</string>
     <string name="settings_openrouter_model">模型路徑</string>
+    <string name="settings_web_search">查網路資料</string>
+    <string name="settings_web_search_help">先去查再回答，連鎖店品項會直接讀官方營養標示，連糖、鈉、飽和脂肪都填得出來。每次查詢會另外收費，而且慢一點（實測約多 3 秒）。</string>
     <string name="drive_summary_on">已連結</string>
     <string name="drive_summary_off">未連結</string>
     <string name="settings_appearance">外觀</string>

@@ -658,7 +658,10 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
             val model = if (useOpenRouter) settings.openRouterModel else settings.geminiModel
             val result = when (source) {
                 is AnalysisSource.Text ->
-                    if (useOpenRouter) openRouter.analyzeDescription(source.query, key, model)
+                    if (useOpenRouter)
+                        openRouter.analyzeDescription(
+                            source.query, key, model, settings.openRouterWebSearch,
+                        )
                     else gemini.analyzeDescription(source.query, key, model)
                 is AnalysisSource.Photo ->
                     // 壓縮失敗（檔案壞了、格式不支援）也要走同一條錯誤路徑，

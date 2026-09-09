@@ -395,6 +395,29 @@ fun AiProviderScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+
+                    Hairline(Modifier.padding(vertical = 10.dp))
+
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f).padding(end = 16.dp)) {
+                            Text(stringResource(R.string.settings_web_search))
+                            Text(
+                                stringResource(R.string.settings_web_search_help),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        NutriSwitch(
+                            checked = settings.openRouterWebSearch,
+                            onCheckedChange = {
+                                onChange(settings.copy(openRouterWebSearch = it))
+                            },
+                        )
+                    }
                 }
             }
         }

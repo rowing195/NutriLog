@@ -44,6 +44,7 @@ class OpenRouterClient(private val client: okhttp3.OkHttpClient = SharedHttp.cli
         description: String,
         apiKey: String,
         model: String,
+        webSearch: Boolean,
     ): Result<List<DetectedFood>> = withContext(Dispatchers.IO) {
         runCatching {
             val payload = buildJsonObject {
@@ -52,6 +53,16 @@ class OpenRouterClient(private val client: okhttp3.OkHttpClient = SharedHttp.cli
                     addJsonObject {
                         put("role", "user")
                         put("content", AiPrompts.TEXT_PROMPT + "\n\n使用者輸入：" + description)
+                    }
+                }
+                // 讓模型先查網路再答。實測「McDonalds Big Mac」開了之後會去讀
+                // 台灣麥當勞的官方營養計算機（回應的 annotations 裡有引用網址），
+                // 名稱從美規的 Big Mac 變成「大麥克」，而且連糖／鈉／飽和脂肪都
+                // 填得出來 —— 憑記憶那版那三欄是 null。代價是每次查詢另外收費，
+                // 所以由設定決定。
+                if (webSearch) {
+                    putJsonArray("plugins") {
+                        addJsonObject { put("id", "web") }
                     }
                 }
                 putJsonArray("tools") {

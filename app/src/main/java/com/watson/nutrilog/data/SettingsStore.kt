@@ -28,6 +28,11 @@ data class NutriSettings(
     val openRouterApiKey: String = "",
     val openRouterModel: String = DEFAULT_OPENROUTER_MODEL,
     /**
+     * 讓 OpenRouter 的模型去查網路再回答。**每次查詢都要另外收費**，所以是個開關
+     * 而不是寫死 —— Gemini 那邊的搜尋就是因為免費層額度是 0 才整條掛掉的。
+     */
+    val openRouterWebSearch: Boolean = true,
+    /**
      * 文字描述要送去哪一家。**只管文字**，拍照永遠走 Gemini ——
      * 理由見 [AiProvider]。
      */
