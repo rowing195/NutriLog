@@ -76,7 +76,7 @@ fun TextLookupScreen(
     val hasMatch = shownFrequent.isNotEmpty() || shownRecent.isNotEmpty()
 
     Scaffold(
-        modifier = Modifier.dismissKeyboardOnTap(),
+        modifier = Modifier.dismissKeyboardOnTap().dismissKeyboardOnScroll(),
         topBar = {
             ScreenTopBar(
                 title = stringResource(R.string.text_lookup_title),

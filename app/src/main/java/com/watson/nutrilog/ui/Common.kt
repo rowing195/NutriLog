@@ -57,6 +57,9 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -402,6 +405,39 @@ fun Modifier.dismissKeyboardOnTap(onTap: () -> Unit = {}): Modifier {
             latestOnTap.value()
         }
     }
+}
+
+/**
+ * 開始捲清單就收鍵盤。和 [dismissKeyboardOnTap] 是同一件事的兩個入口。
+ *
+ * 鍵盤佔掉半個畫面，剩下的清單只有兩三列 —— 而「捲這份清單」本身就已經表示
+ * 使用者不在打字了，是在看結果。要他先想到「點一下空白處」才看得到完整清單，
+ * 等於把一個他沒理由知道的步驟擺在路中間。
+ *
+ * 走 nested scroll 而不是去碰 [LazyListState]：清單在 [FoodLibrary] 內部、
+ * 每個分頁各有一份，狀態要一路往上提才拿得到；而捲動事件本來就會沿著
+ * modifier 鏈往上冒，掛在 `Scaffold` 上就全部收得到。
+ *
+ * **只認垂直方向**（`available.y`）。左右滑是在換常吃／最近分頁，那時候使用者
+ * 可能只是看一眼另一頁就要繼續打字，把鍵盤收掉反而多一個動作。
+ *
+ * 限定 [NestedScrollSource.UserInput] 是為了排掉程式自己捲的那些 —— 點分頁標籤
+ * 會 `animateScrollToPage`，那不是使用者在捲。
+ */
+@Composable
+fun Modifier.dismissKeyboardOnScroll(): Modifier {
+    val focusManager = LocalFocusManager.current
+    val connection = remember(focusManager) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (source == NestedScrollSource.UserInput && available.y != 0f) {
+                    focusManager.clearFocus()
+                }
+                return Offset.Zero
+            }
+        }
+    }
+    return this.nestedScroll(connection)
 }
 
 // ─────────────────────────── 左滑露出動作 ───────────────────────────
