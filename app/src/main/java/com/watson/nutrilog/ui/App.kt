@@ -269,7 +269,20 @@ fun NutriLogApp(viewModel: NutriViewModel) {
                 onConnectDrive = viewModel::connectDrive,
                 onBackupNow = viewModel::backupNow,
                 onDisconnectDrive = viewModel::disconnectDrive,
+                onOpenProvider = viewModel::openAiProvider,
                 onBack = { viewModel.goTo(Screen.Settings) },
+            )
+        }
+
+        // 第三層：某一家供應商的 key 與模型。返回回到「AI 影像辨識」那一頁，
+        // 一路退回今日頁的話，改完 key 想接著換模型就要重點三次。
+        is Screen.AiProviderDetail -> {
+            BackHandler { viewModel.openSettingsPage(SettingsPage.AI) }
+            AiProviderScreen(
+                provider = screen.provider,
+                settings = viewModel.settings,
+                onChange = viewModel::updateSettings,
+                onBack = { viewModel.openSettingsPage(SettingsPage.AI) },
             )
         }
     }

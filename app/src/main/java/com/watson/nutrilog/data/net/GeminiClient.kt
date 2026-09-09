@@ -58,7 +58,7 @@ class GeminiClient(private val client: OkHttpClient = SharedHttp.client) {
         apiKey: String,
         model: String,
     ): Result<List<DetectedFood>> = analyze(apiKey, model) {
-        addJsonObject { put("text", PHOTO_PROMPT) }
+        addJsonObject { put("text", AiPrompts.PHOTO_PROMPT) }
         addJsonObject {
             putJsonObject("inline_data") {
                 put("mime_type", "image/jpeg")
@@ -78,7 +78,7 @@ class GeminiClient(private val client: OkHttpClient = SharedHttp.client) {
         apiKey: String,
         model: String,
     ): Result<List<DetectedFood>> = analyze(apiKey, model) {
-        addJsonObject { put("text", TEXT_PROMPT + "\n\n使用者輸入：" + description) }
+        addJsonObject { put("text", AiPrompts.TEXT_PROMPT + "\n\n使用者輸入：" + description) }
     }
 
     private suspend fun analyze(
@@ -263,35 +263,6 @@ class GeminiClient(private val client: OkHttpClient = SharedHttp.client) {
         const val RETRY_DELAY_MS = 1500L
         const val BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/"
         val JSON_MEDIA = "application/json".toMediaType()
-
-        val PHOTO_PROMPT = """
-            你是營養師。看這張食物照片，列出裡面每一種可辨識的食物。
-
-            規則：
-            - 依照片中看得到的份量估算，不要用「每 100 公克」的通用值。
-            - servingText 要寫成人看得懂的份量，例如「1 碗（約 250 公克）」。
-            - name 用繁體中文。
-            - calories 單位 kcal；proteinG / fatG / carbsG / sugarG / fiberG / satFatG 單位公克；sodiumMg 單位毫克。
-            - 沒把握的營養素就填 null，不要猜 0。
-            - confidence 是 0 到 1 之間的數字，代表你對這一項的把握程度。
-            - 照片裡沒有食物就回傳空的 items 陣列。
-        """.trimIndent()
-
-        val TEXT_PROMPT = """
-            你是營養師。使用者用文字描述他吃了什麼，請估算營養素。
-
-            規則：
-            - 台灣的連鎖店品項（例如 CoCo、50 嵐、麥當勞）就用該店的常見規格估。
-            - 描述沒講清楚規格時，列出 2 到 4 個**常見選項**讓使用者挑，
-              例如大杯／中杯、全糖／半糖、加料與否，各自算成一項。
-              描述已經很明確（例如「一顆水煮蛋」）就只回一項，不要硬湊。
-            - servingText 要寫清楚是哪一種規格，例如「大杯 700ml 全糖」。
-            - name 用繁體中文。
-            - calories 單位 kcal；proteinG / fatG / carbsG / sugarG / fiberG / satFatG 單位公克；sodiumMg 單位毫克。
-            - 沒把握的營養素就填 null，不要猜 0。
-            - confidence 是 0 到 1 之間的數字。連鎖店有公開營養標示的給高一點，純估算的給低一點。
-            - 完全看不懂在講什麼食物就回傳空的 items 陣列。
-        """.trimIndent()
 
         // 用 OpenAPI 子集描述回傳格式。屬性名稱要和 DetectedFood 完全一致。
         const val RESPONSE_SCHEMA = """

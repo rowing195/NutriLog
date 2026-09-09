@@ -24,6 +24,14 @@ data class NutriSettings(
     /** 只存在這支手機裡，不會外流。空字串代表還沒設定，拍照辨識會擋下來。 */
     val geminiApiKey: String = "",
     val geminiModel: String = DEFAULT_MODEL,
+    /** 同上，只是換一家。空字串代表沒設定。 */
+    val openRouterApiKey: String = "",
+    val openRouterModel: String = DEFAULT_OPENROUTER_MODEL,
+    /**
+     * 文字描述要送去哪一家。**只管文字**，拍照永遠走 Gemini ——
+     * 理由見 [AiProvider]。
+     */
+    val textProvider: AiProvider = AiProvider.GEMINI,
     val calorieTarget: Int = 2000,
     val proteinTargetG: Int = 100,
     val fatTargetG: Int = 60,
@@ -45,10 +53,32 @@ data class NutriSettings(
         // （序列化時 encodeDefaults = true，第一次存設定就把它寫進去了），
         // 所以既有使用者要自己到設定頁改，不會被這行帶著走。
         const val DEFAULT_MODEL = "gemini-3.7-flash"
+
+        /**
+         * OpenRouter 的預設。挑健康領域的模型而不是通用大模型，因為這條路只做
+         * 一件事：把「吃了什麼」換算成營養素。`:free` 是它自己的免費層級標記。
+         */
+        const val DEFAULT_OPENROUTER_MODEL = "inclusionai/ling-3.0-flash-sante:free"
         const val MIN_TARGET = 0
         const val MAX_CALORIE_TARGET = 6000
         const val MAX_MACRO_TARGET = 800
     }
+}
+
+/**
+ * 文字辨識要走哪一家。
+ *
+ * **這個選擇只管文字，不管拍照。** 拍照需要吃得下圖片的模型，而這條路上想用的
+ * OpenRouter 免費模型（見 [NutriSettings.DEFAULT_OPENROUTER_MODEL]）是純文字的 ——
+ * 做成一個總開關的話，使用者選了 OpenRouter 之後拍照會神祕地失敗或偷偷跑去別家，
+ * 兩種都比在設定頁講清楚差。所以設定頁那一欄叫「文字辨識用哪一家」。
+ *
+ * 以後要加 OpenAI 之類的就在這裡多一個 entry，設定頁的清單是照 entries 長出來的。
+ */
+@Serializable
+enum class AiProvider(val label: String) {
+    GEMINI("Gemini"),
+    OPENROUTER("OpenRouter"),
 }
 
 /** 深色模式要不要跟系統走。獨立成 enum 而不是單一 boolean，因為「跟系統」本身是第三種狀態。 */

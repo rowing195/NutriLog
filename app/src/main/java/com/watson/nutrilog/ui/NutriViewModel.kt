@@ -14,6 +14,7 @@ import com.watson.nutrilog.R
 import com.watson.nutrilog.data.CsvExport
 import com.watson.nutrilog.data.CsvImport
 import com.watson.nutrilog.data.DriveBackup
+import com.watson.nutrilog.data.AiProvider
 import com.watson.nutrilog.data.NutriSettings
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.CommonStatusCodes
@@ -29,6 +30,7 @@ import com.watson.nutrilog.data.db.Meal
 import com.watson.nutrilog.data.db.NutriDatabase
 import com.watson.nutrilog.data.net.DetectedFood
 import com.watson.nutrilog.data.net.GeminiClient
+import com.watson.nutrilog.data.net.OpenRouterClient
 import com.watson.nutrilog.data.net.ImageCompressor
 import com.watson.nutrilog.data.net.OpenFoodFactsClient
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -73,6 +75,12 @@ sealed interface Screen {
      * 不是回今日頁（見 App.kt 的 BackHandler）。
      */
     data class SettingsDetail(val page: SettingsPage) : Screen
+
+    /**
+     * 某一家 AI 供應商的 key 與模型。設定裡唯一的第三層 —— 每家的欄位不一樣，
+     * 全部攤在同一頁的話「AI 影像辨識」又會變回一條長捲軸。
+     */
+    data class AiProviderDetail(val provider: AiProvider) : Screen
     data object EditEntry : Screen
     data object Barcode : Screen
     data object TextLookup : Screen
@@ -274,6 +282,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     private val settingsStore = SettingsStore(application)
     private val openFoodFacts = OpenFoodFactsClient()
     private val gemini = GeminiClient()
+    private val openRouter = OpenRouterClient()
 
     var screen by mutableStateOf<Screen>(Screen.Today)
         private set
@@ -422,6 +431,8 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     fun goTo(target: Screen) { screen = target }
 
     fun openSettingsPage(page: SettingsPage) { screen = Screen.SettingsDetail(page) }
+
+    fun openAiProvider(provider: AiProvider) { screen = Screen.AiProviderDetail(provider) }
 
     fun backToToday() {
         dataMessage = null
@@ -600,8 +611,12 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     /** 有沒有 key。給 UI 在開相機**之前**問，別讓使用者拍完才發現不能用。 */
     fun hasApiKey(): Boolean = settings.geminiApiKey.isNotBlank()
 
-    fun reportMissingApiKey() {
-        analysisState = AnalysisState.Failed(NO_API_KEY)
+    /**
+     * [provider] 一定要帶：兩家各有一把 key，訊息只寫「還沒設定 API key」的話，
+     * 使用者很可能去填錯的那一把（尤其文字選了 OpenRouter、拍照卻缺 Gemini 那把時）。
+     */
+    fun reportMissingApiKey(provider: AiProvider = AiProvider.GEMINI) {
+        analysisState = AnalysisState.Failed(NO_API_KEY + ":" + provider.label)
         screen = Screen.Review
     }
 
@@ -624,11 +639,15 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
      * 可以取消勾選，否則等於在使用者的飲食紀錄裡塞它自己編的數字。
      */
     private fun startAnalysis(source: AnalysisSource) {
-        val key = settings.geminiApiKey
+        // 拍照永遠走 Gemini（要吃得下圖片的模型），文字才看使用者選了哪一家。
+        // 所以要擋的是「這一條路要用的那把 key」，不是固定擋 Gemini 那把。
+        val useOpenRouter =
+            source is AnalysisSource.Text && settings.textProvider == AiProvider.OPENROUTER
+        val key = if (useOpenRouter) settings.openRouterApiKey else settings.geminiApiKey
         // 這裡仍然要擋一次：從相機回來的期間設定可能被改掉，
         // 而這裡才是真正會把 key 送出去的地方。
         if (key.isBlank()) {
-            reportMissingApiKey()
+            reportMissingApiKey(if (useOpenRouter) AiProvider.OPENROUTER else AiProvider.GEMINI)
             return
         }
         lastSource = source
@@ -636,9 +655,11 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         analysisState = AnalysisState.Analyzing
         screen = Screen.Review
         viewModelScope.launch {
-            val model = settings.geminiModel
+            val model = if (useOpenRouter) settings.openRouterModel else settings.geminiModel
             val result = when (source) {
-                is AnalysisSource.Text -> gemini.analyzeDescription(source.query, key, model)
+                is AnalysisSource.Text ->
+                    if (useOpenRouter) openRouter.analyzeDescription(source.query, key, model)
+                    else gemini.analyzeDescription(source.query, key, model)
                 is AnalysisSource.Photo ->
                     // 壓縮失敗（檔案壞了、格式不支援）也要走同一條錯誤路徑，
                     // 不然使用者只會看到轉圈停住

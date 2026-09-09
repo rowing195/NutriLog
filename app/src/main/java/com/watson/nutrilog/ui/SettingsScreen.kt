@@ -37,6 +37,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.watson.nutrilog.R
+import com.watson.nutrilog.data.AiProvider
 import com.watson.nutrilog.data.DarkModePreference
 import com.watson.nutrilog.data.NutriSettings
 import androidx.compose.foundation.layout.size
@@ -150,6 +151,7 @@ fun SettingsDetailScreen(
     onConnectDrive: () -> Unit,
     onBackupNow: () -> Unit,
     onDisconnectDrive: () -> Unit,
+    onOpenProvider: (AiProvider) -> Unit,
     onBack: () -> Unit,
 ) {
     Scaffold(
@@ -178,7 +180,7 @@ fun SettingsDetailScreen(
             when (page) {
                 SettingsPage.APPEARANCE -> AppearanceSection(settings, onChange)
                 SettingsPage.TARGETS -> TargetsSection(settings, onChange)
-                SettingsPage.AI -> AiSection(settings, onChange)
+                SettingsPage.AI -> AiSection(settings, onChange, onOpenProvider)
                 SettingsPage.DRIVE -> DriveSection(
                     settings, driveMessage, driveBusy, onConnectDrive, onBackupNow, onDisconnectDrive,
                 )
@@ -259,38 +261,144 @@ private fun TargetsSection(settings: NutriSettings, onChange: (NutriSettings) ->
 }
 
 @Composable
-private fun AiSection(settings: NutriSettings, onChange: (NutriSettings) -> Unit) {
-    val context = LocalContext.current
+private fun AiSection(
+    settings: NutriSettings,
+    onChange: (NutriSettings) -> Unit,
+    onOpenProvider: (AiProvider) -> Unit,
+) {
+    BallotRow(
+        labels = AiProvider.entries.map { it.label },
+        selectedIndex = AiProvider.entries.indexOf(settings.textProvider),
+        onSelect = { onChange(settings.copy(textProvider = AiProvider.entries[it])) },
+    )
+    // 不講的話，選了 OpenRouter 的人會以為拍照也換過去了，然後困惑為什麼
+    // 明明選了別家卻還是要填 Gemini 的 key。
     Text(
-        stringResource(R.string.settings_api_key_help),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    NutriTextField(
-        value = settings.geminiApiKey,
-        onValueChange = { onChange(settings.copy(geminiApiKey = it.trim())) },
-        label = stringResource(R.string.settings_api_key),
-        placeholder = stringResource(R.string.settings_api_key_hint),
-        // key 不該直接顯示在畫面上 —— 截圖或旁人看到就等於外流
-        visualTransformation = PasswordVisualTransformation(),
-        modifier = Modifier.fillMaxWidth(),
-    )
-    TextAction(
-        stringResource(R.string.settings_paste),
-        onClick = {
-            clipboardText(context)?.let { onChange(settings.copy(geminiApiKey = it.trim())) }
-        },
-    )
-    ModelField(
-        value = settings.geminiModel,
-        onChange = { onChange(settings.copy(geminiModel = it)) },
-    )
-    Text(
-        stringResource(R.string.settings_model_help),
+        stringResource(R.string.settings_photo_note),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 
+    Hairline(Modifier.padding(vertical = 10.dp))
+
+    // 每家的 key 與模型各自一頁：欄位不一樣，全部攤在這裡又會變回長捲軸
+    AiProvider.entries.forEach { provider ->
+        MenuRow(
+            title = provider.label,
+            summary = stringResource(
+                if (provider.keyOf(settings).isBlank()) R.string.settings_key_unset
+                else R.string.settings_key_set
+            ),
+            onClick = { onOpenProvider(provider) },
+        )
+        Hairline()
+    }
+}
+
+private fun AiProvider.keyOf(settings: NutriSettings): String = when (this) {
+    AiProvider.GEMINI -> settings.geminiApiKey
+    AiProvider.OPENROUTER -> settings.openRouterApiKey
+}
+
+/**
+ * 一家供應商的 key 與模型。設定裡唯一的第三層。
+ *
+ * 兩家共用這個外框而不是各寫一頁：差別只有「help 文案、key 存到哪個欄位、
+ * 模型選單長什麼樣」，各寫一份的話收鍵盤與內距的規則又要維護兩次。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AiProviderScreen(
+    provider: AiProvider,
+    settings: NutriSettings,
+    onChange: (NutriSettings) -> Unit,
+    onBack: () -> Unit,
+) {
+    val context = LocalContext.current
+    val key = provider.keyOf(settings)
+    val setKey: (String) -> Unit = { raw ->
+        val value = raw.trim()
+        onChange(
+            when (provider) {
+                AiProvider.GEMINI -> settings.copy(geminiApiKey = value)
+                AiProvider.OPENROUTER -> settings.copy(openRouterApiKey = value)
+            }
+        )
+    }
+
+    Scaffold(
+        modifier = Modifier.dismissKeyboardOnTap(),
+        topBar = {
+            ScreenTopBar(
+                title = provider.label,
+                closeLabel = stringResource(R.string.settings_back),
+                onClose = onBack,
+            )
+        },
+    ) { inner ->
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(inner)
+                .imePadding()
+                .verticalScroll(rememberScrollState())
+                .padding(start = 22.dp, end = 22.dp, top = 8.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                stringResource(
+                    when (provider) {
+                        AiProvider.GEMINI -> R.string.settings_api_key_help
+                        AiProvider.OPENROUTER -> R.string.settings_openrouter_key_help
+                    }
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            NutriTextField(
+                value = key,
+                onValueChange = setKey,
+                label = stringResource(R.string.settings_api_key),
+                placeholder = stringResource(R.string.settings_api_key_hint),
+                // key 不該直接顯示在畫面上 —— 截圖或旁人看到就等於外流
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            TextAction(
+                stringResource(R.string.settings_paste),
+                onClick = { clipboardText(context)?.let(setKey) },
+            )
+
+            when (provider) {
+                // Gemini 的型號固定幾個，攤開讓人選
+                AiProvider.GEMINI -> {
+                    ModelField(
+                        value = settings.geminiModel,
+                        onChange = { onChange(settings.copy(geminiModel = it)) },
+                    )
+                    Text(
+                        stringResource(R.string.settings_model_help),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                // OpenRouter 有幾百個模型，列不完也不該替使用者挑，所以是自由文字
+                AiProvider.OPENROUTER -> {
+                    NutriTextField(
+                        value = settings.openRouterModel,
+                        onValueChange = { onChange(settings.copy(openRouterModel = it.trim())) },
+                        label = stringResource(R.string.settings_openrouter_model),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        stringResource(R.string.settings_openrouter_model_help),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
 }
 
 /**

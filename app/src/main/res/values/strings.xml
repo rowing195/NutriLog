@@ -108,6 +108,11 @@
     <string name="settings_key_set">已設定</string>
     <string name="settings_key_unset">尚未設定</string>
     <string name="settings_data_summary">匯出／匯入 CSV</string>
+    <string name="settings_text_provider">文字辨識用哪一家</string>
+    <string name="settings_photo_note">拍照辨識一律走 Gemini —— 那需要吃得下圖片的模型。這裡選的只影響「用文字描述」那條路。</string>
+    <string name="settings_openrouter_key_help">OpenRouter 的 key 在 openrouter.ai 的 Keys 頁面申請。同樣只存在這支手機裡。</string>
+    <string name="settings_openrouter_model_help">要填 openrouter.ai 上的完整模型路徑。挑之前先確認它支援 tools（函式呼叫）—— 這個 app 靠它把回答鎖成固定格式。</string>
+    <string name="settings_openrouter_model">模型路徑</string>
     <string name="drive_summary_on">已連結</string>
     <string name="drive_summary_off">未連結</string>
     <string name="settings_appearance">外觀</string>
@@ -116,7 +121,7 @@
     <string name="dark_mode_dark">深色</string>
     <string name="settings_targets">每日目標</string>
     <string name="settings_gemini">AI 影像辨識</string>
-    <string name="settings_api_key">Gemini API key</string>
+    <string name="settings_api_key">API key</string>
     <string name="settings_api_key_hint">貼上你的 key</string>
     <string name="settings_api_key_help">拍照辨識需要自己的 Gemini API key，到 aistudio.google.com 免費申請。key 只存在這支手機裡，不會上傳到任何地方。</string>
     <string name="settings_model">模型</string>
@@ -182,7 +187,7 @@
     <string name="review_title">確認辨識結果</string>
     <string name="review_meal">要記進哪一餐</string>
     <string name="review_hint">AI 的估算只是參考，請確認並修正後再儲存。取消勾選就不會記錄該項。存進去之後還可以點開逐欄細改。</string>
-    <string name="photo_no_key">還沒設定 Gemini API key，請先到設定頁填入</string>
+    <string name="photo_no_key">還沒設定 %1$s 的 API key，請先到設定頁填入</string>
     <string name="review_nothing_found">沒有辨識到食物。換一張照片、把描述講得更具體，或自己輸入營養素</string>
     <string name="photo_confidence">把握度 %1$d%%</string>
     <!-- 數字要單獨套襯線，所以標籤跟數值拆開排 -->

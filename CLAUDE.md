@@ -681,6 +681,49 @@ AI 估得準，打的往往比庫裡存的更細，或者根本是另一種寫�
 區塊 composable 只負責內容 —— 每頁各寫一次 `Scaffold` 的話，之後改內距或收鍵盤的
 規則就要改五個地方。
 
+## 兩家 AI 供應商：路由只管文字，拍照永遠是 Gemini
+
+`AiProvider`（`SettingsStore.kt`）決定**文字描述**送去哪一家，設定頁那一欄也是這樣
+命名的（「文字辨識用哪一家」）。**拍照不受它影響。**
+
+理由是能力差異，不是偷懶：拍照要吃得下圖片的模型，而這條路上想用的 OpenRouter
+免費模型（`inclusionai/ling-3.0-flash-sante:free`）是純文字的。做成一個總開關的話，
+選了 OpenRouter 之後拍照會神祕地失敗或偷偷跑去別家 —— 兩種都比在設定頁講清楚差。
+`AiSection` 底下那句說明就是在講這件事，不要刪。
+
+**擋 key 的時候要擋「這條路要用的那一把」**，而且訊息要指名是哪一家
+（`reportMissingApiKey(provider)`）。兩家各有一把 key，只寫「還沒設定 API key」的話，
+使用者很可能去填錯的那一把 —— 尤其文字選了 OpenRouter、拍照卻缺 Gemini 那把時。
+
+### 兩個 client 不共用介面，但共用 prompt
+
+`GeminiClient` 與 `OpenRouterClient` 是兩個獨立的類別，**沒有抽共同介面**：真正共用的
+只有 prompt 與 `DetectedFood`，傳輸格式、強制 JSON 的手法、錯誤訊息全都不一樣，
+硬包成一個介面只會得到一堆 `when (provider)`。分流只有一處
+（`NutriViewModel.startAnalysis`）。
+
+**但 prompt 一定要共用**（`AiPrompts`）：同一段話兩邊各抄一份遲早會漂，而漂掉的症狀是
+「換一家之後回來的東西長得不一樣」，很難聯想到是 prompt 不同步。**改 `AiPrompts`
+等於同時改兩條路，回歸時兩家都要測。**
+
+### OpenRouter 用函式呼叫鎖 JSON，不是 `response_format`
+
+那個健康模型的 `supported_parameters` 裡**沒有** `response_format` —— OpenRouter 上
+很多模型都沒有。但它有 `tools`，所以改用「定義一個函式、參數就是那份 schema、再用
+`tool_choice` 強制它呼叫」。回傳在 `choices[0].message.tool_calls[0].function.arguments`，
+而且**那是字串包著的 JSON**，不是巢狀物件（OpenAI 格式的慣例）。
+
+**換模型之前先查 `openrouter.ai/api/v1/models` 那支 API**，確認新模型的
+`supported_parameters` 有 `tools`、`input_modalities` 有沒有 `image`。沒有 `tools`
+就得回去剝 markdown code fence，那正是 Gemini 那邊當初想避開的事。
+
+兩份 schema **不是同一種寫法**：Gemini 是 OpenAPI 子集（`"OBJECT"` 大寫、
+`nullable: true`），OpenRouter 是標準 JSON Schema（小寫、`["number", "null"]`）。
+改欄位時兩份都要改，屬性名稱都要和 `DetectedFood` 完全一致。
+
+錯誤碼也不一樣，OpenRouter 多一個 Gemini 沒有的狀態：**402 是餘額不足**（免費模型
+也需要帳號裡有額度才跑得動），401 才是 key 的問題。
+
 ## CSV 是一種對外介面，不是隨手產生的報表
 
 匯出／匯入是這個 app **唯一**的備份路徑（沒有雲端），所以那個檔案的格式要當成
