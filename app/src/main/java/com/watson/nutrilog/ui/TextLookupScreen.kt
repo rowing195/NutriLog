@@ -50,6 +50,11 @@ import java.time.LocalDate
  *
  * 同理，鍵盤上的送出鍵**不送去 AI**，只收鍵盤（清單早就邊打邊篩完了）。
  * AI 要花錢也要等，那條路一定要是明確按下那顆章才走。
+ *
+ * **打字時底下那一區會自己縮起來。** 鍵盤一開就吃掉半個畫面，這一區原本
+ * 三層（標題＋說明＋章）比清單本身還高，實測只剩兩列看得到 —— 而使用者正在看的
+ * 就是那個收斂中的清單。所以聚焦時只留那顆章；除非連一筆都篩不到，那時候
+ * 「沒有『⋯』？」是畫面上唯一還在講話的東西，要留著。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,6 +67,7 @@ fun TextLookupScreen(
     onClose: () -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
+    var focused by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
     val submit = { if (query.isNotBlank()) onLookup(query) }
 
@@ -106,6 +112,7 @@ fun TextLookupScreen(
                 // 而收掉鍵盤正好把被蓋住的清單讓出來。
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
+                onFocusChanged = { focused = it },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 22.dp, vertical = 8.dp),
@@ -138,22 +145,29 @@ fun TextLookupScreen(
                 // 這一行要接得上使用者剛做完的動作，而那有三種：還沒打字、打了但
                 // 上面篩得到東西、打了而且什麼都沒有。**篩得到的時候不能說「沒有」**
                 // —— 上面明明就列著幾筆相近的，那句話會顯得這個 app 沒在看自己的清單。
-                Text(
-                    withNumerals(
-                        when {
-                            query.isBlank() -> stringResource(R.string.text_lookup_divider)
-                            hasMatch -> stringResource(R.string.text_lookup_divider_near)
-                            else -> stringResource(R.string.text_lookup_divider_query, query.trim())
-                        }
-                    ),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    stringResource(R.string.text_lookup_hint),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                //
+                // 鍵盤開著而且上面有東西可看時整行收掉，把高度讓給清單。
+                if (!focused || !hasMatch) {
+                    Text(
+                        withNumerals(
+                            when {
+                                query.isBlank() -> stringResource(R.string.text_lookup_divider)
+                                hasMatch -> stringResource(R.string.text_lookup_divider_near)
+                                else -> stringResource(R.string.text_lookup_divider_query, query.trim())
+                            }
+                        ),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+                // 這段是「還沒開始打」時的指引，打字中沒有人在讀它，而它就是兩行。
+                if (!focused) {
+                    Text(
+                        stringResource(R.string.text_lookup_hint),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
 
                 StampButton(
                     label = stringResource(R.string.text_lookup_go),

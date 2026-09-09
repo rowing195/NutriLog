@@ -61,10 +61,27 @@ class FoodLibraryMatchTest {
         assertTrue(food("黑咖啡").matchScore("黑咖啡") > 1.0)
     }
 
-    /** 單字比對會讓「咖」把咖哩拉進來，相鄰兩字不會 —— 這正是用 bigram 的理由。 */
+    /**
+     * 拆開的詞。「烤肉」在「煎烤豬肉排」裡是烤…肉，相鄰兩字一個都對不上，
+     * 但兩個字都在 —— 只看相鄰兩字的話這一列會被判成不相干。
+     */
     @Test
-    fun `sharing a single character is not a match`() {
-        assertEquals(0.0, food("咖哩飯").matchScore("黑咖啡"), 0.0)
+    fun `a word split apart in the item name still matches`() {
+        assertTrue(food("煎烤豬肉排/五花肉", "2.5 鐵盤份").matchScore("烤肉") >= 0.3)
+    }
+
+    /**
+     * 反方向：單字撿到的東西不能因此變成命中。「咖」咖哩也有，而兩個字的關鍵字
+     * 只中一個是 0.25 —— 落在門檻外，這就是相鄰兩字要加權的理由。
+     */
+    @Test
+    fun `sharing only one character of two is not a match`() {
+        assertTrue(food("咖哩飯").matchScore("咖啡") < 0.3)
+    }
+
+    @Test
+    fun `sharing a single character of a longer query is not a match`() {
+        assertTrue(food("咖哩飯").matchScore("黑咖啡") < 0.3)
     }
 
     /** 使用者自己用空白拆好的關鍵字，分別落在名稱與份量欄位也要算完整命中。 */

@@ -1034,11 +1034,11 @@ fun FoodEntry.matches(token: String): Boolean =
     name.contains(token, ignoreCase = true) || servingText.contains(token, ignoreCase = true)
 
 /**
- * 近似命中的門檻：關鍵字的相鄰兩字裡，要有這個比例以上出現在品項上才算數。
+ * 近似命中的門檻。這是整套模糊比對唯一的旋鈕。
  *
- * 這是整套模糊比對唯一的旋鈕。調高會退回「打太細就找不到」，調低會開始推薦
- * 只共用一個常見詞的東西（「咖啡」誰都有）。0.3 讓實際會遇到的兩種寫法都過得了：
- * 「手沖藝妓黑咖啡」對上「手沖黑咖啡」是 0.5，「美式黑咖啡」對上它也是 0.5。
+ * 調高會退回「打太細就找不到」，調低會開始推薦只共用一個常見字的東西。
+ * 0.3 的實際意義最好記的說法是：**兩個字的關鍵字，兩個字都要出現**
+ * （只中一個是 0.25，落在門檻外）。
  */
 private const val NEAR_MATCH_THRESHOLD = 0.3
 
@@ -1046,23 +1046,36 @@ private const val NEAR_MATCH_THRESHOLD = 0.3
 private const val EXACT_MATCH_SCORE = 2.0
 
 /**
+ * 相鄰兩字比單字重幾倍。相鄰兩字帶著詞的邊界資訊（「黑咖」幾乎只會出現在黑咖啡裡），
+ * 單字沒有（「咖」咖哩也有），所以兩者都要算但不能等重。
+ */
+private const val BIGRAM_WEIGHT = 2
+
+/**
  * 一個品項對關鍵字的相符程度。0 是完全沒關係，[EXACT_MATCH_SCORE] 是整串命中，
- * 中間是相鄰兩字的重疊比例。
+ * 中間是 n-gram 的重疊比例。
  *
  * **不能只用 `contains`。** 這個框同時服務兩件事：篩自己的清單，以及把描述交給 AI。
  * 而使用者為了讓 AI 估得準，打的往往是「手沖藝妓黑咖啡」這種很細的描述 ——
  * 整串比對的話，庫裡明明有「手沖黑咖啡」也會被判成找不到，畫面就理直氣壯地叫他
- * 去問 AI。反過來他打「美式黑咖啡」時也一樣。那正是這個畫面最該避免的事。
+ * 去問 AI。那正是這個畫面最該避免的事。
  *
- * 所以近似的部分改看**相鄰兩字**（bigram）的重疊比例：中文沒有空白可以拆詞，
- * 而相鄰兩字是不需要斷詞工具就拿得到、又比單字精確的東西（單字的話「咖」會把
- * 咖哩也拉進來，「咖啡」不會）。
+ * 近似的部分**同時看相鄰兩字與單字**，相鄰兩字加權 [BIGRAM_WEIGHT] 倍。中文沒有
+ * 空白可以拆詞，而這兩種 n-gram 各自補對方的洞：
  *
- * 整串命中給的是**比 1 大**的分數，不是 1.0：近似的比例上限就是 1.0（所有相鄰兩字
+ * - **只看相鄰兩字會漏掉拆開的詞。** 「烤肉」在「煎烤豬肉排」裡是拆開的（烤…肉），
+ *   相鄰兩字一個都對不上，但兩個字其實都在。
+ * - **只看單字會把不相干的拉進來。** 「咖」對上咖哩，「肉」對上任何有肉的東西。
+ *
+ * 加權相加之後兩件事同時成立：「烤肉」對「煎烤豬肉排」是 0.5（單字全中），
+ * 「咖啡」對「咖哩飯」是 0.25（只中一個單字，而且沒有相鄰兩字撐）。這也是
+ * CJK 搜尋的標準做法 —— 單字與相鄰兩字各建一份索引再加權合分。
+ *
+ * 整串命中給的是**比 1 大**的分數，不是 1.0：近似的比例上限就是 1.0（所有 n-gram
  * 都湊得到，但整串不在裡面），兩者撞在一起的話「真的有這個」就不保證排在
  * 「長得有點像」前面了。
  *
- * **它沒有語意。** 「拿鐵」和「牛奶咖啡」一個字都不共用，這裡就是配不起來；
+ * **它仍然沒有語意。** 「拿鐵」和「牛奶咖啡」一個字都不共用，這裡就是配不起來；
  * 那種事只有 AI 做得到，而那正是底下那顆章存在的理由。
  */
 fun FoodSuggestion.matchScore(query: String): Double {
@@ -1076,9 +1089,11 @@ fun FoodSuggestion.matchScore(query: String): Double {
     if (hay.contains(compact)) return EXACT_MATCH_SCORE
     if (tokens.size > 1 && tokens.all { hay.contains(it.lowercase()) }) return EXACT_MATCH_SCORE
 
-    if (compact.length < 2) return 0.0
-    val grams = compact.windowed(2).toSet()
-    return grams.count(hay::contains).toDouble() / grams.size
+    val unigrams = compact.toSet().map(Char::toString)
+    val bigrams = compact.windowed(2).toSet()
+    val hits = BIGRAM_WEIGHT * bigrams.count(hay::contains) + unigrams.count(hay::contains)
+    val total = BIGRAM_WEIGHT * bigrams.size + unigrams.size
+    return hits.toDouble() / total
 }
 
 /**
