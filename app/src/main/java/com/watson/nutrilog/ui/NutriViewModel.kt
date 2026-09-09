@@ -52,10 +52,27 @@ import kotlin.math.roundToInt
  * [EditEntry] 沒有參數 —— 正在編輯的內容放在 ViewModel 的 draft 上，
  * 這樣三種輸入來源（手動／條碼／拍照）都能先塞好草稿再切過去。
  */
+/**
+ * 設定頁的分頁。設定原本是一整條長捲軸，六段疊在一起要捲很久才找得到東西，
+ * 所以拆成「選單 -> 子頁」兩層，這個 enum 就是子頁的身分。
+ *
+ * 「顯示進階營養素」那個開關沒有自己的一頁 —— 它講的是編輯表單要不要攤開糖、鈉、
+ * 膳食纖維、飽和脂肪，跟每日目標同樣是在講營養素，為了一個開關多開一頁不划算。
+ */
+enum class SettingsPage { APPEARANCE, TARGETS, AI, DRIVE, DATA }
+
 sealed interface Screen {
     data object Today : Screen
     data object History : Screen
+
+    /** 設定的選單那一層。 */
     data object Settings : Screen
+
+    /**
+     * 設定的子頁。這是整個 app 唯一有兩層的地方，所以返回鍵在這裡是回選單、
+     * 不是回今日頁（見 App.kt 的 BackHandler）。
+     */
+    data class SettingsDetail(val page: SettingsPage) : Screen
     data object EditEntry : Screen
     data object Barcode : Screen
     data object TextLookup : Screen
@@ -403,6 +420,8 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     // --- 導航 ---
 
     fun goTo(target: Screen) { screen = target }
+
+    fun openSettingsPage(page: SettingsPage) { screen = Screen.SettingsDetail(page) }
 
     fun backToToday() {
         dataMessage = null

@@ -43,9 +43,100 @@ import androidx.compose.foundation.layout.size
 import com.watson.nutrilog.ui.theme.NutrientColors
 import com.watson.nutrilog.ui.theme.numeric
 
+/**
+ * 設定的選單那一層。
+ *
+ * 原本是一整條長捲軸，六段疊在一起要捲很久才找得到東西。拆成兩層之後這一頁只負責
+ * 「有哪些東西可以設定」，每一列右邊帶目前的值 —— 沒有摘要的話這頁只是一排名詞，
+ * 使用者還是得每一頁點進去才知道自己設過什麼。
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(
+fun SettingsMenuScreen(
+    settings: NutriSettings,
+    onOpen: (SettingsPage) -> Unit,
+    onClose: () -> Unit,
+) {
+    Scaffold(
+        topBar = {
+            ScreenTopBar(
+                title = stringResource(R.string.settings_title),
+                closeLabel = stringResource(R.string.close),
+                onClose = onClose,
+            )
+        },
+    ) { inner ->
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(inner)
+                .verticalScroll(rememberScrollState())
+                .padding(start = 22.dp, end = 22.dp, top = 8.dp, bottom = 28.dp),
+        ) {
+            SettingsPage.entries.forEach { page ->
+                MenuRow(
+                    title = stringResource(page.titleRes()),
+                    summary = page.summary(settings),
+                    onClick = { onOpen(page) },
+                )
+                Hairline()
+            }
+        }
+    }
+}
+
+/** 選單的一列：標題、目前的值、指向右邊的箭頭。 */
+@Composable
+private fun MenuRow(title: String, summary: String, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+        Text(
+            withNumerals(summary),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        ChevronMark(MaterialTheme.colorScheme.outline, pointsLeft = false)
+    }
+}
+
+@Composable
+private fun SettingsPage.titleRes(): Int = when (this) {
+    SettingsPage.APPEARANCE -> R.string.settings_appearance
+    SettingsPage.TARGETS -> R.string.settings_targets
+    SettingsPage.AI -> R.string.settings_gemini
+    SettingsPage.DRIVE -> R.string.drive_section
+    SettingsPage.DATA -> R.string.settings_data
+}
+
+@Composable
+private fun SettingsPage.summary(settings: NutriSettings): String = when (this) {
+    SettingsPage.APPEARANCE -> settings.darkMode.label()
+    SettingsPage.TARGETS ->
+        settings.calorieTarget.toString() + " " + stringResource(R.string.unit_kcal)
+    SettingsPage.AI -> stringResource(
+        if (settings.geminiApiKey.isBlank()) R.string.settings_key_unset else R.string.settings_key_set
+    )
+    SettingsPage.DRIVE -> stringResource(
+        if (settings.driveBackupEnabled) R.string.drive_summary_on else R.string.drive_summary_off
+    )
+    SettingsPage.DATA -> stringResource(R.string.settings_data_summary)
+}
+
+/**
+ * 設定的子頁。內容照 [page] 分派，外框（報頭、捲動、鍵盤處理）共用一份 ——
+ * 每一頁各寫一次 Scaffold 的話，之後改內距或收鍵盤的規則就要改五個地方。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsDetailScreen(
+    page: SettingsPage,
     settings: NutriSettings,
     dataMessage: String?,
     importPreview: ImportPreview?,
@@ -59,16 +150,16 @@ fun SettingsScreen(
     onConnectDrive: () -> Unit,
     onBackupNow: () -> Unit,
     onDisconnectDrive: () -> Unit,
-    onClose: () -> Unit,
+    onBack: () -> Unit,
 ) {
-    val context = LocalContext.current
     Scaffold(
         modifier = Modifier.dismissKeyboardOnTap(),
         topBar = {
             ScreenTopBar(
-                title = stringResource(R.string.settings_title),
-                closeLabel = stringResource(R.string.close),
-                onClose = onClose,
+                title = stringResource(page.titleRes()),
+                // 這裡是「返回」不是「關閉」：它回的是設定選單，不是離開設定
+                closeLabel = stringResource(R.string.settings_back),
+                onClose = onBack,
             )
         },
     ) { inner ->
@@ -84,192 +175,14 @@ fun SettingsScreen(
                 .padding(start = 22.dp, end = 22.dp, top = 8.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            SectionTitle(stringResource(R.string.settings_appearance))
-            // 圈選，不是 M3 的 SegmentedButton —— 它靠容器色分辨選中與否，
-            // 在這套低對比色票上兩個狀態幾乎看不出差別。
-            BallotRow(
-                labels = DarkModePreference.entries.map { it.label() },
-                selectedIndex = DarkModePreference.entries.indexOf(settings.darkMode),
-                onSelect = { onChange(settings.copy(darkMode = DarkModePreference.entries[it])) },
-            )
-
-            Hairline(Modifier.padding(vertical = 10.dp))
-
-            SectionTitle(stringResource(R.string.settings_targets))
-            TargetField(
-                label = stringResource(R.string.nutrient_calories) + "（" + stringResource(R.string.unit_kcal) + "）",
-                value = settings.calorieTarget,
-                max = NutriSettings.MAX_CALORIE_TARGET,
-            ) { onChange(settings.copy(calorieTarget = it)) }
-            TargetField(
-                label = stringResource(R.string.nutrient_protein) + "（g）",
-                value = settings.proteinTargetG,
-                max = NutriSettings.MAX_MACRO_TARGET,
-            ) { onChange(settings.copy(proteinTargetG = it)) }
-            TargetField(
-                label = stringResource(R.string.nutrient_fat) + "（g）",
-                value = settings.fatTargetG,
-                max = NutriSettings.MAX_MACRO_TARGET,
-            ) { onChange(settings.copy(fatTargetG = it)) }
-            TargetField(
-                label = stringResource(R.string.nutrient_carbs) + "（g）",
-                value = settings.carbsTargetG,
-                max = NutriSettings.MAX_MACRO_TARGET,
-            ) { onChange(settings.copy(carbsTargetG = it)) }
-
-            Hairline(Modifier.padding(vertical = 10.dp))
-
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // 開關固定 46dp 寬，說明文字要自己讓出間距，不然會頂到它身上
-                Column(Modifier.weight(1f).padding(end = 16.dp)) {
-                    Text(stringResource(R.string.settings_show_extended))
-                    Text(
-                        stringResource(R.string.settings_show_extended_help),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                NutriSwitch(
-                    checked = settings.showExtendedNutrients,
-                    onCheckedChange = { onChange(settings.copy(showExtendedNutrients = it)) },
+            when (page) {
+                SettingsPage.APPEARANCE -> AppearanceSection(settings, onChange)
+                SettingsPage.TARGETS -> TargetsSection(settings, onChange)
+                SettingsPage.AI -> AiSection(settings, onChange)
+                SettingsPage.DRIVE -> DriveSection(
+                    settings, driveMessage, driveBusy, onConnectDrive, onBackupNow, onDisconnectDrive,
                 )
-            }
-
-            Hairline(Modifier.padding(vertical = 10.dp))
-
-            SectionTitle(stringResource(R.string.settings_gemini))
-            Text(
-                stringResource(R.string.settings_api_key_help),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            NutriTextField(
-                value = settings.geminiApiKey,
-                onValueChange = { onChange(settings.copy(geminiApiKey = it.trim())) },
-                label = stringResource(R.string.settings_api_key),
-                placeholder = stringResource(R.string.settings_api_key_hint),
-                // key 不該直接顯示在畫面上 —— 截圖或旁人看到就等於外流
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            TextAction(
-                stringResource(R.string.settings_paste),
-                onClick = {
-                    clipboardText(context)?.let { onChange(settings.copy(geminiApiKey = it.trim())) }
-                },
-            )
-            ModelField(
-                value = settings.geminiModel,
-                onChange = { onChange(settings.copy(geminiModel = it)) },
-            )
-            Text(
-                stringResource(R.string.settings_model_help),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            Hairline(Modifier.padding(vertical = 10.dp))
-
-            // 雲端擺在本地上面：連結之後備份是自動發生的，這一區才是預設的路；
-            // 匯出／匯入是不依賴帳號的退路，退路擺在下面。
-            SectionTitle(stringResource(R.string.drive_section))
-            Text(
-                stringResource(R.string.drive_help),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                stringResource(R.string.drive_scope_note),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.outline,
-            )
-            if (!settings.driveBackupEnabled) {
-                // 還沒連結時這是整頁的主要動作，所以是實心墨章，跟匯出同一個長相。
-                StampButton(
-                    label = stringResource(R.string.drive_connect),
-                    onClick = onConnectDrive,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            } else {
-                // 帳號與上次備份時間都要講：少了它們，使用者沒辦法確認這件事到底
-                // 有沒有在動，而備份最怕的就是「以為有在備份」。
-                if (settings.driveAccount.isNotBlank()) {
-                    Text(
-                        withNumerals(stringResource(R.string.drive_account, settings.driveAccount)),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Text(
-                    withNumerals(
-                        stringResource(R.string.drive_last_backup, lastBackupLabel(settings.lastBackupAt))
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                // 連結之後備份就是自動的了，這顆只是「現在就跑一次」——
-                // 形狀留著（看得出跟下面幾顆是同一類東西），份量用空心退掉。
-                StampButton(
-                    label = stringResource(R.string.drive_backup_now),
-                    onClick = onBackupNow,
-                    color = Color.Transparent,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-                // 同樣是章，只是轉朱紅：形狀一致才看得出它跟上面那顆是同一層的動作，
-                // 顏色負責講「這顆會關掉一直在幫你做事的東西」。
-                StampButton(
-                    label = stringResource(R.string.drive_disconnect),
-                    onClick = onDisconnectDrive,
-                    destructive = true,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-            }
-            // 轉圈的圓形在這個滿是規線的版面上很突兀，用規線自己的語彙表達等待
-            if (driveBusy) {
-                IndeterminateRule(Modifier.padding(top = 4.dp))
-            }
-            driveMessage?.let {
-                Text(
-                    withNumerals(it),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-
-            Hairline(Modifier.padding(vertical = 10.dp))
-
-            SectionTitle(stringResource(R.string.settings_data))
-            // 匯出與匯入是同一件事的兩個方向，所以共用一段敘述、擺在一起，
-            // 結果訊息也只有一行 —— 兩行訊息並排會分不清哪一行是誰的。
-            Text(
-                stringResource(R.string.csv_help),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            StampButton(
-                label = stringResource(R.string.export_csv),
-                onClick = onExportCsv,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-            // 同樣是章，只有底色退一階：形狀相同才讀得出「這兩個是一對」，
-            // 深灰負責講「這一顆是反方向的那個」。
-            StampButton(
-                label = stringResource(R.string.import_csv),
-                onClick = onImportCsv,
-                color = NutrientColors.StampSecondary,
-                modifier = Modifier.padding(top = 8.dp),
-            )
-            dataMessage?.let {
-                Text(
-                    withNumerals(it),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
+                SettingsPage.DATA -> DataSection(dataMessage, onExportCsv, onImportCsv)
             }
         }
     }
@@ -286,6 +199,214 @@ fun SettingsScreen(
     }
 }
 
+@Composable
+private fun AppearanceSection(settings: NutriSettings, onChange: (NutriSettings) -> Unit) {
+    // 圈選，不是 M3 的 SegmentedButton —— 它靠容器色分辨選中與否，
+    // 在這套低對比色票上兩個狀態幾乎看不出差別。
+    BallotRow(
+        labels = DarkModePreference.entries.map { it.label() },
+        selectedIndex = DarkModePreference.entries.indexOf(settings.darkMode),
+        onSelect = { onChange(settings.copy(darkMode = DarkModePreference.entries[it])) },
+    )
+
+}
+
+@Composable
+private fun TargetsSection(settings: NutriSettings, onChange: (NutriSettings) -> Unit) {
+    TargetField(
+        label = stringResource(R.string.nutrient_calories) + "（" + stringResource(R.string.unit_kcal) + "）",
+        value = settings.calorieTarget,
+        max = NutriSettings.MAX_CALORIE_TARGET,
+    ) { onChange(settings.copy(calorieTarget = it)) }
+    TargetField(
+        label = stringResource(R.string.nutrient_protein) + "（g）",
+        value = settings.proteinTargetG,
+        max = NutriSettings.MAX_MACRO_TARGET,
+    ) { onChange(settings.copy(proteinTargetG = it)) }
+    TargetField(
+        label = stringResource(R.string.nutrient_fat) + "（g）",
+        value = settings.fatTargetG,
+        max = NutriSettings.MAX_MACRO_TARGET,
+    ) { onChange(settings.copy(fatTargetG = it)) }
+    TargetField(
+        label = stringResource(R.string.nutrient_carbs) + "（g）",
+        value = settings.carbsTargetG,
+        max = NutriSettings.MAX_MACRO_TARGET,
+    ) { onChange(settings.copy(carbsTargetG = it)) }
+
+    Hairline(Modifier.padding(vertical = 10.dp))
+
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // 開關固定 46dp 寬，說明文字要自己讓出間距，不然會頂到它身上
+        Column(Modifier.weight(1f).padding(end = 16.dp)) {
+            Text(stringResource(R.string.settings_show_extended))
+            Text(
+                stringResource(R.string.settings_show_extended_help),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        NutriSwitch(
+            checked = settings.showExtendedNutrients,
+            onCheckedChange = { onChange(settings.copy(showExtendedNutrients = it)) },
+        )
+    }
+
+}
+
+@Composable
+private fun AiSection(settings: NutriSettings, onChange: (NutriSettings) -> Unit) {
+    val context = LocalContext.current
+    Text(
+        stringResource(R.string.settings_api_key_help),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    NutriTextField(
+        value = settings.geminiApiKey,
+        onValueChange = { onChange(settings.copy(geminiApiKey = it.trim())) },
+        label = stringResource(R.string.settings_api_key),
+        placeholder = stringResource(R.string.settings_api_key_hint),
+        // key 不該直接顯示在畫面上 —— 截圖或旁人看到就等於外流
+        visualTransformation = PasswordVisualTransformation(),
+        modifier = Modifier.fillMaxWidth(),
+    )
+    TextAction(
+        stringResource(R.string.settings_paste),
+        onClick = {
+            clipboardText(context)?.let { onChange(settings.copy(geminiApiKey = it.trim())) }
+        },
+    )
+    ModelField(
+        value = settings.geminiModel,
+        onChange = { onChange(settings.copy(geminiModel = it)) },
+    )
+    Text(
+        stringResource(R.string.settings_model_help),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+
+}
+
+/**
+ * 雲端排在「資料」前面（見 [SettingsPage] 的順序）：連結之後備份是自動發生的，
+ * 這是預設的路；匯出／匯入是不依賴帳號的退路，退路擺在下面。
+ */
+@Composable
+private fun DriveSection(
+    settings: NutriSettings,
+    driveMessage: String?,
+    driveBusy: Boolean,
+    onConnectDrive: () -> Unit,
+    onBackupNow: () -> Unit,
+    onDisconnectDrive: () -> Unit,
+) {
+    Text(
+        stringResource(R.string.drive_help),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Text(
+        stringResource(R.string.drive_scope_note),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.outline,
+    )
+    if (!settings.driveBackupEnabled) {
+        // 還沒連結時這是整頁的主要動作，所以是實心墨章，跟匯出同一個長相。
+        StampButton(
+            label = stringResource(R.string.drive_connect),
+            onClick = onConnectDrive,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+    } else {
+        // 帳號與上次備份時間都要講：少了它們，使用者沒辦法確認這件事到底
+        // 有沒有在動，而備份最怕的就是「以為有在備份」。
+        if (settings.driveAccount.isNotBlank()) {
+            Text(
+                withNumerals(stringResource(R.string.drive_account, settings.driveAccount)),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Text(
+            withNumerals(
+                stringResource(R.string.drive_last_backup, lastBackupLabel(settings.lastBackupAt))
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        // 連結之後備份就是自動的了，這顆只是「現在就跑一次」——
+        // 形狀留著（看得出跟下面幾顆是同一類東西），份量用空心退掉。
+        StampButton(
+            label = stringResource(R.string.drive_backup_now),
+            onClick = onBackupNow,
+            color = Color.Transparent,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        // 同樣是章，只是轉朱紅：形狀一致才看得出它跟上面那顆是同一層的動作，
+        // 顏色負責講「這顆會關掉一直在幫你做事的東西」。
+        StampButton(
+            label = stringResource(R.string.drive_disconnect),
+            onClick = onDisconnectDrive,
+            destructive = true,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+    }
+    // 轉圈的圓形在這個滿是規線的版面上很突兀，用規線自己的語彙表達等待
+    if (driveBusy) {
+        IndeterminateRule(Modifier.padding(top = 4.dp))
+    }
+    driveMessage?.let {
+        Text(
+            withNumerals(it),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+    }
+
+}
+
+@Composable
+private fun DataSection(
+    dataMessage: String?,
+    onExportCsv: () -> Unit,
+    onImportCsv: () -> Unit,
+) {
+    // 匯出與匯入是同一件事的兩個方向，所以共用一段敘述、擺在一起，
+    // 結果訊息也只有一行 —— 兩行訊息並排會分不清哪一行是誰的。
+    Text(
+        stringResource(R.string.csv_help),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    StampButton(
+        label = stringResource(R.string.export_csv),
+        onClick = onExportCsv,
+        modifier = Modifier.padding(top = 4.dp),
+    )
+    // 同樣是章，只有底色退一階：形狀相同才讀得出「這兩個是一對」，
+    // 深灰負責講「這一顆是反方向的那個」。
+    StampButton(
+        label = stringResource(R.string.import_csv),
+        onClick = onImportCsv,
+        color = NutrientColors.StampSecondary,
+        modifier = Modifier.padding(top = 8.dp),
+    )
+    dataMessage?.let {
+        Text(
+            withNumerals(it),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+    }
+}
+
 /**
  * 確認面板的內文。三句話分開放，是因為後兩種情況常常不存在 ——
  * 硬湊成一句就會變成「另外 0 筆已經有了」這種讀起來像出錯的句子。
@@ -294,10 +415,10 @@ fun SettingsScreen(
 private fun importSummary(preview: ImportPreview): String = buildList {
     add(
         stringResource(
-            R.string.import_summary_new,
-            preview.newEntries.size,
-            preview.firstDate.orEmpty(),
-            preview.lastDate.orEmpty(),
+    R.string.import_summary_new,
+    preview.newEntries.size,
+    preview.firstDate.orEmpty(),
+    preview.lastDate.orEmpty(),
         )
     )
     if (preview.duplicates > 0) {

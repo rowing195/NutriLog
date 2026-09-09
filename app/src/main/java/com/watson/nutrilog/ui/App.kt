@@ -240,7 +240,19 @@ fun NutriLogApp(viewModel: NutriViewModel) {
 
         Screen.Settings -> {
             BackHandler { viewModel.backToToday() }
-            SettingsScreen(
+            SettingsMenuScreen(
+                settings = viewModel.settings,
+                onOpen = viewModel::openSettingsPage,
+                onClose = viewModel::backToToday,
+            )
+        }
+
+        // 設定是整個 app 唯一有兩層的地方，所以這裡的返回鍵回的是設定選單而不是
+        // 今日頁。子頁進得去卻只能一路退回今日，等於每改一項設定都要重新點兩次。
+        is Screen.SettingsDetail -> {
+            BackHandler { viewModel.goTo(Screen.Settings) }
+            SettingsDetailScreen(
+                page = screen.page,
                 settings = viewModel.settings,
                 dataMessage = viewModel.dataMessage,
                 importPreview = viewModel.importPreview,
@@ -257,7 +269,7 @@ fun NutriLogApp(viewModel: NutriViewModel) {
                 onConnectDrive = viewModel::connectDrive,
                 onBackupNow = viewModel::backupNow,
                 onDisconnectDrive = viewModel::disconnectDrive,
-                onClose = viewModel::backToToday,
+                onBack = { viewModel.goTo(Screen.Settings) },
             )
         }
     }
