@@ -18,6 +18,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -30,8 +31,25 @@ import java.time.LocalDate
  * 常吃清單 ＋ 文字辨識，合成一個畫面。
  *
  * 這條路的典型情境是「忘記拍照，事後想到才補登」——這時候第一反應通常是
- * 「這不是常吃的那個嗎」，而不是想打字給 AI 猜。所以常吃清單放最上面，
+ * 「這不是常吃的那個嗎」，而不是想打字給 AI 猜。所以常吃清單佔畫面主體，
  * 點了就直接帶進表單；真的找不到才往下用文字描述、交給 AI 估算。
+ *
+ * **兩條路共用同一個輸入框，而且程式內搜尋不是一個動作。** 打字就即時篩常吃／最近
+ * （純記憶體，見 [filterByQuery]），找得到直接點那一列；篩到空的時候，底下那顆章
+ * 就是出路。
+ *
+ * 一個框同時服務兩件事，代價是使用者為了讓 AI 估得準會打得很細（「手沖藝妓黑咖啡」），
+ * 而那種字串用整串比對必定篩不到自己庫裡的「手沖黑咖啡」。所以篩選是模糊的
+ * （見 [matchScore]），近似的也留著並排在後面 —— 這個畫面最不該做的事，
+ * 就是在庫裡明明有相近品項時還理直氣壯地叫使用者去問 AI。
+ *
+ * 刻意不做成上下兩個框、也不做成兩顆同級的按鍵：那兩種都要使用者**在打字之前**
+ * 先決定要用哪一種搜尋，而選錯是安靜的 —— 只想篩清單卻送去 AI，等於白花一次
+ * API 呼叫和好幾秒；想問 AI 卻打進篩選框，只會看到空清單、像是壞了。一個框則
+ * 沒有東西要選：清單自己收斂，收斂到空的那一刻正好就是該問 AI 的時候。
+ *
+ * 同理，鍵盤上的送出鍵**不送去 AI**，只收鍵盤（清單早就邊打邊篩完了）。
+ * AI 要花錢也要等，那條路一定要是明確按下那顆章才走。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,7 +62,12 @@ fun TextLookupScreen(
     onClose: () -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
+    val focusManager = LocalFocusManager.current
     val submit = { if (query.isNotBlank()) onLookup(query) }
+
+    val shownFrequent = remember(query, frequent) { frequent.filterByQuery(query) }
+    val shownRecent = remember(query, recent) { recent.filterByQuery(query) }
+    val hasMatch = shownFrequent.isNotEmpty() || shownRecent.isNotEmpty()
 
     Scaffold(
         modifier = Modifier.dismissKeyboardOnTap(),
@@ -62,20 +85,46 @@ fun TextLookupScreen(
                 .padding(inner)
                 .imePadding(),
         ) {
+            NutriTextField(
+                value = query,
+                onValueChange = { query = it },
+                label = stringResource(R.string.text_lookup_label),
+                placeholder = stringResource(R.string.text_lookup_placeholder),
+                leading = { SearchMark(MaterialTheme.colorScheme.onSurfaceVariant) },
+                // 清除鈕只在有內容時出現：手機上要使用者自己選取後刪掉太費事
+                trailing = if (query.isEmpty()) null else {
+                    {
+                        CircleIconButton(
+                            onClick = { query = "" },
+                            size = 24.dp,
+                            borderColor = MaterialTheme.colorScheme.outlineVariant,
+                            borderWidth = 1.dp,
+                        ) { CloseMark(MaterialTheme.colorScheme.onSurfaceVariant, size = 12.dp) }
+                    }
+                },
+                // 送出鍵只收鍵盤：篩選是邊打邊做的，這裡沒有「送出」這件事，
+                // 而收掉鍵盤正好把被蓋住的清單讓出來。
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 22.dp, vertical = 8.dp),
+            )
+
             // 跟搜尋頁一樣：可能是從別天跳回來才補登，不講的話不知道會記到哪天。
             if (targetDate != LocalDate.now()) {
                 Text(
                     withNumerals(stringResource(R.string.search_target_date, targetDate.displayLabel())),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    modifier = Modifier.padding(horizontal = 22.dp, vertical = 4.dp),
                 )
             }
 
             // FoodLibrary 內部是 TabRow + HorizontalPager 兩個手足元件，
             // 得放進 Column（而不是 Box）才會上下疊放而不是互相蓋住。
             Column(Modifier.weight(1f).fillMaxWidth()) {
-                FoodLibrary(frequent, recent, onReuseSuggestion)
+                FoodLibrary(shownFrequent, shownRecent, query.isNotBlank(), onReuseSuggestion)
             }
 
             Hairline()
@@ -86,8 +135,17 @@ fun TextLookupScreen(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                // 這一行要接得上使用者剛做完的動作，而那有三種：還沒打字、打了但
+                // 上面篩得到東西、打了而且什麼都沒有。**篩得到的時候不能說「沒有」**
+                // —— 上面明明就列著幾筆相近的，那句話會顯得這個 app 沒在看自己的清單。
                 Text(
-                    stringResource(R.string.text_lookup_divider),
+                    withNumerals(
+                        when {
+                            query.isBlank() -> stringResource(R.string.text_lookup_divider)
+                            hasMatch -> stringResource(R.string.text_lookup_divider_near)
+                            else -> stringResource(R.string.text_lookup_divider_query, query.trim())
+                        }
+                    ),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                 )
@@ -97,20 +155,12 @@ fun TextLookupScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
-                NutriTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    label = stringResource(R.string.text_lookup_label),
-                    placeholder = stringResource(R.string.text_lookup_placeholder),
-                    // 單行 + 送出鍵：這裡打完通常就想直接查，不需要換行
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { submit() }),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-
                 StampButton(
                     label = stringResource(R.string.text_lookup_go),
                     enabled = query.isNotBlank(),
+                    // 欄位現在在畫面最上面，離這顆章很遠 —— 不講一句的話，
+                    // 使用者看到的就只是一顆按不下去的鈕。
+                    helper = if (query.isBlank()) stringResource(R.string.text_lookup_need_query) else null,
                     onClick = submit,
                 )
             }

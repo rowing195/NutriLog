@@ -118,7 +118,7 @@ fun SearchScreen(
             }
 
             if (query.isBlank()) {
-                FoodLibrary(frequent, recent, onReuseSuggestion)
+                FoodLibrary(frequent, recent, filtered = false, onReuseSuggestion)
             } else {
                 SearchResults(results, onOpenDay, onReuseEntry)
             }
@@ -126,12 +126,19 @@ fun SearchScreen(
     }
 }
 
-/** 常吃／最近兩頁，可以左右滑動切換。TextLookupScreen 也共用這個元件。 */
+/**
+ * 常吃／最近兩頁，可以左右滑動切換。TextLookupScreen 也共用這個元件。
+ *
+ * 兩份清單由呼叫端決定要不要先篩過（常吃頁會，見 [filterByQuery]）。這裡只需要
+ * 知道 [filtered] —— 空清單要講的話不一樣：「篩不到」和「還沒有紀錄」混為一談，
+ * 會讓使用者以為自己的紀錄不見了。
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun FoodLibrary(
     frequent: List<FoodSuggestion>,
     recent: List<FoodSuggestion>,
+    filtered: Boolean,
     onReuse: (FoodSuggestion) -> Unit,
 ) {
     val pager = rememberPagerState(pageCount = { 2 })
@@ -150,7 +157,7 @@ internal fun FoodLibrary(
         // 「最近」那頁不顯示次數：它的排序依據就是日期，次數在那裡只是雜訊
         val items = if (page == 0) frequent else recent
         if (items.isEmpty()) {
-            EmptyLibraryHint(isFrequentPage = page == 0)
+            EmptyLibraryHint(isFrequentPage = page == 0, filtered = filtered)
         } else {
             LazyColumn(
                 Modifier.fillMaxSize(),
@@ -172,7 +179,7 @@ internal fun FoodLibrary(
 }
 
 @Composable
-private fun EmptyLibraryHint(isFrequentPage: Boolean) {
+private fun EmptyLibraryHint(isFrequentPage: Boolean, filtered: Boolean) {
     Column(
         Modifier
             .fillMaxSize()
@@ -182,7 +189,11 @@ private fun EmptyLibraryHint(isFrequentPage: Boolean) {
     ) {
         Text(
             stringResource(
-                if (isFrequentPage) R.string.search_empty_frequent else R.string.search_empty_recent
+                when {
+                    filtered -> R.string.search_no_match
+                    isFrequentPage -> R.string.search_empty_frequent
+                    else -> R.string.search_empty_recent
+                }
             ),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

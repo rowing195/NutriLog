@@ -914,9 +914,11 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
 
         private const val LIBRARY_LIMIT = 60
         private const val SEARCH_DEBOUNCE_MS = 250L
-        private val WHITESPACE = Regex("\\s+")
     }
 }
+
+/** 逐筆搜尋與食物庫篩選共用同一套拆字規則，所以放在檔案層級而不是 companion 裡。 */
+private val WHITESPACE = Regex("\\s+")
 
 /** 模型的估算值 -> 可以入庫的一筆紀錄。 */
 private fun DetectedFood.toEntry(date: LocalDate, meal: Meal, loggedAt: Long, portionMultiplier: Double = 1.0) = FoodEntry(
@@ -1030,6 +1032,71 @@ fun Double.asInputValue(): String =
  */
 fun FoodEntry.matches(token: String): Boolean =
     name.contains(token, ignoreCase = true) || servingText.contains(token, ignoreCase = true)
+
+/**
+ * 近似命中的門檻：關鍵字的相鄰兩字裡，要有這個比例以上出現在品項上才算數。
+ *
+ * 這是整套模糊比對唯一的旋鈕。調高會退回「打太細就找不到」，調低會開始推薦
+ * 只共用一個常見詞的東西（「咖啡」誰都有）。0.3 讓實際會遇到的兩種寫法都過得了：
+ * 「手沖藝妓黑咖啡」對上「手沖黑咖啡」是 0.5，「美式黑咖啡」對上它也是 0.5。
+ */
+private const val NEAR_MATCH_THRESHOLD = 0.3
+
+/** 整串命中。刻意大於近似分數的上限 1.0，理由見 [matchScore]。 */
+private const val EXACT_MATCH_SCORE = 2.0
+
+/**
+ * 一個品項對關鍵字的相符程度。0 是完全沒關係，[EXACT_MATCH_SCORE] 是整串命中，
+ * 中間是相鄰兩字的重疊比例。
+ *
+ * **不能只用 `contains`。** 這個框同時服務兩件事：篩自己的清單，以及把描述交給 AI。
+ * 而使用者為了讓 AI 估得準，打的往往是「手沖藝妓黑咖啡」這種很細的描述 ——
+ * 整串比對的話，庫裡明明有「手沖黑咖啡」也會被判成找不到，畫面就理直氣壯地叫他
+ * 去問 AI。反過來他打「美式黑咖啡」時也一樣。那正是這個畫面最該避免的事。
+ *
+ * 所以近似的部分改看**相鄰兩字**（bigram）的重疊比例：中文沒有空白可以拆詞，
+ * 而相鄰兩字是不需要斷詞工具就拿得到、又比單字精確的東西（單字的話「咖」會把
+ * 咖哩也拉進來，「咖啡」不會）。
+ *
+ * 整串命中給的是**比 1 大**的分數，不是 1.0：近似的比例上限就是 1.0（所有相鄰兩字
+ * 都湊得到，但整串不在裡面），兩者撞在一起的話「真的有這個」就不保證排在
+ * 「長得有點像」前面了。
+ *
+ * **它沒有語意。** 「拿鐵」和「牛奶咖啡」一個字都不共用，這裡就是配不起來；
+ * 那種事只有 AI 做得到，而那正是底下那顆章存在的理由。
+ */
+fun FoodSuggestion.matchScore(query: String): Double {
+    val hay = (name + " " + servingText).lowercase()
+    val compact = query.filterNot(Char::isWhitespace).lowercase()
+    if (compact.isEmpty()) return 0.0
+
+    // 整串就在裡面，或使用者自己用空白拆好的關鍵字全部命中（「珍奶 大杯」——
+    // 那兩個字分別落在名稱與份量欄位，合起來反而找不到）
+    val tokens = query.trim().split(WHITESPACE).filter { it.isNotBlank() }
+    if (hay.contains(compact)) return EXACT_MATCH_SCORE
+    if (tokens.size > 1 && tokens.all { hay.contains(it.lowercase()) }) return EXACT_MATCH_SCORE
+
+    if (compact.length < 2) return 0.0
+    val grams = compact.windowed(2).toSet()
+    return grams.count(hay::contains).toDouble() / grams.size
+}
+
+/**
+ * 依關鍵字篩食物庫（常吃／最近），並把最像的排前面。空字串就原封不動回傳。
+ *
+ * 排序用 [sortedByDescending]，它是穩定的 —— 同分的維持原本的順序，
+ * 所以整串命中的那幾筆仍然照「常吃」的次數／「最近」的日期排。
+ *
+ * **這是純記憶體篩選，不查資料庫**，所以不需要 debounce：常吃與最近整份都已經在
+ * [NutriViewModel] 裡（各最多 LIBRARY_LIMIT 筆），打一個字就能立刻收斂。
+ */
+fun List<FoodSuggestion>.filterByQuery(query: String): List<FoodSuggestion> {
+    if (query.isBlank()) return this
+    return map { it to it.matchScore(query) }
+        .filter { it.second >= NEAR_MATCH_THRESHOLD }
+        .sortedByDescending { it.second }
+        .map { it.first }
+}
 
 /**
  * 食物庫的一項 -> 可以直接存的草稿。

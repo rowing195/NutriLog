@@ -89,6 +89,7 @@
     <string name="search_no_result">找不到符合的紀錄。多個關鍵字要全部命中，試著少打一點。</string>
     <string name="search_empty_frequent">還沒有足夠的紀錄。這份清單是從你自己吃過的東西長出來的，記幾天之後就會有內容。</string>
     <string name="search_empty_recent">還沒有任何紀錄。</string>
+    <string name="search_no_match">找不到符合的品項。</string>
 
     <!-- 歷史（月曆） -->
     <string name="history_title">歷史</string>
@@ -160,10 +161,13 @@
 
     <!-- 文字辨識 -->
     <string name="text_lookup_title">常吃／文字輸入</string>
-    <string name="text_lookup_divider">沒有嗎？用文字描述</string>
-    <string name="text_lookup_hint">用一句話描述吃了什麼，AI 會估算營養素。講得越具體越準 —— 店名、品項、大小杯、甜度都可以寫。</string>
+    <string name="text_lookup_divider">沒有嗎？用文字描述交給 AI</string>
+    <string name="text_lookup_divider_query">沒有「%1$s」？交給 AI 估算</string>
+    <string name="text_lookup_divider_near">不是上面這些？交給 AI 估算</string>
+    <string name="text_lookup_hint">講得越具體越準 —— 店名、品項、大小杯、甜度都可以寫。</string>
+    <string name="text_lookup_need_query">在上面打一句描述就可以估算</string>
     <string name="text_lookup_label">吃了什麼</string>
-    <string name="text_lookup_placeholder">例如：CoCo 珍珠奶茶 大杯半糖</string>
+    <string name="text_lookup_placeholder">例如：滷蛋；或 CoCo 珍奶 大杯半糖</string>
     <string name="text_lookup_examples">試試這些：</string>
     <string name="text_lookup_go">估算營養素</string>
 
