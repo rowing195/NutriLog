@@ -12,6 +12,7 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.EnterExitState
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -23,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
@@ -166,15 +168,38 @@ fun NutriLogApp(viewModel: NutriViewModel) {
         },
         label = "screen",
     ) { screen ->
-    // 「蓋滿了沒」。`currentState` 要等整段轉場落定才會翻成 Visible，所以每個畫面
-    // 自己的進場動畫（月曆逐週落下、設定逐列右進…）都排在蓋滿之後才開始 ——
-    // 兩件事同時做的話，紙還在升、內容已經在動，讀起來是一團亂。
-    //
+    // 「蓋滿了沒」。每個畫面自己的進場動畫（月曆逐週落下、設定逐列右進…）都排在
+    // 這之後才開始 —— 兩件事同時做的話，紙還在升、內容已經在動，讀起來是一團亂。
     // 沒有自己那套的畫面就吃底下這個預設淡入，不會在蓋滿的瞬間硬跳出來。
-    // 只擋「還沒蓋滿」那一段（`PreEnter`）。不能寫成 `== Visible` —— 退場時
-    // `currentState` 會走到 `PostExit`，那樣正在被蓋住的舊畫面會一路淡掉，
+    //
+    // **交棒的點是「蓋到 [COVER_HANDOFF]」而不是「轉場結束」。** 光等
+    // `currentState` 翻面的話，[CoverEasing] 那條尾巴很長的曲線會留下一段
+    // 「紙看起來早就到了、畫面卻還是空白」的空檔。實測（倍率 8、連拍上時間戳，
+    // 各跑兩次）：等轉場結束是空白 3～4 幀、舊畫面消失到新內容出現隔 1635／1917ms；
+    // 交棒點拉到 0.97 之後是 1～2 幀、隔 1077／1295ms —— 換算回正常速度省掉約 70ms。
+    //
+    // 紙是**由下往上**升的，所以剩下那 3% 是畫面**最上面**那幾十個 pixel，
+    // 而且它正落在 [EDGE_FADE_DP] 那段羽化裡、本來就是半透明的。實測那一刻舊畫面
+    // 早就看不見了，交棒沒有留下任何破綻。
+    //
+    // 第一個條件是給**返回**用的：那個方向新畫面是 `EnterTransition.None`
+    // （動的是上面那張紙），它的 `currentState` 一開始就不是 `PreEnter`，
+    // 不能讓它跟著等 [COVER_HANDOFF]。順帶一提這裡不能寫成 `== Visible` ——
+    // 退場時 `currentState` 會走到 `PostExit`，那樣正在被蓋住的舊畫面會一路淡掉，
     // 看起來是「今日頁自己消失」而不是「被一張紙蓋住」。
-    val covered = transition.currentState != EnterExitState.PreEnter
+    //
+    // 用 `derivedStateOf` 包起來：`coverProgress` 每一幀都在變，直接拿去比大小
+    // 等於整個畫面每幀重組一次，包成布林值之後只有真的翻面才通知讀它的人。
+    val coverProgress = transition.animateFloat(
+        transitionSpec = { tween(COVER_MS, easing = CoverEasing) },
+        label = "coverProgress",
+    ) { if (it == EnterExitState.PreEnter) 0f else 1f }
+    val covered by remember(transition, coverProgress) {
+        derivedStateOf {
+            transition.currentState != EnterExitState.PreEnter ||
+                coverProgress.value >= COVER_HANDOFF
+        }
+    }
     val bodyAlpha by animateFloatAsState(
         targetValue = if (covered) 1f else 0f,
         animationSpec = tween(BODY_FADE_MS, easing = CoverEasing),
@@ -405,6 +430,9 @@ private val CoverEasing = CubicBezierEasing(0.32f, 0f, 0.18f, 1f)
 /** 紙的上緣那段漸層有多長、頂端剩多少不透明度。 */
 private val EDGE_FADE_DP = 120.dp
 private const val EDGE_ALPHA = 0.5f
+
+/** 蓋到幾成就把棒子交給畫面自己的進場動畫。剩下的是最底下那幾十個 pixel。 */
+private const val COVER_HANDOFF = 0.97f
 
 /**
  * 「這一層的紙蓋滿了沒」。每個畫面自己的進場動畫都等這個變 true 才開始。
