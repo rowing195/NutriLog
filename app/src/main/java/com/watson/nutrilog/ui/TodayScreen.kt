@@ -13,6 +13,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -53,6 +55,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.ui.draw.blur
@@ -72,6 +78,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.sp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.NutriSettings
@@ -1043,18 +1050,44 @@ private fun MacroColumn(
     }
 }
 
-/**
- * 進階營養素。
- *
- * 原本是四個有底色的 chip，還為了窄螢幕加了橫向捲動 —— 而那排能捲的幅度只有
- * 幾十 dp，手指很容易滑過頭把位移傳給外層的日分頁器，變成不小心換了一天，
- * 所以又補了一個 nestedScroll 去吃掉溢出的捲動。整串工程是為了「四個色塊要排一列」
- * 而長出來的。這裡改成一行純文字：不捲動，就沒有那條路徑，那些程式碼一起消失。
- */
+/** 進階營養素：一行四個值，放不下就左右捲（理由看函式裡的長註解）。 */
 @Composable
 private fun ExtraLine(totals: Totals) {
+    // **一行到底，放不下就左右捲。**
+    //
+    // 不能讓它換行：高度一變動，日分頁器拖到一半時兩天的餐別清單就對不齊
+    // —— 鈉填得出來的那天兩行、沒填的那天一行，滑一次就看得出來。
+    // 也不能什麼都不做：Row 溢出是**默默切掉**，實測 800px 寬時最後一項
+    // 只剩「飽和脂肪 93.」，沒有刪節號也沒有任何路可以把它拉出來。
+    //
+    // v1.9.0 曾經把橫向捲動拿掉過，**但那時候的前提現在不成立了**：那是四個
+    // 有底色有內距的 chip，連一般寬度的螢幕都溢出，所以每次捲都在那幾十 dp
+    // 裡打轉、一滑過頭就換了一天。現在是純文字，1080 寬實測只用掉 781 ——
+    // **絕大多數螢幕根本沒有捲動範圍**，沒範圍就不會有位移外溢，那條路徑
+    // 等於不存在；拖這一行照樣換日，和畫面上其他地方一致。
+    val state = rememberScrollState()
+    // 真的捲得動的時候（窄螢幕）把溢出的位移吃掉，不要傳給日分頁器 ——
+    // 不吃的話捲到底那一瞬間手指還沒放，剩下的位移就直接換了一天，
+    // 而使用者以為自己只是在看這一行。規則就是「這一行捲得動，它就是自己的
+    // 地盤」；捲不動時 maxValue 是 0，什麼都不吃，位移照樣上分頁器。
+    val keepInside = remember(state) {
+        object : NestedScrollConnection {
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource,
+            ): Offset = if (state.maxValue > 0) Offset(available.x, 0f) else Offset.Zero
+
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity =
+                if (state.maxValue > 0) Velocity(available.x, 0f) else Velocity.Zero
+        }
+    }
+
     Row(
-        Modifier.fillMaxWidth(),
+        Modifier
+            .fillMaxWidth()
+            .nestedScroll(keepInside)
+            .horizontalScroll(state),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         ExtraItem(stringResource(R.string.nutrient_sugar), totals.sugarG.fmt(), "g")
