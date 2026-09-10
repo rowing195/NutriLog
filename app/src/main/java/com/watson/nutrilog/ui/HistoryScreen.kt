@@ -1,8 +1,7 @@
 package com.watson.nutrilog.ui
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutLinearInEasing
-import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Transition
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.updateTransition
@@ -189,7 +188,7 @@ fun HistoryScreen(
                             tween(
                                 durationMillis = GRID_DROP_MS,
                                 delayMillis = weekRowCount(pageMonth) * GRID_STEP_MS,
-                                easing = FastOutSlowInEasing,
+                                easing = LinearOutSlowInEasing,
                             )
                         },
                         label = "summary",
@@ -220,26 +219,35 @@ fun HistoryScreen(
             // 從底邊往上展開（`expandFrom = Bottom`）配上它釘在畫面下緣的位置，
             // 讀起來就是「從下緣升上來」——和常吃頁那組說明文字同一套動作語彙。
             //
-            // 時機是月份 settle 之後（`month` 只在 `settledPage` 才變），所以拖曳
-            // 過程中不會閃；順序是「先落定、再長出來」，也和常吃頁一致。
+            // **看的是 `currentPage` 而不是 settle 後的 `month`。** 前者一過半頁就變，
+            // 所以手指還在拖、新的月份剛過中線時它就開始動了；等 `month` 的話要等
+            // 分頁器整個 fling 加吸附跑完，那是好幾百毫秒的延遲，按鈕會像慢半拍才
+            // 想起來要出現。
+            //
+            // 這是 CLAUDE.md 那條規則明講的例外用法：`currentPage` **只拿來畫**
+            // （這裡是「要不要顯示」），不拿去 commit 成「這就是新的月份」——
+            // 真正決定月份的仍然是上面那條 `settledPage` 的 collector。
+            val pagedMonth = monthOfPage(pagerState.currentPage)
             AnimatedVisibility(
-                visible = month != YearMonth.from(today),
+                visible = pagedMonth != YearMonth.from(today),
+                // 進出都用同一條標準曲線、都不留延遲：這顆章是「就地長高縮矮」，
+                // 不是從畫面外飛進來，兩頭都收慢的曲線才不會在起訖點有稜角。
+                // 進場的淡入曾經晚 50ms 起跑（先看到形狀再看到字），拿掉了 ——
+                // 那 50ms 正是「按了才慢慢才有反應」的來源。
                 enter = expandVertically(
-                    animationSpec = tween(BACK_GROW_MS, easing = LinearOutSlowInEasing),
+                    animationSpec = tween(BACK_GROW_MS, easing = StandardEasing),
                     expandFrom = Alignment.Bottom,
-                ) + fadeIn(
-                    tween(BACK_FADE_MS, BACK_FADE_LAG_MS, LinearOutSlowInEasing),
-                ),
-                // 退場比進場快一倍：滑回本月時它沒有理由賴著不走。
-                exit = fadeOut(tween(BACK_HIDE_MS / 2, easing = FastOutLinearInEasing)) +
-                    shrinkVertically(
-                        animationSpec = tween(BACK_HIDE_MS, easing = FastOutLinearInEasing),
-                        shrinkTowards = Alignment.Bottom,
-                    ),
+                ) + fadeIn(tween(BACK_FADE_MS, easing = StandardEasing)),
+                // 退場仍然比進場快，但不再用會戛然而止的加速曲線。
+                exit = shrinkVertically(
+                    animationSpec = tween(BACK_HIDE_MS, easing = StandardEasing),
+                    shrinkTowards = Alignment.Bottom,
+                ) + fadeOut(tween(BACK_HIDE_MS, easing = StandardEasing)),
             ) {
                 StampButton(
                     label = stringResource(R.string.back_to_this_month),
-                    onClick = { onShiftMonth(monthsBetween(month, today)) },
+                    // 用和「要不要顯示」同一個月份算距離，兩者才不會在拖曳途中對不上。
+                    onClick = { onShiftMonth(monthsBetween(pagedMonth, today)) },
                     color = Color.Transparent,
                     modifier = Modifier.padding(horizontal = 22.dp, vertical = 8.dp),
                 )
@@ -374,7 +382,7 @@ private fun MonthGrid(
                     tween(
                         durationMillis = GRID_DROP_MS,
                         delayMillis = row * GRID_STEP_MS,
-                        easing = FastOutSlowInEasing,
+                        easing = LinearOutSlowInEasing,
                     )
                 },
                 label = "week",
@@ -570,21 +578,43 @@ private fun SummaryStat(label: String, value: String, tint: Color?) {
  *
  * 星期列不在這套動畫裡（見 [HistoryScreen] 裡 `enter` 那段），概況接在最後一週
  * 後面當收尾，所以整段的長度是「週數 × [GRID_STEP_MS] ＋ [GRID_DROP_MS]」，
- * 最壞情況（六週）約 500ms。
+ * 最壞情況（六週）約 640ms。
+ *
+ * **放慢的時候距離要跟著加。** 260ms／14dp 改成 340ms／18dp：只延長時間不加距離，
+ * 同一段路走更久，讀起來是「卡卡的」而不是「慢慢落下」——速度感是距離除以時間，
+ * 要的是把兩個一起往上調。
+ *
+ * 曲線用 [LinearOutSlowInEasing]（起步就有速度、末段收慢）而不是兩頭都慢的
+ * `FastOutSlowInEasing`：這是「落下」，落體不會先慢慢加速；而且起步慢的曲線
+ * 配上放慢之後的時長，第一時間會讀成沒反應。
  */
-private const val GRID_DROP_MS = 260
-private const val GRID_STEP_MS = 40
-private val GRID_DROP_DP = 14.dp
+private const val GRID_DROP_MS = 340
+private const val GRID_STEP_MS = 50
+private val GRID_DROP_DP = 18.dp
 
 /** 這個月要排幾週。[MonthGrid] 與概況的落下順序共用同一個算法。 */
 private fun weekRowCount(month: YearMonth): Int =
     (month.atDay(1).dayOfWeek.value % 7 + month.lengthOfMonth() + 6) / 7
 
-/** 「回到本月」進出場的時長。進場先看到形狀再看到字，退場快一倍。 */
-private const val BACK_GROW_MS = 240
-private const val BACK_FADE_MS = 190
-private const val BACK_FADE_LAG_MS = 50
-private const val BACK_HIDE_MS = 130
+/**
+ * 「回到本月」進出場的時長。
+ *
+ * **響應靠的是觸發點，不是時長。** 它現在跟著 `currentPage` 走（見上面那段），
+ * 過半頁就開始動；淡入也不再延遲起跑。所以就算把時長拉長讓動作更順，
+ * 「按下去多久才有反應」仍然是零。退場仍然比進場快，但不再是戛然而止那種快。
+ */
+private const val BACK_GROW_MS = 260
+private const val BACK_FADE_MS = 220
+private const val BACK_HIDE_MS = 180
+
+/**
+ * 兩頭都收慢的標準曲線（Material 的 standard easing）。
+ *
+ * 這顆章是**就地長高縮矮**、不是從畫面外飛進來，所以進出用同一條 —— 進場用
+ * 減速、退場用加速那套是給「從外面進來、往外面出去」的元件用的，套在原地
+ * 變形的東西上，起訖兩端會出現看得到的稜角。
+ */
+private val StandardEasing = CubicBezierEasing(0.4f, 0f, 0.2f, 1f)
 
 /** 標題跑馬燈裡兩個月份之間的間隔，見 [MonthTitle]。 */
 private val MONTH_TITLE_GAP = 28.dp
