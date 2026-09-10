@@ -30,7 +30,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.util.lerp
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
 import com.google.mlkit.vision.barcode.common.Barcode
@@ -173,10 +181,46 @@ fun NutriLogApp(viewModel: NutriViewModel) {
         label = "body",
     )
     CompositionLocalProvider(LocalScreenEntered provides covered) {
+    // **上緣要柔化，不要一條硬邊。** 那張紙往上刷的時候，最上面那一段做成漸層：
+    // 頂端 [EDGE_ALPHA]、往下漸漸變成全不透明，看起來是紙的前緣在推進，
+    // 而不是一塊方形色塊在移動。
+    //
+    // 收掉的時機接 `covered`：蓋滿之後跟著 [BODY_FADE_MS] 一起退成 0，
+    // 所以不會在終點忽然變回硬邊。**也因此它只會出現在真的在滑的那一張上** ——
+    // 被蓋住的舊畫面與返回時原地不動的那一張，`covered` 從頭到尾是 true，
+    // 完全不吃這段（曾經算錯這個條件，結果沒在動的畫面上緣也糊了一條）。
+    val edgeFade by animateFloatAsState(
+        targetValue = if (covered) 0f else 1f,
+        animationSpec = tween(BODY_FADE_MS, easing = CoverEasing),
+        label = "edge",
+    )
     // **底色那一層不吃 alpha**：升上來的必須是一張不透明的紙，不然「蓋住今日頁」
     // 會變成「今日頁被洗淡」——半透明地疊在上面，兩層一起看得到。
     // 淡入只給內容那一層。
-    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            // DstIn 是拿來削整層的 alpha，要先有離屏圖層才削得到，
+            // 不然會直接跟螢幕上已經畫好的東西混在一起。
+            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+            .drawWithContent {
+                drawContent()
+                if (edgeFade > 0.001f) {
+                    val band = EDGE_FADE_DP.toPx()
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            0f to Color.Black.copy(alpha = lerp(1f, EDGE_ALPHA, edgeFade)),
+                            1f to Color.Black,
+                            startY = 0f,
+                            endY = band,
+                        ),
+                        size = Size(size.width, band),
+                        blendMode = BlendMode.DstIn,
+                    )
+                }
+            }
+            .background(MaterialTheme.colorScheme.background)
+    ) {
     Box(Modifier.fillMaxSize().graphicsLayer { alpha = bodyAlpha }) {
     when (screen) {
         Screen.Today -> TodayScreen(
@@ -357,6 +401,10 @@ fun NutriLogApp(viewModel: NutriViewModel) {
 private const val COVER_MS = 320
 private const val BODY_FADE_MS = 180
 private val CoverEasing = CubicBezierEasing(0.32f, 0f, 0.18f, 1f)
+
+/** 紙的上緣那段漸層有多長、頂端剩多少不透明度。 */
+private val EDGE_FADE_DP = 120.dp
+private const val EDGE_ALPHA = 0.5f
 
 /**
  * 「這一層的紙蓋滿了沒」。每個畫面自己的進場動畫都等這個變 true 才開始。

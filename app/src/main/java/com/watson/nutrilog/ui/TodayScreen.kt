@@ -1304,10 +1304,10 @@ private fun AddMenu(
                     // 讓出角落那顆章的位置，面板不要壓在它上面
                     .padding(bottom = 92.dp)
                     .fillMaxWidth()
-                    .graphicsLayer {
-                        alpha = cover
-                        translationY = (1f - cover) * 20.dp.toPx()
-                    }
+                    // **面板不做往上拉的位移**，只有淡入。方向感由背後那片
+                    // 由上往下蓋的模糊負責講，面板自己再拉一次等於同一件事說兩遍，
+                    // 而且兩個方向還相反（片子往下、面板往上），互相抵消。
+                    .graphicsLayer { alpha = cover }
                     // 抬高一階，讓它讀起來是「浮在壓暗背景上的一張紙」。用 background
                     // 的話深色模式下面板會比壓暗後的背景還暗，變成一個黑洞。
                     .background(scheme.surfaceContainerLow)
