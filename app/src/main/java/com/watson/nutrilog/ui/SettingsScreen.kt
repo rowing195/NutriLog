@@ -2,6 +2,8 @@ package com.watson.nutrilog.ui
 
 import android.content.ClipboardManager
 import android.content.Context
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
@@ -34,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -51,6 +54,7 @@ import com.watson.nutrilog.data.NutriSettings
 import androidx.compose.foundation.layout.size
 import com.watson.nutrilog.ui.theme.NutrientColors
 import com.watson.nutrilog.ui.theme.numeric
+import kotlinx.coroutines.flow.first
 
 /**
  * 設定的選單那一層。
@@ -66,24 +70,46 @@ fun SettingsMenuScreen(
     onOpen: (SettingsPage) -> Unit,
     onClose: () -> Unit,
 ) {
+    // 一次性的進場：`shown` 從 false 翻成 true，關閉時再翻回去讓每一列原路退出去。
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { shown = true }
+    val transition = updateTransition(shown, label = "settingsEnter")
+
+    // **關閉要等那幾列先退完。** 直接呼叫 onClose 的話畫面立刻換掉，退場動畫根本
+    // 來不及播 —— 使用者看到的就是「進來有動畫、離開沒有」，比兩邊都沒有還怪。
+    //
+    // `closing` 同時擋掉這段期間的重複觸發（連按關閉、退場中還去點某一列）。
+    var closing by remember { mutableStateOf(false) }
+    val requestClose = {
+        closing = true
+        shown = false
+    }
+    // **等的是「動畫真的停了」，不是一段寫死的毫秒數。** 系統的動畫倍率
+    //（開發者選項、或測試時調的 animator_duration_scale）只會縮放動畫，不會縮放
+    // `delay()` —— 兩者寫死就必定對不上：倍率調快時畫面乾等，調慢時列還在半路
+    // 畫面就換掉了。`currentState` 要等整個 transition 落定才會翻成 false。
+    LaunchedEffect(closing) {
+        if (closing) {
+            snapshotFlow { transition.currentState }.first { !it }
+            onClose()
+        }
+    }
+    // 返回鍵和報頭那顆「關閉」是同一件事，所以 BackHandler 掛在這裡而不是 App.kt
+    // —— 退場動畫由這個畫面自己管，觸發的入口就不能留在外面。
+    BackHandler(onBack = requestClose)
+
     Scaffold(
         topBar = {
             ScreenTopBar(
                 title = stringResource(R.string.settings_title),
                 closeLabel = stringResource(R.string.close),
-                onClose = onClose,
+                onClose = requestClose,
             )
         },
     ) { inner ->
         // 進場時每一列從右邊依序滑進來，和角落那顆「記一筆」展開選單同一個手法
         // （`TodayScreen.AddMenu`）—— 那裡是把五個入口逐列滑出來，這裡是同一件事，
-        // 只是容器從浮層換成整頁。
-        //
-        // 一次性的：`shown` 只會從 false 翻成 true 一次，之後停在那裡。
-        var shown by remember { mutableStateOf(false) }
-        LaunchedEffect(Unit) { shown = true }
-        val transition = updateTransition(shown, label = "settingsEnter")
-
+        // 只是容器從浮層換成整頁。關閉時原路退回去。
         Column(
             Modifier
                 .fillMaxSize()
@@ -95,11 +121,21 @@ fun SettingsMenuScreen(
             pages.forEachIndexed { index, page ->
                 val slide by transition.animateFloat(
                     transitionSpec = {
-                        tween(
-                            durationMillis = ROW_SLIDE_MS,
-                            delayMillis = ROW_LEAD_MS + index * stepFor(pages.size),
-                            easing = FastOutSlowInEasing,
-                        )
+                        if (targetState) {
+                            tween(
+                                durationMillis = ROW_SLIDE_MS,
+                                delayMillis = ROW_LEAD_MS + index * stepFor(pages.size),
+                                easing = FastOutSlowInEasing,
+                            )
+                        } else {
+                            // 退場比進場快一倍、也不留起跑的空檔：離開的時候沒有人在
+                            // 欣賞動畫，慢吞吞地退只會變成「按了關閉還要等」。
+                            tween(
+                                durationMillis = ROW_EXIT_MS,
+                                delayMillis = index * exitStepFor(pages.size),
+                                easing = FastOutLinearInEasing,
+                            )
+                        }
                     },
                     label = "row",
                 ) { if (it) 1f else 0f }
@@ -113,7 +149,9 @@ fun SettingsMenuScreen(
                     MenuRow(
                         title = stringResource(page.titleRes()),
                         summary = page.summary(settings),
-                        onClick = { onOpen(page) },
+                        // 退場途中不接點擊：那幾百毫秒裡畫面還在，點下去會在
+                        // 關閉的路上又開一個子頁。
+                        onClick = { if (!closing) onOpen(page) },
                     )
                     Hairline()
                 }
@@ -141,6 +179,14 @@ private fun stepFor(count: Int): Int =
 
 private const val ROW_STEP_MAX_MS = 45
 private const val STAGGER_BUDGET_MS = 180
+
+/** 退場的間隔，和 [stepFor] 同一個道理，只是預算更小。 */
+private fun exitStepFor(count: Int): Int =
+    (EXIT_BUDGET_MS / (count - 1).coerceAtLeast(1)).coerceAtMost(EXIT_STEP_MAX_MS)
+
+private const val ROW_EXIT_MS = 160
+private const val EXIT_STEP_MAX_MS = 30
+private const val EXIT_BUDGET_MS = 100
 
 /** 選單的一列：標題、目前的值、指向右邊的箭頭。 */
 @Composable

@@ -241,8 +241,9 @@ fun NutriLogApp(viewModel: NutriViewModel) {
             )
         }
 
+        // 這一頁的返回鍵由 SettingsMenuScreen 自己接 —— 關閉時那幾列要先退場，
+        // 觸發的入口和動畫必須在同一個地方，留在這裡的話返回鍵會直接跳掉。
         Screen.Settings -> {
-            BackHandler { viewModel.backToToday() }
             SettingsMenuScreen(
                 settings = viewModel.settings,
                 onOpen = viewModel::openSettingsPage,
