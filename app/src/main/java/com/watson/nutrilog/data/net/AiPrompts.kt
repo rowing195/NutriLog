@@ -42,6 +42,8 @@ internal object AiPrompts {
         - name 用繁體中文。
         - calories 單位 kcal；proteinG / fatG / carbsG / sugarG / fiberG / satFatG 單位公克；sodiumMg 單位毫克。
         - 沒把握的營養素就填 null，不要猜 0。
+        - **數字只填純數值**：去掉千分位逗號與單位。來源寫「1,092.5 mg」就填
+          1092.5 —— 不要因為它有逗號、格式不合就改填 null。
         - confidence 是 0 到 1 之間的數字，代表你對這一項的把握程度。
         - 照片裡沒有食物就回傳空的 items 陣列。
     """.trimIndent()
@@ -58,6 +60,8 @@ internal object AiPrompts {
         - name 用繁體中文。
         - calories 單位 kcal；proteinG / fatG / carbsG / sugarG / fiberG / satFatG 單位公克；sodiumMg 單位毫克。
         - 沒把握的營養素就填 null，不要猜 0。
+        - **數字只填純數值**：去掉千分位逗號與單位。來源寫「1,092.5 mg」就填
+          1092.5 —— 不要因為它有逗號、格式不合就改填 null。
         - confidence 是 0 到 1 之間的數字。連鎖店有公開營養標示的給高一點，純估算的給低一點。
         - 完全看不懂在講什麼食物就回傳空的 items 陣列。
     """.trimIndent()

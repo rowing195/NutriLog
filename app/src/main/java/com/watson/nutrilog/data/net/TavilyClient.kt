@@ -42,8 +42,16 @@ class TavilyClient(private val client: OkHttpClient = SharedHttp.client) {
         runCatching {
             val payload = buildJsonObject {
                 put("query", query.trim() + " " + QUERY_SUFFIX)
-                // basic 一次 1 credit，免費層 1000/月。advanced 要 2 credit，
-                // 而實測 basic 就已經把官方頁排在第一筆了。
+                // basic 一次 1 credit，免費層 1000/月。
+                //
+                // advanced（2 credits）確實給更多正文 —— 實測官方頁從 1350 字變 2083 字，
+                // 連被 basic 漏掉的鈉都帶進來了。**但那沒有換到更好的結果**：
+                // ling-3.0-flash-sante 與 gemini-3.7-flash 兩個都拿到了 1,092.5 卻仍然
+                // 留 null，所以瓶頸不在資料量。advanced 目前只是多花 3 秒和兩倍 credit
+                // 買一段沒人用的文字。
+                //
+                // 鈉那件事的下一個假設是 schema：那四個進階營養素是選填的，模型有藉口
+                // 整個略過。改成 required（值仍可為 null）之後再回頭重測這一行。
                 put("search_depth", "basic")
                 put("max_results", MAX_RESULTS)
                 put("include_answer", false)
@@ -69,6 +77,7 @@ class TavilyClient(private val client: OkHttpClient = SharedHttp.client) {
                     r.title + "（" + r.url + "）\n" + r.content.take(CONTENT_LIMIT)
                 }
                 .ifBlank { null }
+
         }.onFailure { Log.w(TAG, "查詢失敗", it) }.getOrNull()
     }
 
@@ -100,6 +109,16 @@ class TavilyClient(private val client: OkHttpClient = SharedHttp.client) {
         const val BASE_URL = "https://api.tavily.com/search"
         /** 官方頁排第一（實測 score 0.87），三筆足夠涵蓋它與兩個交叉比對的來源。 */
         const val MAX_RESULTS = 3
+        /**
+         * 每筆正文的截斷長度。
+         *
+         * **實測這個上限幾乎沒有作用**：basic 回來的三筆自然長度合計才 3613 字元，
+         * 沒有任何一筆碰到 1500。曾經以為「鈉拿不到是被這裡切掉的」而把它拉到 2500，
+         * 結果 context 長度一字未變 —— 真正的原因是 Tavily 依查詢挑段落，那一次挑到
+         * 的官方頁片段本來就不含最後幾列。
+         *
+         * 留著是為了擋住偶爾出現的超長正文（新聞頁夾整篇留言那種），不是為了營養表。
+         */
         const val CONTENT_LIMIT = 1500
         val JSON_MEDIA = "application/json".toMediaType()
     }
