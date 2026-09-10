@@ -113,7 +113,7 @@ private fun MenuRow(title: String, summary: String, onClick: () -> Unit) {
 private fun SettingsPage.titleRes(): Int = when (this) {
     SettingsPage.APPEARANCE -> R.string.settings_appearance
     SettingsPage.TARGETS -> R.string.settings_targets
-    SettingsPage.AI -> R.string.settings_gemini
+    SettingsPage.AI -> R.string.settings_ai
     SettingsPage.DRIVE -> R.string.drive_section
     SettingsPage.DATA -> R.string.settings_data
 }

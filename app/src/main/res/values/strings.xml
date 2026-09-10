@@ -129,7 +129,7 @@
     <string name="dark_mode_light">淺色</string>
     <string name="dark_mode_dark">深色</string>
     <string name="settings_targets">每日目標</string>
-    <string name="settings_gemini">AI 影像辨識</string>
+    <string name="settings_ai">AI 與網路</string>
     <string name="settings_api_key">API key</string>
     <string name="settings_api_key_hint">貼上你的 key</string>
     <string name="settings_api_key_help">拍照辨識需要自己的 Gemini API key，到 aistudio.google.com 免費申請。key 只存在這支手機裡，不會上傳到任何地方。</string>
