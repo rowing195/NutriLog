@@ -129,7 +129,7 @@
     <string name="dark_mode_light">淺色</string>
     <string name="dark_mode_dark">深色</string>
     <string name="settings_targets">每日目標</string>
-    <string name="settings_ai">AI 與網路</string>
+    <string name="settings_ai">API 管理</string>
     <string name="settings_api_key">API key</string>
     <string name="settings_api_key_hint">貼上你的 key</string>
     <string name="settings_api_key_help">拍照辨識需要自己的 Gemini API key，到 aistudio.google.com 免費申請。key 只存在這支手機裡，不會上傳到任何地方。</string>
@@ -138,7 +138,7 @@
     <string name="settings_show_extended">顯示進階營養素</string>
     <string name="settings_show_extended_help">糖、鈉、膳食纖維、飽和脂肪。關掉的話這幾欄在輸入時預設收起來。</string>
     <string name="settings_paste">貼上</string>
-    <string name="settings_data">資料</string>
+    <string name="settings_data">本地資料管理</string>
     <string name="export_csv">匯出 CSV</string>
     <string name="csv_help">存成 CSV 給試算表看，或把之前匯出的檔讀回來。不依賴任何帳號的那條路。匯入時已經有的紀錄會自動略過。</string>
     <string name="export_done">已匯出 %1$d 筆紀錄</string>
@@ -184,13 +184,13 @@
     <string name="text_lookup_divider">沒有嗎？用文字描述交給 AI</string>
     <string name="text_lookup_divider_query">沒有「%1$s」？交給 AI 估算</string>
     <string name="text_lookup_divider_near">不是上面這些？交給 AI 估算</string>
-    <string name="text_lookup_hint">講得越具體越準 —— 店名、品項、大小杯、甜度都可以寫。打了店名就按「查官方資料」，它會先去找該店公布的營養標示。</string>
+    <string name="text_lookup_hint">講得越具體越準 —— 店名、品項、大小杯、甜度都可以寫。打了店名就按「AI 查」，它會先去找該店公布的營養標示。</string>
     <string name="text_lookup_need_query">在上面打一句描述就可以估算</string>
     <string name="text_lookup_label">吃了什麼</string>
     <string name="text_lookup_placeholder">例如：滷蛋；或 CoCo 珍奶 大杯半糖</string>
     <string name="text_lookup_examples">試試這些：</string>
-    <string name="text_lookup_go">AI 估算</string>
-    <string name="text_lookup_search">查官方資料</string>
+    <string name="text_lookup_go">AI 估</string>
+    <string name="text_lookup_search">AI 查</string>
     <string name="text_lookup_search_off">到設定頁選一個搜尋來源</string>
 
     <!-- 拍照辨識 -->

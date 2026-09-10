@@ -190,7 +190,7 @@ fun NutriLogApp(viewModel: NutriViewModel) {
                 recent = viewModel.recentFoods,
                 onReuseSuggestion = viewModel::reuse,
                 onLookup = viewModel::analyzeText,
-                // 沒選搜尋來源的話「查官方資料」那顆按不下去，helper 會講去哪裡選
+                // 沒選搜尋來源的話「AI 查」那顆按不下去，helper 會講去哪裡選
                 searchAvailable = viewModel.settings.searchMode != SearchMode.OFF,
                 onClose = viewModel::backToToday,
             )
