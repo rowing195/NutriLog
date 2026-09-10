@@ -107,9 +107,9 @@ fun HistoryScreen(
     // 一次性的：`shown` 只翻一次。之後滑到別的月份是**新組出來的頁**，那時
     // transition 早就落定在 true，新的那幾列直接是最終狀態 —— 換月不會重播，
     // 不然水平的換頁動畫和垂直的落下會在同一段時間裡打架。
-    var shown by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { shown = true }
-    val enter = updateTransition(shown, label = "historyEnter")
+    // 等那張紙蓋滿了才開始落（`LocalScreenEntered`，見 App.kt）——
+    // 紙還在升、格子已經在落，兩件事疊在一起讀起來是一團亂。
+    val enter = updateTransition(LocalScreenEntered.current, label = "historyEnter")
 
     // 外部改月份（兩側箭頭、「回到本月」）就把分頁器滑過去；使用者自己滑出來的頁碼
     // 在 onShiftMonth 之前就已經和 month 一致，這裡是 no-op。

@@ -2,6 +2,7 @@ package com.watson.nutrilog.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -100,7 +101,10 @@ fun SearchScreen(
                     }
                 },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                // **由左邊進來**，和設定的由右邊進來成鏡像 —— 兩個都是從報頭那排
+                // 圖示開出來的畫面，一左一右分得開「我剛剛按的是哪一顆」。
                 modifier = Modifier
+                    .enterSlide(index = 0, count = 2, from = (-28).dp)
                     .fillMaxWidth()
                     .padding(horizontal = 22.dp, vertical = 8.dp),
             )
@@ -117,10 +121,15 @@ fun SearchScreen(
                 )
             }
 
-            if (query.isBlank()) {
-                FoodLibrary(frequent, recent, filtered = false, onReuseSuggestion)
-            } else {
-                SearchResults(results, onOpenDay, onReuseEntry)
+            // 包一層要 fillMaxWidth：FoodLibrary 裡的 NutriTabs 靠 IntrinsicSize
+            // 收寬度，外面那層一旦變成包住內容的大小，整排分頁標籤就量不出來、
+            // 直接消失（實測過，清單還在但「常吃／最近」不見了）。
+            Column(Modifier.fillMaxWidth().enterSlide(index = 1, count = 2, from = (-28).dp)) {
+                if (query.isBlank()) {
+                    FoodLibrary(frequent, recent, filtered = false, onReuseSuggestion)
+                } else {
+                    SearchResults(results, onOpenDay, onReuseEntry)
+                }
             }
         }
     }

@@ -62,10 +62,13 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -1409,3 +1412,33 @@ fun NutriDialog(
 
 val PillShape = CircleShape
 val CardShape = RoundedCornerShape(6.dp)
+
+/**
+ * 進場時從側邊滑進來，**等那張紙蓋滿了才開始**（`LocalScreenEntered`，見 App.kt）。
+ *
+ * 方向就是「這個畫面從哪個入口來的」的反向對稱：設定在右邊、搜尋在左邊，
+ * 兩者互為鏡像。位移刻意只有幾十 dp 而不是整個畫面寬 —— 走那麼遠會讀成
+ * 「整頁被推進來」，這裡要的是「內容落到已經鋪好的紙上」，所以**留一段空間**就好。
+ *
+ * `index` 是同一頁裡第幾個元素，用來錯開；錯開的總長度有上限，元素多了自動收緊
+ * （和設定選單那套 `stepFor` 同一個道理），不然一頁東西一多，最後一個要等很久。
+ */
+@Composable
+fun Modifier.enterSlide(index: Int = 0, count: Int = 1, from: Dp = 28.dp): Modifier {
+    val transition = updateTransition(LocalScreenEntered.current, label = "enterSlide")
+    val step = (ENTER_BUDGET_MS / (count - 1).coerceAtLeast(1)).coerceAtMost(ENTER_STEP_MAX_MS)
+    val slide by transition.animateFloat(
+        transitionSpec = {
+            tween(ENTER_SLIDE_MS, delayMillis = index * step, easing = FastOutSlowInEasing)
+        },
+        label = "slide",
+    ) { if (it) 1f else 0f }
+    return this.graphicsLayer {
+        alpha = slide
+        translationX = (1f - slide) * from.toPx()
+    }
+}
+
+private const val ENTER_SLIDE_MS = 260
+private const val ENTER_STEP_MAX_MS = 45
+private const val ENTER_BUDGET_MS = 180

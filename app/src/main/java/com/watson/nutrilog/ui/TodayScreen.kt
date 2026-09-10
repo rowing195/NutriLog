@@ -64,6 +64,7 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
@@ -93,6 +94,7 @@ import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
  * 日分頁的頁碼半徑。以「開啟這個畫面那一刻」為基準日，左右各留這麼多天，
@@ -1273,10 +1275,21 @@ private fun AddMenu(
         // 收完就整塊不畫，才不會擋住底下的點擊。判斷式要把 expanded 也算進去 ——
         // 只看動畫值的話，展開那一幀 cover 還是 0，內容永遠不會被組出來。
         if (expanded || cover > 0.004f) {
+            // **這一片是由上往下蓋的**，和其他畫面（由下往上）刻意相反：那三顆圖示
+            // 站在畫面頂端，開出來的東西從底下升上來；這顆章站在右下角，蓋下來的
+            // 東西就從頂端來。兩邊各自朝著自己的入口的反方向走，對應得起來。
+            //
+            // 用 `layout` 從上緣長高，而不是整片淡入 —— 淡入沒有方向，講不出
+            // 「從哪裡來」這件事。
             Box(
                 Modifier
                     .fillMaxSize()
-                    .graphicsLayer { alpha = cover }
+                    .layout { measurable, constraints ->
+                        val placeable = measurable.measure(constraints)
+                        val height = (placeable.height * cover).roundToInt()
+                        layout(placeable.width, height) { placeable.place(0, 0) }
+                    }
+                    .clipToBounds()
                     .background(scheme.scrim.copy(alpha = 0.32f))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },

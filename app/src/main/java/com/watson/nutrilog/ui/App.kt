@@ -7,19 +7,30 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.PickVisualMediaRequest
-import androidx.compose.animation.Crossfade
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.EnterExitState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
 import com.google.mlkit.vision.barcode.common.Barcode
@@ -113,21 +124,60 @@ fun NutriLogApp(viewModel: NutriViewModel) {
         Unit
     }
 
-    // Crossfade 而不是直接 when：原本畫面切換是硬切，Today 開設定/歷史等
-    // 附屬畫面時整個畫面瞬間跳掉，跟其他地方陸續做掉的動畫比起來特別突兀。
-    // 預設 300ms 太快、人眼幾乎看不出有淡入淡出，拉到 500ms 才看得明顯。
+    // **所有畫面共用同一套轉場：新的那張紙由下往上蓋上來，蓋滿了才跑內容。**
+    // 今日頁留在底下不動被蓋住（`ExitTransition.None`），返回就整段倒轉。
     //
-    // Crossfade 的兩個畫面在交叉的那段期間都是半透明的，穿過去看到的是 Activity 的
-    // windowBackground —— 而那個是 XML 主題給的淺色（themes.xml 是 Material.Light，
-    // 而且深色模式是 app 內部的偏好設定，XML 那一側根本不知道使用者選了什麼）。
-    // 深色模式下兩層暗畫面各透一點，白底就從縫裡透出來，看起來像每換一次畫面就閃一下。
-    // 墊一層跟著 Compose 主題走的不透明底色，透出來的就會是這個主題自己的背景色。
+    // 這一套取代了原本的 `Crossfade(500ms)`。除了節奏之外，還順手解掉一個坑：
+    // **交叉淡入淡出那段期間兩個畫面都是半透明的**，穿過去看到的是 Activity 的
+    // `windowBackground` —— 而那是 XML 主題給的淺色（深淺是 app 自己的偏好設定，
+    // XML 那一側不知道使用者選了什麼），深色模式下白底會從縫裡透出來。
+    // 不透明的紙沒有半透明那一段，問題自然消失 —— 但底下那層不透明底色留著，
+    // 它還担著冷啟動那幾幀。
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-    Crossfade(
+    AnimatedContent(
         targetState = viewModel.screen,
-        animationSpec = tween(durationMillis = 500),
+        transitionSpec = {
+            // 往裡面走＝新畫面整張紙由下往上蓋上來，今日頁留在底下不動被蓋住
+            // （`ExitTransition.None`）；往回走就直接倒轉，舊畫面往下退出去、
+            // 底下那張原地不動地露出來。
+            //
+            // z 序要跟著方向翻：往裡面走時新的那張要在上面才蓋得住，往回走時
+            // 正在退場的那張要在上面才看得到它退。
+            val forward = targetState.depth > initialState.depth
+            if (forward) {
+                slideInVertically(tween(COVER_MS, easing = CoverEasing)) { it } togetherWith
+                    // **不能用 `ExitTransition.None`**：那等於沒有退場動畫，舊畫面
+                    // 會在轉場的第一幀就被丟掉，底下露出來的是根部那層底色，
+                    // 「蓋住今日頁」就變成「蓋住一張空白的紙」。KeepUntil… 是留著
+                    // 不動、等整段轉場結束才收，那才是「被蓋住」。
+                    ExitTransition.KeepUntilTransitionsFinished
+            } else {
+                EnterTransition.None togetherWith
+                    slideOutVertically(tween(COVER_MS, easing = CoverEasing)) { it }
+            }.apply { targetContentZIndex = if (forward) 1f else 0f }
+        },
         label = "screen",
     ) { screen ->
+    // 「蓋滿了沒」。`currentState` 要等整段轉場落定才會翻成 Visible，所以每個畫面
+    // 自己的進場動畫（月曆逐週落下、設定逐列右進…）都排在蓋滿之後才開始 ——
+    // 兩件事同時做的話，紙還在升、內容已經在動，讀起來是一團亂。
+    //
+    // 沒有自己那套的畫面就吃底下這個預設淡入，不會在蓋滿的瞬間硬跳出來。
+    // 只擋「還沒蓋滿」那一段（`PreEnter`）。不能寫成 `== Visible` —— 退場時
+    // `currentState` 會走到 `PostExit`，那樣正在被蓋住的舊畫面會一路淡掉，
+    // 看起來是「今日頁自己消失」而不是「被一張紙蓋住」。
+    val covered = transition.currentState != EnterExitState.PreEnter
+    val bodyAlpha by animateFloatAsState(
+        targetValue = if (covered) 1f else 0f,
+        animationSpec = tween(BODY_FADE_MS, easing = CoverEasing),
+        label = "body",
+    )
+    CompositionLocalProvider(LocalScreenEntered provides covered) {
+    // **底色那一層不吃 alpha**：升上來的必須是一張不透明的紙，不然「蓋住今日頁」
+    // 會變成「今日頁被洗淡」——半透明地疊在上面，兩層一起看得到。
+    // 淡入只給內容那一層。
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Box(Modifier.fillMaxSize().graphicsLayer { alpha = bodyAlpha }) {
     when (screen) {
         Screen.Today -> TodayScreen(
             date = viewModel.selectedDate,
@@ -292,7 +342,43 @@ fun NutriLogApp(viewModel: NutriViewModel) {
     }
     }
     }
+    }
+    }
+    }
 }
+
+/**
+ * 蓋版的時長與曲線，全 app 的畫面切換共用這一條。
+ *
+ * 換掉的是原本的 `Crossfade(500ms)`。**交叉淡入淡出那段期間兩個畫面都是半透明的**，
+ * 深色模式下 Activity 的白色 `windowBackground` 會從縫裡透出來（見 CLAUDE.md
+ * 那一節）—— 不透明的紙由下往上蓋沒有半透明那一段，那個坑順手就沒了。
+ */
+private const val COVER_MS = 320
+private const val BODY_FADE_MS = 180
+private val CoverEasing = CubicBezierEasing(0.32f, 0f, 0.18f, 1f)
+
+/**
+ * 「這一層的紙蓋滿了沒」。每個畫面自己的進場動畫都等這個變 true 才開始。
+ *
+ * 預設 true 是給預覽與測試用的：沒有被 [App] 那層包住時，畫面應該直接是最終狀態，
+ * 而不是永遠停在還沒進場的樣子。
+ */
+val LocalScreenEntered = compositionLocalOf { true }
+
+/**
+ * 畫面的深度，只拿來判斷這次是「往裡面走」還是「往回走」。
+ *
+ * 設定是唯一有多層的地方（選單 → 子頁 → key 頁），所以它們的深度要遞增 ——
+ * 從子頁返回選單也算往回走，紙要往下退而不是又蓋一次。
+ */
+private val Screen.depth: Int
+    get() = when (this) {
+        Screen.Today -> 0
+        is Screen.SettingsDetail -> 2
+        is Screen.ApiKeyDetail -> 3
+        else -> 1
+    }
 
 /**
  * 拍照的暫存檔。走 FileProvider 換成 content://：從 Android 7 起，

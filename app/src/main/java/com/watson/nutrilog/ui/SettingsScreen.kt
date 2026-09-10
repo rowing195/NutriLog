@@ -70,20 +70,17 @@ fun SettingsMenuScreen(
     onOpen: (SettingsPage) -> Unit,
     onClose: () -> Unit,
 ) {
-    // 一次性的進場：`shown` 從 false 翻成 true，關閉時再翻回去讓每一列原路退出去。
-    var shown by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { shown = true }
-    val transition = updateTransition(shown, label = "settingsEnter")
+    // 進場等那張紙蓋滿了才開始（`LocalScreenEntered`，見 App.kt）；關閉時自己翻回
+    // false 讓每一列原路退出去，退完才真的離開這個畫面。
+    val entered = LocalScreenEntered.current
+    var closing by remember { mutableStateOf(false) }
+    val transition = updateTransition(entered && !closing, label = "settingsEnter")
 
     // **關閉要等那幾列先退完。** 直接呼叫 onClose 的話畫面立刻換掉，退場動畫根本
     // 來不及播 —— 使用者看到的就是「進來有動畫、離開沒有」，比兩邊都沒有還怪。
     //
     // `closing` 同時擋掉這段期間的重複觸發（連按關閉、退場中還去點某一列）。
-    var closing by remember { mutableStateOf(false) }
-    val requestClose = {
-        closing = true
-        shown = false
-    }
+    val requestClose = { closing = true }
     // **等的是「動畫真的停了」，不是一段寫死的毫秒數。** 系統的動畫倍率
     //（開發者選項、或測試時調的 animator_duration_scale）只會縮放動畫，不會縮放
     // `delay()` —— 兩者寫死就必定對不上：倍率調快時畫面乾等，調慢時列還在半路
@@ -290,6 +287,12 @@ fun SettingsDetailScreen(
                 .padding(start = 22.dp, end = 22.dp, top = 8.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            // 子頁的內容也由右邊進來，和選單那一層同一個方向 —— **設定不管幾層
+            // 都是往右邊那個方向長出來的**，往裡面走一層就再從右邊來一次。
+            Column(
+                Modifier.enterSlide(),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
             when (page) {
                 SettingsPage.APPEARANCE -> AppearanceSection(settings, onChange)
                 SettingsPage.TARGETS -> TargetsSection(settings, onChange)
@@ -298,6 +301,7 @@ fun SettingsDetailScreen(
                     settings, driveMessage, driveBusy, onConnectDrive, onBackupNow, onDisconnectDrive,
                 )
                 SettingsPage.DATA -> DataSection(dataMessage, onExportCsv, onImportCsv)
+            }
             }
         }
     }
