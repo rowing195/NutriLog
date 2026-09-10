@@ -9,6 +9,11 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -37,8 +42,15 @@ class OpenRouterClient(private val client: okhttp3.OkHttpClient = SharedHttp.cli
     private val json = Json { ignoreUnknownKeys = true }
 
     /**
-     * 從文字描述估營養素。prompt 與 Gemini 那條共用同一份
-     * （[AiPrompts.TEXT_PROMPT]），差別只在怎麼把它送出去、怎麼把 JSON 挖回來。
+     * 從文字描述估營養素。prompt 與 Gemini 那條共用同一份（[AiPrompts.TEXT_PROMPT]）。
+     *
+     * [search] 非 null 時走**代理迴圈**：多給模型一個 `search_web` 工具，讓它自己決定
+     * 要不要查、查什麼，查完把結果餵回去再問一次，直到它改叫 `record_foods` 為止。
+     * 這是這個分支要驗的東西——main 上是「固定補字尾、查一次、結果塞進 prompt」。
+     *
+     * 代理迴圈的代價不只是多幾次請求：**多一個工具就不能再強制 `tool_choice`**，
+     * 而那正是 main 上鎖住 JSON 的手段。所以這裡多了一條「它可能永遠不叫
+     * record_foods」的失敗路徑，要靠 [MAX_ROUNDS] 收尾。
      */
     suspend fun analyzeDescription(
         description: String,
@@ -46,60 +58,128 @@ class OpenRouterClient(private val client: okhttp3.OkHttpClient = SharedHttp.cli
         model: String,
         webSearch: Boolean,
         searchContext: String? = null,
+        search: (suspend (String) -> String?)? = null,
     ): Result<List<DetectedFood>> = withContext(Dispatchers.IO) {
         runCatching {
-            val payload = buildJsonObject {
-                put("model", model)
-                putJsonArray("messages") {
-                    addJsonObject {
-                        put("role", "user")
-                        put("content", AiPrompts.textRequest(description, searchContext))
-                    }
+            // 對話要一路累積：模型的回覆與工具結果都得原樣送回去，
+            // 不然下一輪它不知道自己剛剛查過什麼。
+            val messages = mutableListOf<JsonElement>(
+                buildJsonObject {
+                    put("role", "user")
+                    put("content", AiPrompts.textRequest(description, searchContext))
                 }
-                // 讓模型先查網路再答。實測「McDonalds Big Mac」開了之後會去讀
-                // 台灣麥當勞的官方營養計算機（回應的 annotations 裡有引用網址），
-                // 名稱從美規的 Big Mac 變成「大麥克」，而且連糖／鈉／飽和脂肪都
-                // 填得出來 —— 憑記憶那版那三欄是 null。代價是每次查詢另外收費，
-                // 所以由設定決定。
-                if (webSearch) {
-                    putJsonArray("plugins") {
-                        addJsonObject { put("id", "web") }
-                    }
+            )
+
+            var searched = false
+            repeat(MAX_ROUNDS) { round ->
+                // **查過一次之後就強制它回答。** 實測不強制的話這個模型會一直查下去
+                // （三輪查詢一次比一次精緻，卻從來沒叫過 record_foods，最後只能喊停
+                // 丟給使用者一個「重試」）。讓它自己下第一次查詢是這條路的價值所在，
+                // 讓它無限期地查下去則純粹是代價。
+                val offerSearch = search != null && !searched
+                val body = sendWithRetry(
+                    request(apiKey, payload(model, messages, webSearch, offerSearch))
+                )
+                val message = json.parseToJsonElement(body)
+                    .jsonObject["choices"]?.jsonArray?.firstOrNull()
+                    ?.jsonObject?.get("message")?.jsonObject
+                    ?: error("模型沒有回傳內容")
+
+                val calls = message["tool_calls"]?.jsonArray.orEmpty().map {
+                    val fn = it.jsonObject["function"]!!.jsonObject
+                    Triple(
+                        it.jsonObject["id"]?.jsonPrimitive?.content.orEmpty(),
+                        fn["name"]?.jsonPrimitive?.content.orEmpty(),
+                        fn["arguments"]?.jsonPrimitive?.content.orEmpty(),
+                    )
                 }
-                putJsonArray("tools") {
-                    addJsonObject {
-                        put("type", "function")
-                        putJsonObject("function") {
-                            put("name", TOOL_NAME)
-                            put("description", "回報這次描述裡的每一項食物與它的營養素")
-                            put("parameters", json.parseToJsonElement(TOOL_SCHEMA))
-                        }
-                    }
+
+                calls.firstOrNull { it.second == TOOL_NAME }?.let { (_, _, args) ->
+                    Log.w(TAG, "第 " + (round + 1) + " 輪收到 " + TOOL_NAME)
+                    return@runCatching json.decodeFromString(
+                        AnalysisResult.serializer(), args,
+                    ).items
                 }
-                // 不強制的話模型會挑「用講的」回答，那就又回到剝字串了
-                putJsonObject("tool_choice") {
-                    put("type", "function")
-                    putJsonObject("function") { put("name", TOOL_NAME) }
+
+                val searches = calls.filter { it.second == SEARCH_TOOL }
+                if (searches.isEmpty() || search == null) {
+                    error("模型沒有照要求回傳結構化結果")
+                }
+                searched = true
+
+                // 模型自己的那一則要原樣接回去，工具結果才對得上 tool_call_id
+                messages += message
+                searches.forEach { (id, _, args) ->
+                    val query = runCatching {
+                        json.parseToJsonElement(args).jsonObject["query"]?.jsonPrimitive?.content
+                    }.getOrNull().orEmpty()
+                    Log.w(TAG, "第 " + (round + 1) + " 輪 search_web: " + query)
+                    val result = search(query) ?: "（查不到相關資料）"
+                    messages += buildJsonObject {
+                        put("role", "tool")
+                        put("tool_call_id", id)
+                        put("content", result)
+                    }
                 }
             }
-
-            val request = Request.Builder()
-                .url(BASE_URL)
-                .header("Authorization", "Bearer " + apiKey)
-                // OpenRouter 用這兩個做來源歸屬。不帶也能用，帶了它的儀表板才分得出
-                // 是哪支 app 打的 —— 對只有一支 app 的人沒差，但漏掉會被歸到 unknown。
-                .header("HTTP-Referer", "https://github.com/rowing195/NutriLog")
-                .header("X-Title", "NutriLog")
-                .post(payload.toString().toRequestBody(JSON_MEDIA))
-                .build()
-
-            val body = sendWithRetry(request)
-            val parsed = json.decodeFromString(ChatResponse.serializer(), body)
-            val call = parsed.choices.firstOrNull()?.message?.toolCalls?.firstOrNull()
-                ?: error("模型沒有照要求回傳結構化結果")
-            json.decodeFromString(AnalysisResult.serializer(), call.function.arguments).items
+            error("查了 " + MAX_ROUNDS + " 輪還是沒有結果，換個說法再試一次")
         }
     }
+
+    private fun payload(
+        model: String,
+        messages: List<JsonElement>,
+        webSearch: Boolean,
+        offerSearch: Boolean,
+    ) = buildJsonObject {
+        put("model", model)
+        putJsonArray("messages") { messages.forEach { add(it) } }
+        if (webSearch) {
+            putJsonArray("plugins") { addJsonObject { put("id", "web") } }
+        }
+        putJsonArray("tools") {
+            addJsonObject {
+                put("type", "function")
+                putJsonObject("function") {
+                    put("name", TOOL_NAME)
+                    put("description", "回報這次描述裡的每一項食物與它的營養素")
+                    put("parameters", json.parseToJsonElement(TOOL_SCHEMA))
+                }
+            }
+            if (offerSearch) {
+                addJsonObject {
+                    put("type", "function")
+                    putJsonObject("function") {
+                        put("name", SEARCH_TOOL)
+                        put(
+                            "description",
+                            "查網路上的營養標示。只在連鎖店品項、包裝食品這種" +
+                                "「查得到官方數字」的情況才用；家常菜自己估就好。",
+                        )
+                        put("parameters", json.parseToJsonElement(SEARCH_SCHEMA))
+                    }
+                }
+            }
+        }
+        // 只有一個工具時強制它呼叫，JSON 才鎖得住。這一輪如果同時給了搜尋工具就
+        // 不能強制——那是代理迴圈的固有代價。所以搜尋只給第一輪，之後就鎖回來。
+        if (!offerSearch) {
+            putJsonObject("tool_choice") {
+                put("type", "function")
+                putJsonObject("function") { put("name", TOOL_NAME) }
+            }
+        }
+    }
+
+    private fun request(apiKey: String, payload: JsonObject) = Request.Builder()
+        .url(BASE_URL)
+        .header("Authorization", "Bearer " + apiKey)
+        // OpenRouter 用這兩個做來源歸屬。不帶也能用，帶了它的儀表板才分得出
+        // 是哪支 app 打的 —— 對只有一支 app 的人沒差，但漏掉會被歸到 unknown。
+        .header("HTTP-Referer", "https://github.com/rowing195/NutriLog")
+        .header("X-Title", "NutriLog")
+        .post(payload.toString().toRequestBody(JSON_MEDIA))
+        .build()
 
     /**
      * 和 [GeminiClient] 同一套重試規則：只重試 5xx 與連線層的失敗。
@@ -189,6 +269,16 @@ class OpenRouterClient(private val client: okhttp3.OkHttpClient = SharedHttp.cli
         const val MAX_ATTEMPTS = 3
         const val RETRY_DELAY_MS = 1500L
         const val TOOL_NAME = "record_foods"
+        const val SEARCH_TOOL = "search_web"
+        /** 迴圈上限。模型可能永遠不叫 record_foods，總得有人喊停。 */
+        const val MAX_ROUNDS = 3
+        const val SEARCH_SCHEMA = """
+        {
+          "type": "object",
+          "properties": { "query": { "type": "string" } },
+          "required": ["query"]
+        }
+        """
         val JSON_MEDIA = "application/json".toMediaType()
 
         /**

@@ -663,8 +663,16 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
             // Tavily 是自己先查、把結果當背景文字帶進去，所以兩家都適用；
             // OpenRouter 內建那個是它自己在伺服器端查，只有走 OpenRouter 時才有作用。
             // 查不到就是 null，讓模型照原本的方式估 —— 搜尋壞掉不該讓整條辨識失敗。
+            //
+            // **分支實驗**：走 OpenRouter ＋ Tavily 時改成代理迴圈——不先查，
+            // 把 Tavily 交給模型當工具，讓它自己決定要不要查、查什麼。
+            // Gemini 那條維持 main 的做法（先查、塞進 prompt），因為它一天
+            // 二十幾次撐不起多輪迴圈。
+            val agentic = useOpenRouter && settings.searchMode == SearchMode.TAVILY
             val searchContext = if (
-                source is AnalysisSource.Text && settings.searchMode == SearchMode.TAVILY
+                source is AnalysisSource.Text &&
+                settings.searchMode == SearchMode.TAVILY &&
+                !agentic
             ) {
                 tavily.contextFor(source.query, settings.tavilyApiKey)
             } else {
@@ -679,6 +687,11 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
                             model,
                             webSearch = settings.searchMode == SearchMode.OPENROUTER,
                             searchContext = searchContext,
+                            search = if (agentic) {
+                                { q -> tavily.contextFor(q, settings.tavilyApiKey) }
+                            } else {
+                                null
+                            },
                         )
                     else gemini.analyzeDescription(source.query, key, model, searchContext)
                 is AnalysisSource.Photo ->
