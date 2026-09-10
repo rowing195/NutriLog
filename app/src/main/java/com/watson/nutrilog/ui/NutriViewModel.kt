@@ -398,11 +398,18 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
                 BackupWorker.schedule(getApplication())
             }
         }
-        // 換月份就換一條 Flow，和換日期同樣的道理
+        // 換月份就換一條 Flow，和換日期同樣的道理。
+        //
+        // **前後各多讀一個月**：月曆可以左右滑，拖到一半時鄰月已經畫在畫面上了，
+        // 那時候才去查資料，滑進來的就是一格空白的月曆、等查完才跳出數字。
+        // 多讀兩個月的成本是幾十列，換掉的是每次換月都閃一下。
         viewModelScope.launch {
             snapshotFlow { visibleMonth }
                 .flatMapLatest { month ->
-                    dao.observeRange(month.atDay(1).toString(), month.atEndOfMonth().toString())
+                    dao.observeRange(
+                        month.minusMonths(1).atDay(1).toString(),
+                        month.plusMonths(1).atEndOfMonth().toString(),
+                    )
                 }
                 .collect { totals -> monthTotals = totals.associateBy { it.date } }
         }
