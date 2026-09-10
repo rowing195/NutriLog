@@ -195,6 +195,14 @@ class OpenRouterClient(private val client: okhttp3.OkHttpClient = SharedHttp.cli
          * 標準 JSON Schema，和 Gemini 那份 [GeminiClient] 的 OpenAPI 子集**不是同一種**：
          * 型別是小寫、可空欄位要寫成 `["number", "null"]` 而不是 `nullable: true`。
          * 屬性名稱一樣要和 [DetectedFood] 完全一致。
+         *
+         * **兩份 schema 還有一個不同：四個進階營養素在這邊是選填的，Gemini 那邊是
+         * required。** 不是忘了同步 —— 兩邊都改成 required 測過，這個健康模型兩次都把
+         * **鈉 1092.5 mg 換算成 1.092 g 填進 `fiberG`**，sodiumMg 仍然是 null。逃不掉鍵之後
+         * 它選了隨便找一個欄位塞，而不是老實填 null。
+         *
+         * **錯的數字比 null 更糟**：確認畫面只列出熱量與三大營養素，進階那四欄沒人看得到，
+         * 進去就是默默落地。換模型之後可以重測一次再決定要不要跟進。
          */
         const val TOOL_SCHEMA = """
         {

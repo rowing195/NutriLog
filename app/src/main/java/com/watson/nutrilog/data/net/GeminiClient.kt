@@ -266,6 +266,13 @@ class GeminiClient(private val client: OkHttpClient = SharedHttp.client) {
         val JSON_MEDIA = "application/json".toMediaType()
 
         // 用 OpenAPI 子集描述回傳格式。屬性名稱要和 DetectedFood 完全一致。
+        //
+        // **四個進階營養素（糖、鈉、膳食纖維、飽和脂肪）是 required 但 nullable。**
+        // 選填的時候模型有藉口整個略過，實測鈉永遠是 null；改成 required 之後
+        // 同一個查詢兩次都填出 1092（台灣麥當勞官方是 1092.5），而且真的不知道的
+        // 那幾欄仍然是 null —— required 逃不掉鍵，但逃得掉值。
+        //
+        // **OpenRouter 那份刻意不跟進這一步**，理由寫在 OpenRouterClient 的 schema 旁邊。
         const val RESPONSE_SCHEMA = """
         {
           "type": "OBJECT",
@@ -287,7 +294,7 @@ class GeminiClient(private val client: OkHttpClient = SharedHttp.client) {
                   "satFatG":    { "type": "NUMBER", "nullable": true },
                   "confidence": { "type": "NUMBER" }
                 },
-                "required": ["name", "servingText", "calories", "proteinG", "fatG", "carbsG", "confidence"]
+                "required": ["name", "servingText", "calories", "proteinG", "fatG", "carbsG", "sugarG", "sodiumMg", "fiberG", "satFatG", "confidence"]
               }
             }
           },

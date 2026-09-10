@@ -44,14 +44,14 @@ class TavilyClient(private val client: OkHttpClient = SharedHttp.client) {
                 put("query", query.trim() + " " + QUERY_SUFFIX)
                 // basic 一次 1 credit，免費層 1000/月。
                 //
-                // advanced（2 credits）確實給更多正文 —— 實測官方頁從 1350 字變 2083 字，
-                // 連被 basic 漏掉的鈉都帶進來了。**但那沒有換到更好的結果**：
-                // ling-3.0-flash-sante 與 gemini-3.7-flash 兩個都拿到了 1,092.5 卻仍然
-                // 留 null，所以瓶頸不在資料量。advanced 目前只是多花 3 秒和兩倍 credit
-                // 買一段沒人用的文字。
+                // **advanced（2 credits）試過兩次，兩次都更差。** 它確實給更多正文
+                // （ctx 3660 → 4510 字），但帶進來的是別的來源：台灣麥當勞官方頁被擠出
+                // 前幾筆，兩家模型全都改回美規的 540 kcal / 950 mg，basic 那邊是官方的
+                // 503 / 1092。多等約 4 秒、花兩倍 credit，換來一個更遠的答案。
                 //
-                // 鈉那件事的下一個假設是 schema：那四個進階營養素是選填的，模型有藉口
-                // 整個略過。改成 required（值仍可為 null）之後再回頭重測這一行。
+                // **更多正文不等於更好的正文** —— 這裡要的不是涵蓋率，是「官方那一頁
+                // 排第一」。鈉那件事最後是靠 schema 改 required 解的（見 GeminiClient），
+                // 不是靠搜深一點。
                 put("search_depth", "basic")
                 put("max_results", MAX_RESULTS)
                 put("include_answer", false)
