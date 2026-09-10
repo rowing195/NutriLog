@@ -1226,7 +1226,7 @@ private class AddOption(
  * 所以角落這顆長得是印章的樣子（實心墨底＋內縮一圈細框），跟它展開後的面板
  * 是同一個東西的兩個狀態，而不是「一顆按鈕」加「一張不相干的 sheet」。
  *
- * 展開不是整塊淡入：五列**由上往下逐列落下**（每列差 45ms），角落那顆章同時
+ * 展開不是整塊淡入：五列**由下往上逐列滑進來**（每列差 45ms），角落那顆章同時
  * 轉 45 度把 ＋ 變成 ✕。這樣「這張面板是從那顆章長出來的」才看得出來，
  * 而不是憑空蓋上一層。
  *
@@ -1335,16 +1335,9 @@ private fun AddMenu(
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            // **由上往下落下**，和設定選單那五列由右進來刻意不同：
-                            // 設定是報頭右邊那顆圖示開出來的，這五個是右下角那顆章
-                            // 開出來的，各自有各自的方向才分得出「剛剛按的是哪一顆」。
-                            // 排在上面的先落，一列一列往下，和月曆逐週落下同一個節奏。
-                            //
-                            // 只有內容在動，`Hairline()` 不動 —— 規線是版面的骨架，
-                            // 骨架跟著內容一起飛的話整個面板會晃（同設定選單那條）。
                             .graphicsLayer {
                                 alpha = slide
-                                translationY = (slide - 1f) * ROW_DROP_DP.toPx()
+                                translationX = (1f - slide) * 64.dp.toPx()
                             }
                             .clickable { onPick(option.action) }
                             .padding(horizontal = 22.dp, vertical = 15.dp),
@@ -1405,8 +1398,5 @@ private fun AddMenu(
         }
     }
 }
-
-/** 「記一筆」選單每一列落下前先站高多少。和月曆逐週落下用的位移同一個量級。 */
-private val ROW_DROP_DP = 18.dp
 
 private val WEEKDAYS = listOf("日", "一", "二", "三", "四", "五", "六")
