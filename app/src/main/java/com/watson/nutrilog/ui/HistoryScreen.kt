@@ -1,16 +1,10 @@
 package com.watson.nutrilog.ui
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Transition
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.updateTransition
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -51,6 +45,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -64,6 +59,8 @@ import com.watson.nutrilog.ui.theme.NutrientColors
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.temporal.ChronoUnit
+import kotlin.math.absoluteValue
+import kotlin.math.roundToInt
 
 /**
  * 月曆式歷史。一格一天，格子裡直接寫當天熱量。
@@ -219,39 +216,22 @@ fun HistoryScreen(
             // 從底邊往上展開（`expandFrom = Bottom`）配上它釘在畫面下緣的位置，
             // 讀起來就是「從下緣升上來」——和常吃頁那組說明文字同一套動作語彙。
             //
-            // **看的是 `currentPage` 而不是 settle 後的 `month`。** 前者一過半頁就變，
-            // 所以手指還在拖、新的月份剛過中線時它就開始動了；等 `month` 的話要等
-            // 分頁器整個 fling 加吸附跑完，那是好幾百毫秒的延遲，按鈕會像慢半拍才
-            // 想起來要出現。
+            // **它不是被觸發的動畫，是跟著手指走的。** 和報頭那個月份同一套：
+            // 讀分頁器的即時位移，直接拿來當這顆章的長度與濃淡。
             //
-            // 這是 CLAUDE.md 那條規則明講的例外用法：`currentPage` **只拿來畫**
-            // （這裡是「要不要顯示」），不拿去 commit 成「這就是新的月份」——
-            // 真正決定月份的仍然是上面那條 `settledPage` 的 collector。
-            val pagedMonth = monthOfPage(pagerState.currentPage)
-            AnimatedVisibility(
-                visible = pagedMonth != YearMonth.from(today),
-                // 進出都用同一條標準曲線、都不留延遲：這顆章是「就地長高縮矮」，
-                // 不是從畫面外飛進來，兩頭都收慢的曲線才不會在起訖點有稜角。
-                // 進場的淡入曾經晚 50ms 起跑（先看到形狀再看到字），拿掉了 ——
-                // 那 50ms 正是「按了才慢慢才有反應」的來源。
-                enter = expandVertically(
-                    animationSpec = tween(BACK_GROW_MS, easing = StandardEasing),
-                    expandFrom = Alignment.Bottom,
-                ) + fadeIn(tween(BACK_FADE_MS, easing = StandardEasing)),
-                // 退場仍然比進場快，但不再用會戛然而止的加速曲線。
-                exit = shrinkVertically(
-                    animationSpec = tween(BACK_HIDE_MS, easing = StandardEasing),
-                    shrinkTowards = Alignment.Bottom,
-                ) + fadeOut(tween(BACK_HIDE_MS, easing = StandardEasing)),
-            ) {
-                StampButton(
-                    label = stringResource(R.string.back_to_this_month),
-                    // 用和「要不要顯示」同一個月份算距離，兩者才不會在拖曳途中對不上。
-                    onClick = { onShiftMonth(monthsBetween(pagedMonth, today)) },
-                    color = Color.Transparent,
-                    modifier = Modifier.padding(horizontal = 22.dp, vertical = 8.dp),
-                )
-            }
+            // 綁的是**前後兩個月的中心點**：本月正中間是 0（完全收起來），鄰月正
+            // 中間是 1（完全長出來），中間照比例。再往前往後就固定在 1，不會因為
+            // 滑得更遠而繼續變 —— 「離本月很遠」和「離本月更遠」對這顆章來說是
+            // 同一件事。
+            //
+            // 這樣就沒有「響應」這個問題了：它不需要等任何東西被觸發，拖多少動
+            // 多少；放開手指之後跟著分頁器自己的吸附動畫走完，兩側箭頭與「回到
+            // 本月」那種跳頁也一樣，全部共用分頁器的那一條曲線。
+            BackToThisMonthStamp(
+                pagerState = pagerState,
+                todayPage = monthPageOf(YearMonth.from(today)),
+                onClick = { onShiftMonth(monthsBetween(month, today)) },
+            )
         }
     }
 }
@@ -597,24 +577,56 @@ private fun weekRowCount(month: YearMonth): Int =
     (month.atDay(1).dayOfWeek.value % 7 + month.lengthOfMonth() + 6) / 7
 
 /**
- * 「回到本月」進出場的時長。
+ * 「回到本月」那顆空心章。**沒有進出場動畫，因為它是被拖出來的。**
  *
- * **響應靠的是觸發點，不是時長。** 它現在跟著 `currentPage` 走（見上面那段），
- * 過半頁就開始動；淡入也不再延遲起跑。所以就算把時長拉長讓動作更順，
- * 「按下去多久才有反應」仍然是零。退場仍然比進場快，但不再是戛然而止那種快。
+ * 高度與濃淡都直接讀分頁器的即時位移（見 [monthsFromToday]），所以拖多少動多少、
+ * 放開手指之後跟著吸附動畫走完，兩側箭頭與跳頁也共用同一條曲線。用 tween 補一段
+ * 進出場反而會有兩個問題：拖的時候它不動（要等 settle），以及它自己那條曲線和
+ * 分頁器的曲線各走各的。
+ *
+ * **兩個值都在 `layout` / `graphicsLayer` 的 lambda 裡讀**，不是在組合階段讀：
+ * `currentPageOffsetFraction` 在拖曳的每一幀都會變，寫在外面等於整個月曆每幀重組
+ * 一次。寫在這兩個 lambda 裡只會重新量測與重畫這一顆章。
+ *
+ * 高度用 `layout` 而不是 `height()`：章有多高是它自己量出來的（54dp 的印章加上下
+ * 內距），寫死一個數字之後改了 [StampButton] 這裡就會悄悄對不上。底邊錨定
+ * （`place` 到負的 y）讓它從畫面下緣長出來，外面那層 `clipToBounds` 負責切掉
+ * 還沒長出來的部分。
  */
-private const val BACK_GROW_MS = 260
-private const val BACK_FADE_MS = 220
-private const val BACK_HIDE_MS = 180
+@Composable
+private fun BackToThisMonthStamp(
+    pagerState: PagerState,
+    todayPage: Int,
+    onClick: () -> Unit,
+) {
+    Box(Modifier.fillMaxWidth().clipToBounds()) {
+        StampButton(
+            label = stringResource(R.string.back_to_this_month),
+            onClick = onClick,
+            color = Color.Transparent,
+            modifier = Modifier
+                .layout { measurable, constraints ->
+                    val placeable = measurable.measure(constraints)
+                    val shown = pagerState.monthsFromToday(todayPage)
+                    val height = (placeable.height * shown).roundToInt()
+                    layout(placeable.width, height) {
+                        placeable.place(0, height - placeable.height)
+                    }
+                }
+                .graphicsLayer { alpha = pagerState.monthsFromToday(todayPage) }
+                .padding(horizontal = 22.dp, vertical = 8.dp),
+        )
+    }
+}
 
 /**
- * 兩頭都收慢的標準曲線（Material 的 standard easing）。
+ * 現在離本月多遠，夾在 0..1。
  *
- * 這顆章是**就地長高縮矮**、不是從畫面外飛進來，所以進出用同一條 —— 進場用
- * 減速、退場用加速那套是給「從外面進來、往外面出去」的元件用的，套在原地
- * 變形的東西上，起訖兩端會出現看得到的稜角。
+ * 0 ＝ 本月正中間、1 ＝ 鄰月正中間**或更遠**。夾住上限是刻意的：滑到三個月前和
+ * 滑到一年前，對這顆章來說是同一件事。
  */
-private val StandardEasing = CubicBezierEasing(0.4f, 0f, 0.2f, 1f)
+private fun PagerState.monthsFromToday(todayPage: Int): Float =
+    ((currentPage + currentPageOffsetFraction) - todayPage).absoluteValue.coerceIn(0f, 1f)
 
 /** 標題跑馬燈裡兩個月份之間的間隔，見 [MonthTitle]。 */
 private val MONTH_TITLE_GAP = 28.dp
