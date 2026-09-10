@@ -1,5 +1,13 @@
 package com.watson.nutrilog.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -170,7 +178,28 @@ fun HistoryScreen(
             //
             // 空心章：形狀講「這是一個動作」，空心講「它是次要的、不是每次進來
             // 都要按的那種」——和設定頁的「立即備份」同一個處理。
-            if (month != YearMonth.from(today)) {
+            //
+            // 進出要有動畫：它是**跟著換月出現的**，直接彈出來會像畫面閃了一下。
+            // 從底邊往上展開（`expandFrom = Bottom`）配上它釘在畫面下緣的位置，
+            // 讀起來就是「從下緣升上來」——和常吃頁那組說明文字同一套動作語彙。
+            //
+            // 時機是月份 settle 之後（`month` 只在 `settledPage` 才變），所以拖曳
+            // 過程中不會閃；順序是「先落定、再長出來」，也和常吃頁一致。
+            AnimatedVisibility(
+                visible = month != YearMonth.from(today),
+                enter = expandVertically(
+                    animationSpec = tween(BACK_GROW_MS, easing = LinearOutSlowInEasing),
+                    expandFrom = Alignment.Bottom,
+                ) + fadeIn(
+                    tween(BACK_FADE_MS, BACK_FADE_LAG_MS, LinearOutSlowInEasing),
+                ),
+                // 退場比進場快一倍：滑回本月時它沒有理由賴著不走。
+                exit = fadeOut(tween(BACK_HIDE_MS / 2, easing = FastOutLinearInEasing)) +
+                    shrinkVertically(
+                        animationSpec = tween(BACK_HIDE_MS, easing = FastOutLinearInEasing),
+                        shrinkTowards = Alignment.Bottom,
+                    ),
+            ) {
                 StampButton(
                     label = stringResource(R.string.back_to_this_month),
                     onClick = { onShiftMonth(monthsBetween(month, today)) },
@@ -481,6 +510,12 @@ private fun SummaryStat(label: String, value: String, tint: Color?) {
  * （約一百年），換算成頁碼給 [HorizontalPager]。用得到的範圍遠小於這個數字，
  * 但頁碼只是個 Int，留寬一點不花任何成本 —— 和今日頁那兩個分頁器同一套。
  */
+/** 「回到本月」進出場的時長。進場先看到形狀再看到字，退場快一倍。 */
+private const val BACK_GROW_MS = 240
+private const val BACK_FADE_MS = 190
+private const val BACK_FADE_LAG_MS = 50
+private const val BACK_HIDE_MS = 130
+
 /** 標題跑馬燈裡兩個月份之間的間隔，見 [MonthTitle]。 */
 private val MONTH_TITLE_GAP = 28.dp
 

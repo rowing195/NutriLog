@@ -2,6 +2,10 @@ package com.watson.nutrilog.ui
 
 import android.content.ClipboardManager
 import android.content.Context
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,12 +29,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -69,6 +75,15 @@ fun SettingsMenuScreen(
             )
         },
     ) { inner ->
+        // 進場時每一列從右邊依序滑進來，和角落那顆「記一筆」展開選單同一個手法
+        // （`TodayScreen.AddMenu`）—— 那裡是把五個入口逐列滑出來，這裡是同一件事，
+        // 只是容器從浮層換成整頁。
+        //
+        // 一次性的：`shown` 只會從 false 翻成 true 一次，之後停在那裡。
+        var shown by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) { shown = true }
+        val transition = updateTransition(shown, label = "settingsEnter")
+
         Column(
             Modifier
                 .fillMaxSize()
@@ -76,17 +91,56 @@ fun SettingsMenuScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(start = 22.dp, end = 22.dp, top = 8.dp, bottom = 28.dp),
         ) {
-            SettingsPage.entries.forEach { page ->
-                MenuRow(
-                    title = stringResource(page.titleRes()),
-                    summary = page.summary(settings),
-                    onClick = { onOpen(page) },
-                )
-                Hairline()
+            val pages = SettingsPage.entries
+            pages.forEachIndexed { index, page ->
+                val slide by transition.animateFloat(
+                    transitionSpec = {
+                        tween(
+                            durationMillis = ROW_SLIDE_MS,
+                            delayMillis = ROW_LEAD_MS + index * stepFor(pages.size),
+                            easing = FastOutSlowInEasing,
+                        )
+                    },
+                    label = "row",
+                ) { if (it) 1f else 0f }
+
+                Column(
+                    Modifier.graphicsLayer {
+                        alpha = slide
+                        translationX = (1f - slide) * ROW_SLIDE_DP.toPx()
+                    }
+                ) {
+                    MenuRow(
+                        title = stringResource(page.titleRes()),
+                        summary = page.summary(settings),
+                        onClick = { onOpen(page) },
+                    )
+                    Hairline()
+                }
             }
         }
     }
 }
+
+/** 一列滑進來要多久、從多右邊開始、整批延後多久起跑。 */
+private const val ROW_SLIDE_MS = 260
+private const val ROW_LEAD_MS = 70
+private val ROW_SLIDE_DP = 64.dp
+
+/**
+ * 相鄰兩列之間的間隔。
+ *
+ * **不能寫死。** 現在是五列，往後設定長到七八列是遲早的事，而寫死 45ms 的話
+ * 八列就是 315ms 的錯開 —— 加上一列自己要走的 [ROW_SLIDE_MS]，最後一列要等到
+ * 快 650ms 才停，使用者已經在等它了。所以改成**整批錯開的總長度有上限**
+ * （[STAGGER_BUDGET_MS]）：列數少的時候維持 45ms 的節奏感，列數多了就自動收緊，
+ * 不管幾列，最後一列開始動的時間都不會超過那個預算。
+ */
+private fun stepFor(count: Int): Int =
+    (STAGGER_BUDGET_MS / (count - 1).coerceAtLeast(1)).coerceAtMost(ROW_STEP_MAX_MS)
+
+private const val ROW_STEP_MAX_MS = 45
+private const val STAGGER_BUDGET_MS = 180
 
 /** 選單的一列：標題、目前的值、指向右邊的箭頭。 */
 @Composable
@@ -290,11 +344,10 @@ private fun AiSection(
         selectedIndex = SearchMode.entries.indexOf(settings.searchMode),
         onSelect = { onChange(settings.copy(searchMode = SearchMode.entries[it])) },
     )
-    Text(
-        stringResource(R.string.settings_search_help),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
+    // 這裡不解釋「查網路是什麼」：使用者是在常吃頁看到「AI 查」按不下去、
+    // 被 helper 送來這裡的，那顆章已經用做的講完了。小標叫「AI 查詢」就是為了
+    // 讓他一眼對得上是哪一列。
+    //
     // 兩條路的限制完全不同，只在選到的時候講，不然三段說明擠在一起沒人讀
     if (settings.searchMode != SearchMode.OFF) {
         Text(
@@ -383,14 +436,10 @@ fun ApiKeyScreen(
                 .padding(start = 22.dp, end = 22.dp, top = 8.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            // 三家講的是同一件事，不必各寫一句 —— 會自己去申請 key 的人不需要
+            // 被教「去哪裡申請」和「不會上傳」。
             Text(
-                stringResource(
-                    when (service) {
-                        ApiService.GEMINI -> R.string.settings_api_key_help
-                        ApiService.OPENROUTER -> R.string.settings_openrouter_key_help
-                        ApiService.TAVILY -> R.string.settings_tavily_key_help
-                    }
-                ),
+                stringResource(R.string.settings_key_help),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -414,11 +463,6 @@ fun ApiKeyScreen(
                     ModelField(
                         value = settings.geminiModel,
                         onChange = { onChange(settings.copy(geminiModel = it)) },
-                    )
-                    Text(
-                        stringResource(R.string.settings_model_help),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 // OpenRouter 有幾百個模型，列不完也不該替使用者挑，所以是自由文字
@@ -459,11 +503,6 @@ private fun DriveSection(
         stringResource(R.string.drive_help),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    Text(
-        stringResource(R.string.drive_scope_note),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.outline,
     )
     if (!settings.driveBackupEnabled) {
         // 還沒連結時這是整頁的主要動作，所以是實心墨章，跟匯出同一個長相。
