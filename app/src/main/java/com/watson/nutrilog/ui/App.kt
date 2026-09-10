@@ -27,6 +27,7 @@ import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.CsvExport
+import com.watson.nutrilog.data.SearchMode
 import java.io.File
 import java.time.LocalDate
 
@@ -189,6 +190,8 @@ fun NutriLogApp(viewModel: NutriViewModel) {
                 recent = viewModel.recentFoods,
                 onReuseSuggestion = viewModel::reuse,
                 onLookup = viewModel::analyzeText,
+                // 沒選搜尋來源的話「查官方資料」那顆按不下去，helper 會講去哪裡選
+                searchAvailable = viewModel.settings.searchMode != SearchMode.OFF,
                 onClose = viewModel::backToToday,
             )
         }

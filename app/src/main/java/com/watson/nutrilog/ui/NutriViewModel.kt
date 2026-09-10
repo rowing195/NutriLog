@@ -116,7 +116,13 @@ data class AnalysisItem(
  */
 sealed interface AnalysisSource {
     data class Photo(val uri: Uri) : AnalysisSource
-    data class Text(val query: String) : AnalysisSource
+    /**
+     * [useSearch] 由使用者按哪一顆章決定，不是設定、也不是模型判斷。
+     *
+     * 它跟著來源走而不是另外存一個欄位，因為 `retryAnalysis()` 會原樣重跑
+     * `lastSource` —— 分開存的話「重試」會靜悄悄地換一種模式。
+     */
+    data class Text(val query: String, val useSearch: Boolean) : AnalysisSource
 }
 
 /** 條碼查詢的四種結局。分開來 UI 才講得出「查無此商品」和「連線失敗」的差別。 */
@@ -628,9 +634,9 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
 
     fun analyzePhoto(uri: Uri) = startAnalysis(AnalysisSource.Photo(uri))
 
-    fun analyzeText(query: String) {
+    fun analyzeText(query: String, useSearch: Boolean) {
         if (query.isBlank()) return
-        startAnalysis(AnalysisSource.Text(query.trim()))
+        startAnalysis(AnalysisSource.Text(query.trim(), useSearch))
     }
 
     /** 重跑上一次的辨識。要重跑哪一件事由 [lastSource] 決定，畫面不必記。 */
@@ -660,13 +666,21 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         screen = Screen.Review
         viewModelScope.launch {
             val model = if (useOpenRouter) settings.openRouterModel else settings.geminiModel
+            // **要不要查是使用者按哪一顆章決定的**，設定只決定「按下去用誰查」。
+            //
+            // 試過讓模型自己決定（tool-calling-search 分支），兩版都輸：不強制
+            // tool_choice 它永遠不收斂，強制之後它自己下的查詢又比固定字尾差
+            // （撈到美規數字而不是台灣官方頁）。而使用者打字的當下就已經知道要不要
+            // 查了 —— 他在食物前面加店名，就是想要官方資料。
+            //
             // Tavily 是自己先查、把結果當背景文字帶進去，所以兩家都適用；
             // OpenRouter 內建那個是它自己在伺服器端查，只有走 OpenRouter 時才有作用。
             // 查不到就是 null，讓模型照原本的方式估 —— 搜尋壞掉不該讓整條辨識失敗。
+            val wantsSearch = source is AnalysisSource.Text && source.useSearch
             val searchContext = if (
-                source is AnalysisSource.Text && settings.searchMode == SearchMode.TAVILY
+                wantsSearch && settings.searchMode == SearchMode.TAVILY
             ) {
-                tavily.contextFor(source.query, settings.tavilyApiKey)
+                tavily.contextFor((source as AnalysisSource.Text).query, settings.tavilyApiKey)
             } else {
                 null
             }
@@ -677,7 +691,8 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
                             source.query,
                             key,
                             model,
-                            webSearch = settings.searchMode == SearchMode.OPENROUTER,
+                            webSearch = wantsSearch &&
+                                settings.searchMode == SearchMode.OPENROUTER,
                             searchContext = searchContext,
                         )
                     else gemini.analyzeDescription(source.query, key, model, searchContext)

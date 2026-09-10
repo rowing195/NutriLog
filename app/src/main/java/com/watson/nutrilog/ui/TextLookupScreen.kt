@@ -25,6 +25,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.db.FoodSuggestion
+import com.watson.nutrilog.ui.theme.NutrientColors
 import java.time.LocalDate
 
 /**
@@ -63,13 +64,14 @@ fun TextLookupScreen(
     frequent: List<FoodSuggestion>,
     recent: List<FoodSuggestion>,
     onReuseSuggestion: (FoodSuggestion) -> Unit,
-    onLookup: (String) -> Unit,
+    onLookup: (String, Boolean) -> Unit,
+    searchAvailable: Boolean,
     onClose: () -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
     var focused by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
-    val submit = { if (query.isNotBlank()) onLookup(query) }
+    val submit = { useSearch: Boolean -> if (query.isNotBlank()) onLookup(query, useSearch) }
 
     val shownFrequent = remember(query, frequent) { frequent.filterByQuery(query) }
     val shownRecent = remember(query, recent) { recent.filterByQuery(query) }
@@ -169,13 +171,34 @@ fun TextLookupScreen(
                     )
                 }
 
+                // **成對的兩顆章**（「一個畫面只有一顆章」的既有例外）：同一件事的兩種
+                // 做法，差別只在要不要先查網路。做成兩顆是因為**使用者在打字的當下
+                // 就知道自己要哪一種** —— 他在食物前面加店名，就是想要官方資料。
+                //
+                // 試過讓模型自己判斷（tool-calling-search 分支），它自己下的查詢比
+                // 固定字尾還差。知道答案的人是使用者，不是模型。
                 StampButton(
                     label = stringResource(R.string.text_lookup_go),
                     enabled = query.isNotBlank(),
-                    // 欄位現在在畫面最上面，離這顆章很遠 —— 不講一句的話，
-                    // 使用者看到的就只是一顆按不下去的鈕。
-                    helper = if (query.isBlank()) stringResource(R.string.text_lookup_need_query) else null,
-                    onClick = submit,
+                    onClick = { submit(false) },
+                )
+                // 退一階的深灰章：形狀一致才讀得出「這兩顆是一對」，顏色負責講
+                // 「這一顆比較慢、而且會花掉一次搜尋額度」。
+                //
+                // **helper 掛在這一顆、不掛第一顆**：兩顆是一對，說明夾在中間會
+                // 把它們切成兩件事。成對動作共用一行訊息（同設定頁的匯出／匯入）。
+                StampButton(
+                    label = stringResource(R.string.text_lookup_search),
+                    enabled = query.isNotBlank() && searchAvailable,
+                    helper = when {
+                        // 欄位在畫面最上面，離這裡很遠 —— 不講一句的話，
+                        // 使用者看到的就只是兩顆按不下去的鈕。
+                        query.isBlank() -> stringResource(R.string.text_lookup_need_query)
+                        !searchAvailable -> stringResource(R.string.text_lookup_search_off)
+                        else -> null
+                    },
+                    color = NutrientColors.StampSecondary,
+                    onClick = { submit(true) },
                 )
             }
         }
