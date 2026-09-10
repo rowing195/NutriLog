@@ -124,8 +124,6 @@ fun HistoryScreen(
             MonthHeader(
                 pagerState = pagerState,
                 monthOfPage = ::monthOfPage,
-                month = month,
-                today = today,
                 onShiftMonth = onShiftMonth,
                 modifier = Modifier.padding(horizontal = 22.dp),
             )
@@ -139,6 +137,10 @@ fun HistoryScreen(
                     state = pagerState,
                     pagerSnapDistance = PagerSnapDistance.atMost(1),
                 ),
+                // **HorizontalPager 預設是 CenterVertically。** 不指定 Top 的話，
+                // 月曆會被垂直置中、和上面的星期列之間裂出一大條空白，而空白還會
+                // 隨著月份有幾週而變 —— 星期列和第一排格子必須是連著的。
+                verticalAlignment = Alignment.Top,
                 modifier = Modifier.weight(1f),
             ) { page ->
                 val pageMonth = monthOfPage(page)
@@ -157,6 +159,25 @@ fun HistoryScreen(
                     MonthSummary(pageMonth, totals, settings)
                 }
             }
+            // **「回到本月」放在畫面最底下，不在報頭裡。** 兩個理由：
+            //
+            // 一、它是一個動作，不是這個月的內容 —— 擺在報頭就得決定「要不要跟著
+            // 月份一起滑」，而兩種都不對（跟著滑等於它屬於某個月；不跟著滑則報頭
+            // 高度會隨月份忽高忽低，底下整張月曆跟著上下跳）。放到分頁器外面就
+            // 沒有這個問題：它出現時吃掉的是月曆底下那塊空白，格子一格都不會動。
+            //
+            // 二、月曆底下本來就空一大片，而這是這個畫面唯一的動作。
+            //
+            // 空心章：形狀講「這是一個動作」，空心講「它是次要的、不是每次進來
+            // 都要按的那種」——和設定頁的「立即備份」同一個處理。
+            if (month != YearMonth.from(today)) {
+                StampButton(
+                    label = stringResource(R.string.back_to_this_month),
+                    onClick = { onShiftMonth(monthsBetween(month, today)) },
+                    color = Color.Transparent,
+                    modifier = Modifier.padding(horizontal = 22.dp, vertical = 8.dp),
+                )
+            }
         }
     }
 }
@@ -165,8 +186,6 @@ fun HistoryScreen(
 private fun MonthHeader(
     pagerState: PagerState,
     monthOfPage: (Int) -> YearMonth,
-    month: YearMonth,
-    today: LocalDate,
     onShiftMonth: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -180,21 +199,10 @@ private fun MonthHeader(
             contentAlignment = Alignment.Center,
         ) { ChevronMark(scheme.onSurfaceVariant, pointsLeft = true, size = 18.dp) }
 
-        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+        // 報頭只剩月份本身，所以它的高度是固定的 —— 拖曳過程中報頭不會長高縮矮，
+        // 底下的月曆也就不會跟著上下跳。「回到本月」搬到畫面最底下了。
+        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
             MonthTitle(pagerState, monthOfPage)
-            // **「回到本月」不跟著滑。** 它是一個動作、不是這個月的內容，而且它會
-            // 隨著月份出現與消失 —— 讓它跟著滑，整個報頭的高度就會在拖曳過程中
-            // 忽高忽低，底下的月曆跟著上下跳。
-            if (month != YearMonth.from(today)) {
-                Text(
-                    stringResource(R.string.back_to_this_month),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = scheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .clickable { onShiftMonth(monthsBetween(month, today)) }
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                )
-            }
         }
 
         Box(
