@@ -28,19 +28,14 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
+import kotlin.math.pow
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
 import com.google.mlkit.vision.barcode.common.Barcode
@@ -143,9 +138,19 @@ fun NutriLogApp(viewModel: NutriViewModel) {
     // XML 那一側不知道使用者選了什麼），深色模式下白底會從縫裡透出來。
     // 不透明的紙沒有半透明那一段，問題自然消失 —— 但底下那層不透明底色留著，
     // 它還担著冷啟動那幾幀。
+    //
+    // **這次是往裡面走還是往回走，要在進 `AnimatedContent` 之前就知道。**
+    // 往回走時動的是上面那張紙，底下露出來的那張只是被讓出來的，它必須從第一幀
+    // 就是完整的 —— 讓它跟著「蓋滿了才進來」那套走的話，返回會變成「設定滑走之後
+    // 露出一張白紙，今日頁最後才跳出來」（實測連拍，紙都滑到七成了底下還是空的）。
+    // `transitionSpec` 裡算得出方向，但那裡的值傳不到內容 lambda，所以在外面自己記。
+    val target = viewModel.screen
+    var lastDepth by remember { mutableIntStateOf(target.depth) }
+    val forward = remember(target) { (target.depth > lastDepth).also { lastDepth = target.depth } }
+
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
     AnimatedContent(
-        targetState = viewModel.screen,
+        targetState = target,
         transitionSpec = {
             // 往裡面走＝新畫面整張紙由下往上蓋上來，今日頁留在底下不動被蓋住
             // （`ExitTransition.None`）；往回走就直接倒轉，舊畫面往下退出去、
@@ -179,14 +184,10 @@ fun NutriLogApp(viewModel: NutriViewModel) {
     // 交棒點拉到 0.97 之後是 1～2 幀、隔 1077／1295ms —— 換算回正常速度省掉約 70ms。
     //
     // 紙是**由下往上**升的，所以剩下那 3% 是畫面**最上面**那幾十個 pixel，
-    // 而且它正落在 [EDGE_FADE_DP] 那段羽化裡、本來就是半透明的。實測那一刻舊畫面
-    // 早就看不見了，交棒沒有留下任何破綻。
+    // 而那時候紙早就實心了（[SHEET_SOLID_AT] 在 0.8 就到頂），底下不會透出來。
     //
-    // 第一個條件是給**返回**用的：那個方向新畫面是 `EnterTransition.None`
-    // （動的是上面那張紙），它的 `currentState` 一開始就不是 `PreEnter`，
-    // 不能讓它跟著等 [COVER_HANDOFF]。順帶一提這裡不能寫成 `== Visible` ——
-    // 退場時 `currentState` 會走到 `PostExit`，那樣正在被蓋住的舊畫面會一路淡掉，
-    // 看起來是「今日頁自己消失」而不是「被一張紙蓋住」。
+    // `!forward` 那半邊是給**返回**用的：那個方向兩張都要立刻是完整的
+    // （上面那張要看得到它滑走，底下那張要看得到它被讓出來），一個都不能等。
     //
     // 用 `derivedStateOf` 包起來：`coverProgress` 每一幀都在變，直接拿去比大小
     // 等於整個畫面每幀重組一次，包成布林值之後只有真的翻面才通知讀它的人。
@@ -194,11 +195,8 @@ fun NutriLogApp(viewModel: NutriViewModel) {
         transitionSpec = { tween(COVER_MS, easing = CoverEasing) },
         label = "coverProgress",
     ) { if (it == EnterExitState.PreEnter) 0f else 1f }
-    val covered by remember(transition, coverProgress) {
-        derivedStateOf {
-            transition.currentState != EnterExitState.PreEnter ||
-                coverProgress.value >= COVER_HANDOFF
-        }
+    val covered by remember(coverProgress, forward) {
+        derivedStateOf { !forward || coverProgress.value >= COVER_HANDOFF }
     }
     val bodyAlpha by animateFloatAsState(
         targetValue = if (covered) 1f else 0f,
@@ -206,44 +204,22 @@ fun NutriLogApp(viewModel: NutriViewModel) {
         label = "body",
     )
     CompositionLocalProvider(LocalScreenEntered provides covered) {
-    // **上緣要柔化，不要一條硬邊。** 那張紙往上刷的時候，最上面那一段做成漸層：
-    // 頂端 [EDGE_ALPHA]、往下漸漸變成全不透明，看起來是紙的前緣在推進，
-    // 而不是一塊方形色塊在移動。
+    // **整張紙的濃度跟著它走了多遠**（[sheetAlphaAt]）：剛從畫面底下起步時只有
+    // [SHEET_ALPHA_FROM]，底下那頁還看得到；一路往上走一路變實，走到
+    // [SHEET_SOLID_AT] 就完全不透明。**重點是它在紙走到頂之前就已經實心了**
+    // —— 報頭那塊（「肥胖日記」那幾個字）是最後才被蓋到的地方，如果紙到那裡還
+    // 半透明，舊報頭就會和新畫面自己的進場動畫疊在一起，兩層一起動。
     //
-    // 收掉的時機接 `covered`：蓋滿之後跟著 [BODY_FADE_MS] 一起退成 0，
-    // 所以不會在終點忽然變回硬邊。**也因此它只會出現在真的在滑的那一張上** ——
-    // 被蓋住的舊畫面與返回時原地不動的那一張，`covered` 從頭到尾是 true，
-    // 完全不吃這段（曾經算錯這個條件，結果沒在動的畫面上緣也糊了一條）。
-    val edgeFade by animateFloatAsState(
-        targetValue = if (covered) 0f else 1f,
-        animationSpec = tween(BODY_FADE_MS, easing = CoverEasing),
-        label = "edge",
-    )
-    // **底色那一層不吃 alpha**：升上來的必須是一張不透明的紙，不然「蓋住今日頁」
-    // 會變成「今日頁被洗淡」——半透明地疊在上面，兩層一起看得到。
-    // 淡入只給內容那一層。
+    // 這取代了原本掛在紙前緣的那段空間漸層。那個作法的漸層是跟著邊緣跑的，
+    // 所以最後正好停在報頭上，剛好造成上面說的那個重疊 —— 方向對了、位置錯了。
+    // 濃度改成跟時間走就沒有這個問題：不管邊緣走到哪，該實心的時候就是實心。
+    //
+    // 讀 `coverProgress` 要在 `graphicsLayer` 的 lambda 裡，不是在組合階段 ——
+    // 它每一幀都在變，寫在外面等於整個畫面每幀重組一次。
     Box(
         Modifier
             .fillMaxSize()
-            // DstIn 是拿來削整層的 alpha，要先有離屏圖層才削得到，
-            // 不然會直接跟螢幕上已經畫好的東西混在一起。
-            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-            .drawWithContent {
-                drawContent()
-                if (edgeFade > 0.001f) {
-                    val band = EDGE_FADE_DP.toPx()
-                    drawRect(
-                        brush = Brush.verticalGradient(
-                            0f to Color.Black.copy(alpha = lerp(1f, EDGE_ALPHA, edgeFade)),
-                            1f to Color.Black,
-                            startY = 0f,
-                            endY = band,
-                        ),
-                        size = Size(size.width, band),
-                        blendMode = BlendMode.DstIn,
-                    )
-                }
-            }
+            .graphicsLayer { alpha = if (forward) sheetAlphaAt(coverProgress.value) else 1f }
             .background(MaterialTheme.colorScheme.background)
     ) {
     Box(Modifier.fillMaxSize().graphicsLayer { alpha = bodyAlpha }) {
@@ -427,9 +403,17 @@ private const val COVER_MS = 320
 private const val BODY_FADE_MS = 180
 private val CoverEasing = CubicBezierEasing(0.32f, 0f, 0.18f, 1f)
 
-/** 紙的上緣那段漸層有多長、頂端剩多少不透明度。 */
-private val EDGE_FADE_DP = 120.dp
-private const val EDGE_ALPHA = 0.5f
+/** 紙剛起步時的不透明度，以及走到幾成就完全實心。 */
+private const val SHEET_ALPHA_FROM = 0.5f
+private const val SHEET_SOLID_AT = 0.8f
+
+/**
+ * 紙走到 [progress] 時的不透明度。指數 1.5 是為了讓中途比線性更透一點
+ * （走到一半時約 75%，線性會是 81%）—— 線性讀起來像紙一離地就實心了，
+ * 而「越往上越難看到背後」正是這段漸層要講的事。
+ */
+private fun sheetAlphaAt(progress: Float): Float =
+    lerp(SHEET_ALPHA_FROM, 1f, (progress / SHEET_SOLID_AT).coerceAtMost(1f).pow(1.5f))
 
 /** 蓋到幾成就把棒子交給畫面自己的進場動畫。剩下的是最底下那幾十個 pixel。 */
 private const val COVER_HANDOFF = 0.97f
