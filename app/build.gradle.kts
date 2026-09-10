@@ -112,6 +112,8 @@ dependencies {
     implementation(libs.play.services.auth)
     // 每天一次的背景備份。AlarmManager 在 Doze 底下不可靠，這是官方的做法。
     implementation(libs.androidx.work.runtime.ktx)
+    // Health Connect（健康連線）：與 Samsung Health / 系統健康中樞同步飲食與營養素
+    implementation(libs.androidx.health.connect)
 
     testImplementation(libs.junit)
 }

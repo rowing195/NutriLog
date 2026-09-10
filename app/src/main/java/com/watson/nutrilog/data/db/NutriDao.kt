@@ -117,6 +117,10 @@ interface NutriDao {
     )
     fun observeRange(from: String, to: String): Flow<List<DayTotal>>
 
+    /** 週報用：查詢某區間所有飲食明細，以利統計餐別分佈與微量營養素 */
+    @Query("SELECT * FROM food_entries WHERE date BETWEEN :from AND :to ORDER BY date, loggedAt")
+    suspend fun getEntriesInRange(from: String, to: String): List<FoodEntry>
+
     /** 新增回傳 rowId、更新回傳原 id，呼叫端不必分辨是哪一種 */
     @Upsert
     suspend fun upsert(entry: FoodEntry): Long
@@ -132,4 +136,21 @@ interface NutriDao {
 
     @Upsert
     suspend fun cacheProduct(product: CachedProduct)
+
+    // --- 每日運動與健康指標快取 ---
+
+    @Upsert
+    suspend fun upsertHealthMetric(metric: DailyHealthMetric)
+
+    @Upsert
+    suspend fun upsertHealthMetrics(metrics: List<DailyHealthMetric>)
+
+    @Query("SELECT * FROM daily_health_metrics WHERE date = :date")
+    suspend fun getHealthMetric(date: String): DailyHealthMetric?
+
+    @Query("SELECT * FROM daily_health_metrics WHERE date BETWEEN :from AND :to ORDER BY date ASC")
+    suspend fun getHealthMetricsInRange(from: String, to: String): List<DailyHealthMetric>
+
+    @Query("SELECT * FROM daily_health_metrics")
+    suspend fun getAllHealthMetrics(): List<DailyHealthMetric>
 }

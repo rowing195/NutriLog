@@ -58,7 +58,7 @@ class GeminiClient(private val client: OkHttpClient = SharedHttp.client) {
         apiKey: String,
         model: String,
     ): Result<List<DetectedFood>> = analyze(apiKey, model) {
-        addJsonObject { put("text", AiPrompts.PHOTO_PROMPT) }
+        addJsonObject { put("text", PHOTO_PROMPT) }
         addJsonObject {
             putJsonObject("inline_data") {
                 put("mime_type", "image/jpeg")
@@ -77,9 +77,8 @@ class GeminiClient(private val client: OkHttpClient = SharedHttp.client) {
         description: String,
         apiKey: String,
         model: String,
-        searchContext: String? = null,
     ): Result<List<DetectedFood>> = analyze(apiKey, model) {
-        addJsonObject { put("text", AiPrompts.textRequest(description, searchContext)) }
+        addJsonObject { put("text", TEXT_PROMPT + "\n\n使用者輸入：" + description) }
     }
 
     private suspend fun analyze(
@@ -162,8 +161,7 @@ class GeminiClient(private val client: OkHttpClient = SharedHttp.client) {
      */
     private fun networkMessage(cause: IOException): String = when (cause) {
         is SocketTimeoutException ->
-            "等太久了，連線逾時。這個模型可能思考時間較長 —— " +
-                "到設定頁換成 gemini-3.5-flash-lite 之類比較快的模型再試一次"
+            "連線逾時，AI 生成需要較多時間，請檢查網路後再試一次"
         else -> "連線失敗，請檢查網路"
     }
 
@@ -180,11 +178,10 @@ class GeminiClient(private val client: OkHttpClient = SharedHttp.client) {
         val headline = when (code) {
             400 -> "請求被拒絕，API key 可能不正確"
             401, 403 -> "API key 無效或沒有權限"
-            404 -> "找不到這個模型，請到設定頁確認模型名稱"
-            429 -> "配額不足。這不一定代表你用太多 —— 也可能是專案還在免費層，或這個模型的額度是 0"
+            404 -> "AI 服務端點不可用，請稍候重試"
+            429 -> "配額不足。這不一定代表你用太多 —— 也可能是專案還在免費層，或目前額度為 0"
             in 500..599 ->
-                "Gemini 那邊暫時忙不過來（已自動重試）。剛推出的模型特別容易遇到，" +
-                    "可到設定頁改用 gemini-3.5-flash-lite"
+                "Gemini 伺服器暫時忙碌（已自動重試），請稍候片刻再試"
             else -> "Gemini 回應 HTTP " + code
         }
         val detail = runCatching {
@@ -265,14 +262,48 @@ class GeminiClient(private val client: OkHttpClient = SharedHttp.client) {
         const val BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/"
         val JSON_MEDIA = "application/json".toMediaType()
 
+        val PHOTO_PROMPT = """
+            你是專業營養師。分析照片中的食物營養成分。照片可能是【實體餐點菜餚】或【餐廳點餐收據／外送明細／菜單／食品包裝／營養成分標示】。
+
+            核心辨識規則：
+            1. 【若為點餐收據／外送單／菜單／發票明細】：
+               - 逐行提取所有點購的食物品項，並「務必將品項本身規格與『數量』欄位相乘計算」
+                 （例如：品項為「鳥蛋3個」，數量欄為「2」，則總數量為 6 顆，name 填「鳥蛋」，servingText 填「6顆（2份）」，熱量與營養素按 6 顆計算）。
+               - 份量說明 servingText 應具體明確（例如「1包」、「半盒 (約150g)」、「6顆 (2份)」、「1份 (約60g)」）。
+               - 滿額贈送或 0 元活動品項（例如「滿200送豬肉 0元 數量1」）也是實際吃到的食物，必須抓取並估算營養。
+               - 簡稱或分類品項需結合情境合理還原（例如：麻辣燙收據上的「牛」還原為「牛肉片」；「7元系列 / 13元系列 火鍋料」還原為「火鍋料」）。
+               - 結合整單料理特色（如麻辣燙、滷味、油炸、清蒸），將湯汁吸附、辣油吸收適度反映在熱量、油脂與鈉含量中（例如老油條吸麻辣湯油熱量較高）。
+               - 嚴格忽略所有非食物雜訊（例如：內用/外帶、桌號、小計金額、總金額、總數量、發票號碼、OrderNumber、TransactionID、店名、找零等）。
+            2. 【若為實體食物餐點】：
+               - 依照片中看得到的份量估算，不要用「每 100 公克」的通用值。
+               - servingText 寫成人看得懂的份量，例如「1 碗（約 250 公克）」。
+            3. 【若為食品包裝或營養成分標籤】：
+               - 若照片為營養標示表或包裝背面，依據標示之每份數值或總份量計算。
+            4. 通用格式要求：
+               - name 用繁體中文。
+               - calories 單位 kcal；proteinG / fatG / carbsG / sugarG / fiberG / satFatG 單位公克；sodiumMg 單位毫克。
+               - 沒把握的營養素就填 null，不要猜 0。
+               - confidence 是 0 到 1 之間的數字，代表你對該品項營養估計的把握度（收據明細品項明確者給 0.85~0.95）。
+               - 只有在照片「既沒有食物，也沒有任何餐飲收據、菜單、點餐單或包裝標示」時，才回傳空的 items 陣列。
+        """.trimIndent()
+
+        val TEXT_PROMPT = """
+            你是營養師。使用者用文字描述他吃了什麼，請估算營養素。
+
+            規則：
+            - 台灣的連鎖店品項（例如 CoCo、50 嵐、麥當勞）就用該店的常見規格估。
+            - 描述沒講清楚規格時，列出 2 到 4 個**常見選項**讓使用者挑，
+              例如大杯／中杯、全糖／半糖、加料與否，各自算成一項。
+              描述已經很明確（例如「一顆水煮蛋」）就只回一項，不要硬湊。
+            - servingText 要寫清楚是哪一種規格，例如「大杯 700ml 全糖」。
+            - name 用繁體中文。
+            - calories 單位 kcal；proteinG / fatG / carbsG / sugarG / fiberG / satFatG 單位公克；sodiumMg 單位毫克。
+            - 沒把握的營養素就填 null，不要猜 0。
+            - confidence 是 0 到 1 之間的數字。連鎖店有公開營養標示的給高一點，純估算的給低一點。
+            - 完全看不懂在講什麼食物就回傳空的 items 陣列。
+        """.trimIndent()
+
         // 用 OpenAPI 子集描述回傳格式。屬性名稱要和 DetectedFood 完全一致。
-        //
-        // **四個進階營養素（糖、鈉、膳食纖維、飽和脂肪）是 required 但 nullable。**
-        // 選填的時候模型有藉口整個略過，實測鈉永遠是 null；改成 required 之後
-        // 同一個查詢兩次都填出 1092（台灣麥當勞官方是 1092.5），而且真的不知道的
-        // 那幾欄仍然是 null —— required 逃不掉鍵，但逃得掉值。
-        //
-        // **OpenRouter 那份刻意不跟進這一步**，理由寫在 OpenRouterClient 的 schema 旁邊。
         const val RESPONSE_SCHEMA = """
         {
           "type": "OBJECT",
@@ -294,7 +325,7 @@ class GeminiClient(private val client: OkHttpClient = SharedHttp.client) {
                   "satFatG":    { "type": "NUMBER", "nullable": true },
                   "confidence": { "type": "NUMBER" }
                 },
-                "required": ["name", "servingText", "calories", "proteinG", "fatG", "carbsG", "sugarG", "sodiumMg", "fiberG", "satFatG", "confidence"]
+                "required": ["name", "servingText", "calories", "proteinG", "fatG", "carbsG", "confidence"]
               }
             }
           },

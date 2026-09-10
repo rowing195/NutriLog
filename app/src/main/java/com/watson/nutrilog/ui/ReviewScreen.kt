@@ -258,12 +258,10 @@ private fun FailureBody(
 ) {
     // 沒設 key 是最常見的失敗，而且解法完全不同（去設定，不是重試），
     // 所以獨立成一種畫面而不是丟一段錯誤字串了事。
-    // 前綴比對而不是相等：後面接的是缺哪一家的 key（見 reportMissingApiKey）
-    val missingKey = reason.startsWith(NutriViewModel.NO_API_KEY)
-    val missingProvider = reason.removePrefix(NutriViewModel.NO_API_KEY).removePrefix(":")
+    val missingKey = reason == NutriViewModel.NO_API_KEY
     Column(modifier, verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Text(
-            if (missingKey) stringResource(R.string.photo_no_key, missingProvider) else reason,
+            if (missingKey) stringResource(R.string.photo_no_key) else reason,
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(top = 24.dp),
         )

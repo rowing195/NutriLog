@@ -24,18 +24,6 @@ data class NutriSettings(
     /** 只存在這支手機裡，不會外流。空字串代表還沒設定，拍照辨識會擋下來。 */
     val geminiApiKey: String = "",
     val geminiModel: String = DEFAULT_MODEL,
-    /** 同上，只是換一家。空字串代表沒設定。 */
-    val openRouterApiKey: String = "",
-    val openRouterModel: String = DEFAULT_OPENROUTER_MODEL,
-    /** 同上。Tavily 是搜尋服務不是模型，見 [SearchMode]。 */
-    val tavilyApiKey: String = "",
-    /** 文字辨識前要不要先查網路、用誰查。 */
-    val searchMode: SearchMode = SearchMode.OFF,
-    /**
-     * 文字描述要送去哪一家。**只管文字**，拍照永遠走 Gemini ——
-     * 理由見 [AiProvider]。
-     */
-    val textProvider: AiProvider = AiProvider.GEMINI,
     val calorieTarget: Int = 2000,
     val proteinTargetG: Int = 100,
     val fatTargetG: Int = 60,
@@ -49,6 +37,26 @@ data class NutriSettings(
     val driveAccount: String = "",
     /** 上次備份成功的時間（epoch millis）。0 代表還沒備份過。 */
     val lastBackupAt: Long = 0,
+    /** 個人體態數值（計算 BMR 與 TDEE 用） */
+    val profileGender: Gender = Gender.MALE,
+    val profileAge: Int = 28,
+    val profileHeightCm: Float = 172f,
+    val profileWeightKg: Float = 68f,
+    val profileActivity: ActivityLevel = ActivityLevel.LIGHT,
+    val profileGoal: DietGoal = DietGoal.MAINTAIN,
+    /** 是否已完成個人身型與目標設定。尚未設定時首次進入或登入會主動跳出引導。 */
+    val profileConfigured: Boolean = false,
+    /** 是否開啟 Health Connect（健康連線）同步至 Samsung Health */
+    val healthConnectSyncEnabled: Boolean = false,
+    /** 上次同步至健康連線的時間（epoch millis） */
+    val lastHealthSyncAt: Long = 0,
+    /** 是否從 Health Connect 讀取運動消耗熱量 */
+    val readExerciseCalories: Boolean = true,
+    /** NVIDIA NIM / OpenRouter API Key (用於生成每週健康週報與卡路里推薦、文字食物辨識) */
+    val nvidiaApiKey: String = "",
+    val nvidiaModel: String = DEFAULT_NVIDIA_MODEL,
+    /** Tavily Search API Key (用於文字食物辨識時聯網檢索最新熱量與營養標示) */
+    val tavilyApiKey: String = "",
 ) {
     companion object {
         // 模型會改朝換代，所以設定頁可以改。注意 gemini-2.0-flash 已經下架，別填。
@@ -57,12 +65,7 @@ data class NutriSettings(
         // （序列化時 encodeDefaults = true，第一次存設定就把它寫進去了），
         // 所以既有使用者要自己到設定頁改，不會被這行帶著走。
         const val DEFAULT_MODEL = "gemini-3.7-flash"
-
-        /**
-         * OpenRouter 的預設。挑健康領域的模型而不是通用大模型，因為這條路只做
-         * 一件事：把「吃了什麼」換算成營養素。`:free` 是它自己的免費層級標記。
-         */
-        const val DEFAULT_OPENROUTER_MODEL = "inclusionai/ling-3.0-flash-sante:free"
+        const val DEFAULT_NVIDIA_MODEL = "nvidia/nemotron-3.5-lightning:free"
         const val MIN_TARGET = 0
         const val MAX_CALORIE_TARGET = 6000
         const val MAX_MACRO_TARGET = 800
@@ -70,64 +73,48 @@ data class NutriSettings(
 }
 
 /**
- * 文字辨識要走哪一家。
+ * Mifflin-St Jeor 臨床公式估算的每日基礎代謝。
  *
- * **這個選擇只管文字，不管拍照。** 拍照需要吃得下圖片的模型，而這條路上想用的
- * OpenRouter 免費模型（見 [NutriSettings.DEFAULT_OPENROUTER_MODEL]）是純文字的 ——
- * 做成一個總開關的話，使用者選了 OpenRouter 之後拍照會神祕地失敗或偷偷跑去別家，
- * 兩種都比在設定頁講清楚差。所以設定頁那一欄叫「文字辨識用哪一家」。
- *
- * 以後要加 OpenAI 之類的就在這裡多一個 entry，設定頁的清單是照 entries 長出來的。
+ * 週報、月報與「總消耗扣掉基礎代謝推回活動量」讀的必須是同一個值 ——
+ * 各寫一份的話，首頁顯示的運動消耗會和報表對不起來。
+ * 身高體重沒填時退回一個保守的常數，不要讓公式吐出負值。
  */
-/**
- * 每一個需要 API key 的外部服務。設定頁那份金鑰清單就是照 entries 長出來的，
- * 以後要加 OpenAI 之類的在這裡多一個 entry 就好。
- *
- * 名稱是品牌名不是要翻譯的文案，所以直接寫在 enum 上而不是丟字串資源。
- */
-@Serializable
-enum class ApiService(val label: String) {
-    GEMINI("Gemini"),
-    OPENROUTER("OpenRouter"),
-    TAVILY("Tavily"),
-}
-
-/**
- * 文字辨識要走哪一家**模型**。
- *
- * **這個選擇只管文字，不管拍照。** 拍照需要吃得下圖片的模型，而這條路上想用的
- * OpenRouter 免費模型（見 [NutriSettings.DEFAULT_OPENROUTER_MODEL]）是純文字的 ——
- * 做成一個總開關的話，使用者選了 OpenRouter 之後拍照會神祕地失敗或偷偷跑去別家，
- * 兩種都比在設定頁講清楚差。所以設定頁那一欄叫「文字辨識用哪一家」。
- *
- * 它是 [ApiService] 的子集：不是每個有 key 的服務都能回答問題（Tavily 只會搜尋）。
- */
-@Serializable
-enum class AiProvider(val service: ApiService) {
-    GEMINI(ApiService.GEMINI),
-    OPENROUTER(ApiService.OPENROUTER);
-
-    val label: String get() = service.label
-}
-
-/**
- * 回答之前要不要先查網路、用誰查。
- *
- * 兩條路的差別不只是價錢：
- *
- * - [OPENROUTER] 是 OpenRouter 內建的外掛，**每次查詢另外收費**（預設抓 5 筆結果
- *   約 $0.02），而且**只有文字走 OpenRouter 時才有作用**。實測它回的數字其實來自
- *   部落格整理的表格，不是官方頁。
- * - [TAVILY] 是自己打 Tavily 的搜尋 API，把結果當背景文字接在 prompt 前面。
- *   免費層 1000 次/月，**兩家模型都適用**，而且實測第一筆就是台灣麥當勞的官方
- *   產品頁、整張營養表原樣帶回來（503.17 kcal 那一份）。
- */
-@Serializable
-enum class SearchMode { OFF, OPENROUTER, TAVILY }
+fun NutriSettings.estimatedBmrPerDay(): Double =
+    if (profileWeightKg > 0 && profileHeightCm > 0) {
+        if (profileGender == Gender.MALE) {
+            10.0 * profileWeightKg + 6.25 * profileHeightCm - 5.0 * profileAge + 5.0
+        } else {
+            10.0 * profileWeightKg + 6.25 * profileHeightCm - 5.0 * profileAge - 161.0
+        }
+    } else {
+        1600.0
+    }
 
 /** 深色模式要不要跟系統走。獨立成 enum 而不是單一 boolean，因為「跟系統」本身是第三種狀態。 */
 @Serializable
 enum class DarkModePreference { SYSTEM, LIGHT, DARK }
+
+/** 生理性別（影響 BMR 計算常數） */
+@Serializable
+enum class Gender { MALE, FEMALE }
+
+/** 日常活動量與運動頻率（對應 TDEE 活動係數） */
+@Serializable
+enum class ActivityLevel(val multiplier: Float) {
+    SEDENTARY(1.2f),
+    LIGHT(1.375f),
+    MODERATE(1.55f),
+    HEAVY(1.725f),
+    VERY_HEAVY(1.9f)
+}
+
+/** 體態目標（熱量赤字或盈餘） */
+@Serializable
+enum class DietGoal(val calorieDelta: Int) {
+    LOSE_FAT(-300),
+    MAINTAIN(0),
+    GAIN_MUSCLE(300)
+}
 
 // 必須是「每個檔名只有一個」的頂層委派，重複建立會在執行期直接拋例外
 private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "nutri_prefs")

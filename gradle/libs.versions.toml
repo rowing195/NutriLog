@@ -15,10 +15,12 @@ codeScanner = "16.1.0"
 # Drive 備份：授權走 Identity 的 AuthorizationClient（GoogleSignIn 已淘汰）
 playAuth = "22.0.0"
 work = "2.10.0"
+healthConnect = "1.1.0-alpha11"
 junit = "4.13.2"
 
 [libraries]
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+androidx-health-connect = { group = "androidx.health.connect", name = "connect-client", version.ref = "healthConnect" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }
 androidx-lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycle" }

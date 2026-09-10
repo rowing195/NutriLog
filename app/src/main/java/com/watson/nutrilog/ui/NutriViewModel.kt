@@ -2,9 +2,12 @@ package com.watson.nutrilog.ui
 
 import android.app.Application
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -14,13 +17,12 @@ import com.watson.nutrilog.R
 import com.watson.nutrilog.data.CsvExport
 import com.watson.nutrilog.data.CsvImport
 import com.watson.nutrilog.data.DriveBackup
-import com.watson.nutrilog.data.AiProvider
-import com.watson.nutrilog.data.ApiService
-import com.watson.nutrilog.data.SearchMode
 import com.watson.nutrilog.data.NutriSettings
+import com.watson.nutrilog.data.WorkoutSessionItem
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.CommonStatusCodes
 import com.watson.nutrilog.data.DriveAuth
+import com.watson.nutrilog.data.HealthConnectSync
 import com.watson.nutrilog.data.SettingsStore
 import com.watson.nutrilog.work.BackupWorker
 import com.watson.nutrilog.data.db.CachedProduct
@@ -32,23 +34,44 @@ import com.watson.nutrilog.data.db.Meal
 import com.watson.nutrilog.data.db.NutriDatabase
 import com.watson.nutrilog.data.net.DetectedFood
 import com.watson.nutrilog.data.net.GeminiClient
-import com.watson.nutrilog.data.net.OpenRouterClient
-import com.watson.nutrilog.data.net.TavilyClient
 import com.watson.nutrilog.data.net.ImageCompressor
 import com.watson.nutrilog.data.net.OpenFoodFactsClient
+import com.watson.nutrilog.data.net.OpenRouterFoodClient
+import com.watson.nutrilog.data.net.TavilySearchClient
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.YearMonth
+import java.time.DayOfWeek
+import java.time.ZoneId
 import kotlin.math.roundToInt
+import com.watson.nutrilog.data.TargetRecommendation
+import com.watson.nutrilog.data.WeeklyAggregator
+import com.watson.nutrilog.data.WeeklyReport
+import com.watson.nutrilog.data.WeeklyReportStore
+import com.watson.nutrilog.data.WeeklyStats
+import com.watson.nutrilog.data.MonthlyAggregator
+import com.watson.nutrilog.data.MonthlyReport
+import com.watson.nutrilog.data.MonthlyReportStore
+import com.watson.nutrilog.data.MonthlyStats
+import com.watson.nutrilog.data.ActivitySource
+import com.watson.nutrilog.data.DailyActivity
+import com.watson.nutrilog.data.NO_ACTIVITY_DATA_REASON
+import com.watson.nutrilog.data.db.DailyHealthMetric
+import com.watson.nutrilog.data.net.NvidiaClient
+import com.watson.nutrilog.work.SundayReportWorker
 
 /**
  * 畫面。沿用 LocalReader 的做法：sealed interface + when 分派，不引入導航函式庫。
@@ -57,38 +80,16 @@ import kotlin.math.roundToInt
  * [EditEntry] 沒有參數 —— 正在編輯的內容放在 ViewModel 的 draft 上，
  * 這樣三種輸入來源（手動／條碼／拍照）都能先塞好草稿再切過去。
  */
-/**
- * 設定頁的分頁。設定原本是一整條長捲軸，六段疊在一起要捲很久才找得到東西，
- * 所以拆成「選單 -> 子頁」兩層，這個 enum 就是子頁的身分。
- *
- * 「顯示進階營養素」那個開關沒有自己的一頁 —— 它講的是編輯表單要不要攤開糖、鈉、
- * 膳食纖維、飽和脂肪，跟每日目標同樣是在講營養素，為了一個開關多開一頁不划算。
- */
-enum class SettingsPage { APPEARANCE, TARGETS, AI, DRIVE, DATA }
-
 sealed interface Screen {
     data object Today : Screen
     data object History : Screen
-
-    /** 設定的選單那一層。 */
     data object Settings : Screen
-
-    /**
-     * 設定的子頁。這是整個 app 唯一有兩層的地方，所以返回鍵在這裡是回選單、
-     * 不是回今日頁（見 App.kt 的 BackHandler）。
-     */
-    data class SettingsDetail(val page: SettingsPage) : Screen
-
-    /**
-     * 某一個服務的 key。設定裡唯一的第三層 —— 每家的欄位不一樣，
-     * 全部攤在同一頁的話「AI 影像辨識」又會變回一條長捲軸。
-     */
-    data class ApiKeyDetail(val service: ApiService) : Screen
     data object EditEntry : Screen
     data object Barcode : Screen
     data object TextLookup : Screen
     data object Review : Screen
     data object Search : Screen
+    data object WeeklyReport : Screen
 }
 
 /** AI 辨識的三個階段。照片與文字描述共用。 */
@@ -116,13 +117,7 @@ data class AnalysisItem(
  */
 sealed interface AnalysisSource {
     data class Photo(val uri: Uri) : AnalysisSource
-    /**
-     * [useSearch] 由使用者按哪一顆章決定，不是設定、也不是模型判斷。
-     *
-     * 它跟著來源走而不是另外存一個欄位，因為 `retryAnalysis()` 會原樣重跑
-     * `lastSource` —— 分開存的話「重試」會靜悄悄地換一種模式。
-     */
-    data class Text(val query: String, val useSearch: Boolean) : AnalysisSource
+    data class Text(val query: String) : AnalysisSource
 }
 
 /** 條碼查詢的四種結局。分開來 UI 才講得出「查無此商品」和「連線失敗」的差別。 */
@@ -291,15 +286,80 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     private val settingsStore = SettingsStore(application)
     private val openFoodFacts = OpenFoodFactsClient()
     private val gemini = GeminiClient()
-    private val openRouter = OpenRouterClient()
-    private val tavily = TavilyClient()
+    private val nvidiaClient = NvidiaClient()
+    private val openRouterFoodClient = OpenRouterFoodClient()
+    private val tavilySearchClient = TavilySearchClient()
+    private val weeklyReportStore = WeeklyReportStore(application)
+    private val weeklyAggregator = WeeklyAggregator()
+    private val monthlyReportStore = MonthlyReportStore(application)
+    private val monthlyAggregator = MonthlyAggregator()
+
+    private val fastPrefs = application.getSharedPreferences("camera_pending", Context.MODE_PRIVATE)
 
     var screen by mutableStateOf<Screen>(Screen.Today)
         private set
-    var settings by mutableStateOf(NutriSettings())
+    var settings by mutableStateOf(
+        NutriSettings(
+            geminiApiKey = fastPrefs.getString(CACHED_KEY, "") ?: "",
+            geminiModel = fastPrefs.getString(CACHED_MODEL, NutriSettings.DEFAULT_MODEL)?.ifBlank { NutriSettings.DEFAULT_MODEL } ?: NutriSettings.DEFAULT_MODEL,
+            nvidiaApiKey = fastPrefs.getString(CACHED_NVIDIA_KEY, "") ?: "",
+            tavilyApiKey = fastPrefs.getString(CACHED_TAVILY_KEY, "") ?: "",
+        )
+    )
         private set
+
+    /**
+     * key 與模型的同步快取。DataStore 是非同步的，行程被相機擠掉後重建的那一瞬間
+     * 讀不到東西，這裡是唯一當場拿得到值的地方。寫入點在 [updateSettings] 與
+     * 訂閱 DataStore 的那段 —— 使用者把 key 清掉時這裡也會跟著清成空字串，
+     * 所以不會有「已經刪了還被快取救回來」的情況。
+     */
+    private fun cachedApiKey(): String = fastPrefs.getString(CACHED_KEY, "").orEmpty()
+
+    private fun cachedModel(): String = fastPrefs.getString(CACHED_MODEL, "").orEmpty()
+
+    private fun cachedNvidiaKey(): String = fastPrefs.getString(CACHED_NVIDIA_KEY, "").orEmpty()
+
+    private fun cachedTavilyKey(): String = fastPrefs.getString(CACHED_TAVILY_KEY, "").orEmpty()
+
+    fun restoreApiKey(apiKey: String, model: String = "") {
+        if (settings.geminiApiKey.isBlank() && apiKey.isNotBlank()) {
+            settings = settings.copy(
+                geminiApiKey = apiKey,
+                geminiModel = if (model.isNotBlank()) model else settings.geminiModel
+            )
+        }
+    }
     var selectedDate by mutableStateOf(LocalDate.now())
         private set
+    var reportTab by mutableStateOf(ReportTab.WEEKLY)
+        private set
+    var weeklyReportWeekStart by mutableStateOf<LocalDate>(LocalDate.now().minusDays((LocalDate.now().dayOfWeek.value % 7).toLong()))
+        private set
+    var weeklyReportUiState by mutableStateOf<WeeklyReportUiState>(WeeklyReportUiState.Loading())
+        private set
+    var monthlyReportMonth by mutableStateOf<YearMonth>(YearMonth.now())
+        private set
+    var monthlyReportUiState by mutableStateOf<MonthlyReportUiState>(MonthlyReportUiState.Loading())
+        private set
+
+    // 後台持續運行 Scope（解耦畫面生命週期，離屏持續執行）
+    private val reportScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    var isWeeklyReportGenerating by mutableStateOf(false)
+        private set
+    var generatingWeekStart by mutableStateOf<LocalDate?>(null)
+        private set
+    var isMonthlyReportGenerating by mutableStateOf(false)
+        private set
+    var generatingMonth by mutableStateOf<YearMonth?>(null)
+        private set
+    var backgroundReportMessage by mutableStateOf<String?>(null)
+        private set
+
+    fun dismissBackgroundReportMessage() {
+        backgroundReportMessage = null
+    }
     /** 月曆目前顯示的月份 */
     var visibleMonth by mutableStateOf(YearMonth.now())
         private set
@@ -313,6 +373,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         private set
     var barcodeState by mutableStateOf<BarcodeState>(BarcodeState.Idle)
         private set
+    var pendingCameraPhotoUri by mutableStateOf<Uri?>(null)
     var analysisState by mutableStateOf<AnalysisState?>(null)
         private set
     private var lastSource: AnalysisSource? = null
@@ -372,6 +433,276 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     var pendingConsent by mutableStateOf<PendingIntent?>(null)
         private set
 
+    /** 是否開啟 BMR 與每日目標計算機彈窗 */
+    var showBmrDialog by mutableStateOf(false)
+        private set
+
+    private var initialPromptChecked = false
+
+    fun openBmrDialog() {
+        showBmrDialog = true
+    }
+
+    fun closeBmrDialog() {
+        showBmrDialog = false
+    }
+
+    fun dismissBmrDialog() {
+        showBmrDialog = false
+        // 使用者按下取消時，設定 profileConfigured = true 避免每次開 App 重複打擾
+        viewModelScope.launch {
+            val cur = settingsStore.current()
+            if (!cur.profileConfigured) {
+                settingsStore.save(cur.copy(profileConfigured = true))
+            }
+        }
+    }
+
+    // --- Health Connect（健康連線 / Samsung Health）---
+    private val healthConnectSync = HealthConnectSync(application)
+
+    val isHealthConnectSupported: Boolean get() = healthConnectSync.isSupported()
+    var healthConnectAuthorized by mutableStateOf(false)
+        private set
+    var healthConnectReadAuthorized by mutableStateOf(false)
+        private set
+    val activeCaloriesMap = mutableStateMapOf<LocalDate, Double>()
+    val workoutSessionsMap = mutableStateMapOf<LocalDate, List<WorkoutSessionItem>>()
+    val selectedDateActiveCalories: Double
+        get() = if (settings.readExerciseCalories) activeCaloriesMap[selectedDate] ?: 0.0 else 0.0
+
+    var healthSyncBusy by mutableStateOf(false)
+        private set
+    var healthMessage by mutableStateOf<String?>(null)
+        private set
+    var pendingHealthPermissionRequest by mutableStateOf(false)
+        private set
+
+    fun checkHealthPermissions() {
+        if (!healthConnectSync.isSupported()) return
+        viewModelScope.launch {
+            healthConnectAuthorized = healthConnectSync.hasWritePermission()
+            healthConnectReadAuthorized = healthConnectSync.hasReadExercisePermission()
+            if (healthConnectReadAuthorized && settings.readExerciseCalories) {
+                fetchActiveCalories(selectedDate)
+            }
+        }
+    }
+
+    fun fetchActiveCalories(date: LocalDate = selectedDate) {
+        if (!settings.readExerciseCalories) return
+        viewModelScope.launch {
+            if (healthConnectSync.isSupported() && healthConnectSync.hasReadExercisePermission()) {
+                healthConnectReadAuthorized = true
+                syncDailyActivity(date)
+            } else {
+                loadCachedActivity(date)
+            }
+        }
+    }
+
+    /**
+     * 手動點擊卡路里旁 ↻ 圖示時觸發，提供明確的 Toast 震動反饋。
+     *
+     * Toast 要把「0 是怎麼來的」講出來：沒授權、三星沒提供這種資料、
+     * 和真的沒動，在畫面上長得一模一樣，不講的話使用者不知道要去修哪裡。
+     */
+    fun refreshActiveCalories(date: LocalDate = selectedDate) {
+        if (!settings.readExerciseCalories) {
+            Toast.makeText(getApplication(), "請先至「設定」開啟讀取運動熱量", Toast.LENGTH_SHORT).show()
+            return
+        }
+        viewModelScope.launch {
+            if (healthConnectSync.isSupported() && healthConnectSync.hasReadExercisePermission()) {
+                healthConnectReadAuthorized = true
+                val activity = syncDailyActivity(date)
+                val message = when (activity.source) {
+                    ActivitySource.ACTIVE_CALORIES ->
+                        "已從健康連線同步：+${activity.calories.toInt()} kcal"
+                    ActivitySource.WORKOUT_SESSIONS ->
+                        if (activity.workoutSummary.isNotBlank()) {
+                            "已同步體能訓練（${activity.workoutSummary}）：+${activity.calories.toInt()} kcal"
+                        } else {
+                            "已同步體能訓練：+${activity.calories.toInt()} kcal"
+                        }
+                    ActivitySource.TOTAL_MINUS_BMR ->
+                        if (activity.workoutSummary.isNotBlank()) {
+                            "已同步活動消耗：+${activity.calories.toInt()} kcal（含 ${activity.workoutSummary}）"
+                        } else {
+                            "已同步活動消耗：+${activity.calories.toInt()} kcal（依總消耗推算）"
+                        }
+                    ActivitySource.STEPS ->
+                        "已同步步數，${activity.steps} 步換算：+${activity.calories.toInt()} kcal"
+                    ActivitySource.NONE ->
+                        activity.unavailableReason ?: NO_ACTIVITY_DATA_REASON
+                }
+                Toast.makeText(getApplication(), message, Toast.LENGTH_LONG).show()
+
+                // 讀不到而且真的還缺權限時主動補問一次。既有使用者只授權過活動大卡，
+                // 光看 hasReadExercisePermission() 會以為一切正常，永遠不會被問到步數。
+                if (activity.source == ActivitySource.NONE &&
+                    healthConnectSync.missingPermissions().isNotEmpty()
+                ) {
+                    pendingHealthPermissionRequest = true
+                }
+            } else {
+                loadCachedActivity(date)
+                Toast.makeText(getApplication(), "未取得健康連線授權或裝置不支援", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /**
+     * 抓一天的活動量並更新快取。
+     *
+     * 寫回資料庫時一定要先讀回舊的那一列再 `copy` —— DAO 是 `@Upsert`（整列取代），
+     * 直接 new 一個只填熱量的物件會把 `steps` 與 `workoutCalories` 一起洗成 0。
+     */
+    private suspend fun syncDailyActivity(date: LocalDate): DailyActivity {
+        val activity = healthConnectSync.readDailyActivity(date, settings)
+        val dateStr = date.toString()
+        val cached = dao.getHealthMetric(dateStr)
+
+        if (activity.source == ActivitySource.NONE) {
+            // 只有在「真的出錯或缺權限」時才保護既有快取；
+            // 若健康連線已授權且正常讀取、但使用者當天就是 0 步 0 運動，
+            // 則當天的活動大卡就應該是 0，不可沿用先前殘留的錯誤數值。
+            if (activity.unavailableReason != null && activity.unavailableReason != NO_ACTIVITY_DATA_REASON) {
+                activeCaloriesMap[date] = cached?.activeCalories ?: 0.0
+                return activity
+            }
+        }
+
+        activeCaloriesMap[date] = activity.calories
+        workoutSessionsMap[date] = activity.workoutSessions
+        dao.upsertHealthMetric(
+            (cached ?: DailyHealthMetric(date = dateStr)).copy(
+                activeCalories = activity.calories,
+                steps = activity.steps,
+                workoutCalories = activity.workoutCalories,
+                lastSyncedAt = System.currentTimeMillis(),
+            )
+        )
+        return activity
+    }
+
+    private suspend fun loadCachedActivity(date: LocalDate) {
+        val cached = dao.getHealthMetric(date.toString())
+        if (cached != null) {
+            // 防呆：若快取中存在先前 bug 遺留的異常暴衝值（0 步且無運動卻高達千卡以上），自動修正為 0
+            val validCalories = if (cached.steps == 0L && cached.workoutCalories <= 0.0 && cached.activeCalories > 800.0) {
+                0.0
+            } else {
+                cached.activeCalories
+            }
+            activeCaloriesMap[date] = validCalories
+        }
+    }
+
+    fun toggleHealthConnect(enabled: Boolean) {
+        if (!enabled) {
+            updateSettings(settings.copy(
+                healthConnectSyncEnabled = false,
+                readExerciseCalories = false,
+            ))
+            activeCaloriesMap.clear()
+            workoutSessionsMap.clear()
+            return
+        }
+        viewModelScope.launch {
+            val hasWrite = healthConnectSync.hasWritePermission()
+            val hasRead = healthConnectSync.hasReadExercisePermission()
+            // 條件是「一個都不缺」而不是「至少有一個」：使用者主動開這個開關時，
+            // 該把新增過的讀取型別（步數、總消耗）一次補齊，不然退路等於沒有。
+            if (hasWrite && hasRead && healthConnectSync.missingPermissions().isEmpty()) {
+                healthConnectAuthorized = true
+                healthConnectReadAuthorized = true
+                updateSettings(settings.copy(
+                    healthConnectSyncEnabled = true,
+                    readExerciseCalories = true,
+                ))
+                syncAllToHealthConnect()
+            } else {
+                pendingHealthPermissionRequest = true
+            }
+        }
+    }
+
+    fun toggleReadExerciseCalories(enabled: Boolean) {
+        toggleHealthConnect(enabled)
+    }
+
+    fun onHealthPermissionRequestLaunched() {
+        pendingHealthPermissionRequest = false
+    }
+
+    fun onHealthPermissionsResult(granted: Set<String>) {
+        viewModelScope.launch {
+            val writeGranted = HealthConnectSync.WRITE_PERMISSIONS.all { it in granted }
+            val readGranted = HealthConnectSync.READ_EXERCISE_PERMISSIONS.any { it in granted }
+            healthConnectAuthorized = writeGranted
+            healthConnectReadAuthorized = readGranted
+
+            if (writeGranted || readGranted) {
+                updateSettings(settings.copy(
+                    healthConnectSyncEnabled = writeGranted,
+                    readExerciseCalories = readGranted,
+                ))
+                if (writeGranted) {
+                    syncAllToHealthConnect()
+                } else if (readGranted) {
+                    fetchActiveCalories(selectedDate)
+                }
+            } else {
+                healthMessage = getApplication<Application>().getString(R.string.health_connect_sync_failed, "未取得權限")
+            }
+        }
+    }
+
+    fun syncAllToHealthConnect() {
+        if (!healthConnectSync.isSupported()) {
+            healthMessage = getApplication<Application>().getString(R.string.health_connect_not_supported)
+            return
+        }
+        viewModelScope.launch {
+            healthSyncBusy = true
+            healthMessage = getApplication<Application>().getString(R.string.health_connect_syncing)
+            val entries = dao.allEntries()
+            val result = healthConnectSync.syncEntries(entries)
+            if (settings.readExerciseCalories || healthConnectReadAuthorized) {
+                fetchActiveCalories(selectedDate)
+            }
+            healthSyncBusy = false
+            result.onSuccess { count ->
+                val now = System.currentTimeMillis()
+                updateSettings(settings.copy(lastHealthSyncAt = now))
+                healthMessage = getApplication<Application>().getString(R.string.health_connect_sync_done, count)
+            }.onFailure { err ->
+                healthMessage = getApplication<Application>().getString(R.string.health_connect_sync_failed, err.localizedMessage ?: "未知錯誤")
+            }
+        }
+    }
+
+    fun onAppResume() {
+        checkHealthPermissions()
+        if (settings.readExerciseCalories) {
+            fetchActiveCalories(selectedDate)
+        }
+        if (healthSyncBusy) return
+        if (settings.healthConnectSyncEnabled && healthConnectSync.isSupported()) {
+            viewModelScope.launch {
+                if (healthConnectSync.hasWritePermission()) {
+                    healthConnectAuthorized = true
+                    val entries = dao.allEntries()
+                    val res = healthConnectSync.syncEntries(entries)
+                    res.onSuccess {
+                        updateSettings(settings.copy(lastHealthSyncAt = System.currentTimeMillis()))
+                    }
+                }
+            }
+        }
+    }
+
     /**
      * 今日頁的日／週分頁各自訂閱自己那天／那週的資料，不跟著 [selectedDate] 走 ——
      * 分頁滑動時左右兩頁都要能各自顯示正確內容，不能只有目前選到的那頁有資料。
@@ -383,35 +714,77 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         dao.observeRange(weekStart.toString(), weekStart.plusDays(6).toString())
 
     init {
-        viewModelScope.launch { settingsStore.settingsFlow.collect { settings = it } }
-        // 每次啟動補排一次每日備份。
-        //
-        // 排程原本只在 connectDrive() 那一刻建立，而 WorkManager 的佇列是會被清掉的
-        // ——「強制停止」會清，某些廠商的省電管理也會。清掉之後就**再也沒有人重排**，
-        // 備份從此靜悄悄地停：設定頁仍然顯示「已連結」（driveBackupEnabled 這個旗標
-        // 留在 DataStore 裡），底下卻沒有任何東西在跑，使用者要到需要還原時才發現。
-        //
-        // schedule() 用的是 ExistingPeriodicWorkPolicy.KEEP，已經有排程時這次呼叫會
-        // 被丟掉，**不會把週期從頭算**，所以每次開 app 都補一次是安全的。
+        checkHealthPermissions()
+        // 預先載入本機快取的每日運動熱量，讓上方日曆週長條與歷史月曆一開啟就能完整呈現有效目標
         viewModelScope.launch {
-            if (settingsStore.current().driveBackupEnabled) {
-                BackupWorker.schedule(getApplication())
+            val cachedMetrics = dao.getAllHealthMetrics()
+            for (m in cachedMetrics) {
+                runCatching {
+                    val d = LocalDate.parse(m.date)
+                    if (m.activeCalories > 0.0) {
+                        activeCaloriesMap[d] = m.activeCalories
+                    }
+                }
             }
         }
-        // 換月份就換一條 Flow，和換日期同樣的道理。
-        //
-        // **前後各多讀一個月**：月曆可以左右滑，拖到一半時鄰月已經畫在畫面上了，
-        // 那時候才去查資料，滑進來的就是一格空白的月曆、等查完才跳出數字。
-        // 多讀兩個月的成本是幾十列，換掉的是每次換月都閃一下。
+        viewModelScope.launch {
+            settingsStore.settingsFlow.collect { newSettings ->
+                val first = !initialPromptChecked
+                settings = newSettings
+                try {
+                    fastPrefs.edit()
+                        .putString(CACHED_KEY, newSettings.geminiApiKey)
+                        .putString(CACHED_MODEL, newSettings.geminiModel)
+                        .putString(CACHED_NVIDIA_KEY, newSettings.nvidiaApiKey)
+                        .putString(CACHED_TAVILY_KEY, newSettings.tavilyApiKey)
+                        .apply()
+                } catch (_: Exception) {}
+                if (first) {
+                    initialPromptChecked = true
+                    if (!newSettings.profileConfigured) {
+                        showBmrDialog = true
+                    }
+                    // 排程每週日自動結算週報 WorkManager
+                    SundayReportWorker.schedule(getApplication())
+                    checkSundayAutoReport(newSettings)
+                    // 一開 App 自動靜默同步一次健康連線
+                    if (newSettings.healthConnectSyncEnabled && healthConnectSync.isSupported()) {
+                        launch {
+                            if (healthConnectSync.hasWritePermission()) {
+                                healthConnectAuthorized = true
+                                val entries = dao.allEntries()
+                                val res = healthConnectSync.syncEntries(entries)
+                                res.onSuccess {
+                                    updateSettings(settings.copy(lastHealthSyncAt = System.currentTimeMillis()))
+                                }
+                            }
+                        }
+                    }
+                    if (newSettings.readExerciseCalories && healthConnectSync.isSupported()) {
+                        launch {
+                            fetchActiveCalories(selectedDate)
+                        }
+                    }
+                }
+            }
+        }
+        // 換日期就更新運動熱量
+        viewModelScope.launch {
+            snapshotFlow { selectedDate }
+                .collect { date ->
+                    fetchActiveCalories(date)
+                }
+        }
+        // 換月份就換一條 Flow，和換日期同樣的道理
         viewModelScope.launch {
             snapshotFlow { visibleMonth }
                 .flatMapLatest { month ->
-                    dao.observeRange(
-                        month.minusMonths(1).atDay(1).toString(),
-                        month.plusMonths(1).atEndOfMonth().toString(),
-                    )
+                    dao.observeRange(month.atDay(1).toString(), month.atEndOfMonth().toString())
                 }
-                .collect { totals -> monthTotals = totals.associateBy { it.date } }
+                .collect { totals ->
+                    monthTotals = totals.associateBy { it.date }
+                    refreshMonthHealthMetrics(visibleMonth)
+                }
         }
         viewModelScope.launch {
             dao.observeFrequentFoods(
@@ -445,11 +818,12 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- 導航 ---
 
-    fun goTo(target: Screen) { screen = target }
-
-    fun openSettingsPage(page: SettingsPage) { screen = Screen.SettingsDetail(page) }
-
-    fun openApiKey(service: ApiService) { screen = Screen.ApiKeyDetail(service) }
+    fun goTo(target: Screen) {
+        screen = target
+        if (target == Screen.History && settings.readExerciseCalories) {
+            refreshMonthHealthMetrics(visibleMonth)
+        }
+    }
 
     fun backToToday() {
         dataMessage = null
@@ -482,9 +856,45 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     fun openHistory() {
         visibleMonth = YearMonth.from(selectedDate)
         screen = Screen.History
+        if (settings.readExerciseCalories) {
+            refreshMonthHealthMetrics(visibleMonth)
+        }
     }
 
-    fun shiftMonth(months: Long) { visibleMonth = visibleMonth.plusMonths(months) }
+    fun shiftMonth(months: Long) {
+        visibleMonth = visibleMonth.plusMonths(months)
+        if (settings.readExerciseCalories) {
+            refreshMonthHealthMetrics(visibleMonth)
+        }
+    }
+
+    fun refreshMonthHealthMetrics(month: YearMonth) {
+        viewModelScope.launch {
+            val from = month.atDay(1).toString()
+            val to = month.atEndOfMonth().toString()
+            val metrics = dao.getHealthMetricsInRange(from, to)
+            for (m in metrics) {
+                runCatching {
+                    val d = LocalDate.parse(m.date)
+                    if (m.activeCalories > 0.0) {
+                        activeCaloriesMap[d] = m.activeCalories
+                    }
+                }
+            }
+            if (settings.readExerciseCalories && healthConnectSync.isSupported() && healthConnectSync.hasReadExercisePermission()) {
+                val today = LocalDate.now()
+                val targetDates = monthTotals.keys.toList()
+                for (dateStr in targetDates) {
+                    val date = runCatching { LocalDate.parse(dateStr) }.getOrNull() ?: continue
+                    if (!date.isAfter(today)) {
+                        launch {
+                            syncDailyActivity(date)
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     // --- 搜尋與食物庫 ---
 
@@ -531,7 +941,11 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         if (!draft.isValid) return
         val entry = draft.toEntry(selectedDate)
         viewModelScope.launch {
-            dao.upsert(entry)
+            val id = dao.upsert(entry)
+            val finalEntry = if (entry.id != 0L) entry else entry.copy(id = id)
+            if (settings.healthConnectSyncEnabled) {
+                healthConnectSync.writeEntry(finalEntry)
+            }
             pendingMeal = null
             screen = Screen.Today
         }
@@ -549,6 +963,9 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         undoJob?.cancel()
         viewModelScope.launch {
             dao.delete(entry)
+            if (settings.healthConnectSyncEnabled) {
+                healthConnectSync.deleteEntry(entry.id)
+            }
             pendingUndo = entry
             undoJob = launch {
                 delay(UNDO_WINDOW_MS)
@@ -561,14 +978,25 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         val entry = pendingUndo ?: return
         undoJob?.cancel()
         pendingUndo = null
-        viewModelScope.launch { dao.upsert(entry) }
+        viewModelScope.launch {
+            val id = dao.upsert(entry)
+            val finalEntry = if (entry.id != 0L) entry else entry.copy(id = id)
+            if (settings.healthConnectSyncEnabled) {
+                healthConnectSync.writeEntry(finalEntry)
+            }
+        }
     }
 
     /** 刪掉正在編輯的那一筆。新增中的草稿還沒進資料庫，沒得刪。 */
     fun deleteCurrentDraft() {
         val id = draft.id ?: return
         viewModelScope.launch {
-            dao.findEntry(id)?.let { dao.delete(it) }
+            dao.findEntry(id)?.let {
+                dao.delete(it)
+                if (settings.healthConnectSyncEnabled) {
+                    healthConnectSync.deleteEntry(it.id)
+                }
+            }
             // 刪完要退出去，不然會停在一張已經不存在的紀錄上
             screen = Screen.Today
         }
@@ -625,91 +1053,111 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- AI 辨識（照片與文字共用）---
 
-    /** 有沒有 key。給 UI 在開相機**之前**問，別讓使用者拍完才發現不能用。 */
-    fun hasApiKey(): Boolean = settings.geminiApiKey.isNotBlank()
+    /** 有沒有 key。給 UI 在開相機或文字查詢**之前**問，別讓使用者拍完或查完才發現不能用。 */
+    fun hasApiKey(): Boolean = settings.geminiApiKey.isNotBlank() || settings.nvidiaApiKey.isNotBlank()
 
-    /**
-     * [provider] 一定要帶：兩家各有一把 key，訊息只寫「還沒設定 API key」的話，
-     * 使用者很可能去填錯的那一把（尤其文字選了 OpenRouter、拍照卻缺 Gemini 那把時）。
-     */
-    fun reportMissingApiKey(provider: AiProvider = AiProvider.GEMINI) {
-        analysisState = AnalysisState.Failed(NO_API_KEY + ":" + provider.label)
+    fun reportMissingApiKey() {
+        analysisState = AnalysisState.Failed(NO_API_KEY)
         screen = Screen.Review
     }
 
     fun openTextLookup() { screen = Screen.TextLookup }
 
-    fun analyzePhoto(uri: Uri) = startAnalysis(AnalysisSource.Photo(uri))
+    fun analyzePhoto(uri: Uri) {
+        android.util.Log.d("NutriLogCamera", "analyzePhoto: uri=$uri")
+        startAnalysis(AnalysisSource.Photo(uri))
+    }
 
-    fun analyzeText(query: String, useSearch: Boolean) {
+    fun analyzeText(query: String) {
         if (query.isBlank()) return
-        startAnalysis(AnalysisSource.Text(query.trim(), useSearch))
+        startAnalysis(AnalysisSource.Text(query.trim()))
     }
 
     /** 重跑上一次的辨識。要重跑哪一件事由 [lastSource] 決定，畫面不必記。 */
     fun retryAnalysis() { lastSource?.let(::startAnalysis) }
 
     /**
-     * 送去 Gemini -> 進確認畫面。
+     * 送去 AI (OpenRouter 醫療模型或 Gemini) -> 進確認畫面。
      *
      * 這裡**不會**直接寫進資料庫。模型估的數字一定要讓使用者看過、
      * 可以取消勾選，否則等於在使用者的飲食紀錄裡塞它自己編的數字。
      */
     private fun startAnalysis(source: AnalysisSource) {
-        // 拍照永遠走 Gemini（要吃得下圖片的模型），文字才看使用者選了哪一家。
-        // 所以要擋的是「這一條路要用的那把 key」，不是固定擋 Gemini 那把。
-        val useOpenRouter =
-            source is AnalysisSource.Text && settings.textProvider == AiProvider.OPENROUTER
-        val key = if (useOpenRouter) settings.openRouterApiKey else settings.geminiApiKey
-        // 這裡仍然要擋一次：從相機回來的期間設定可能被改掉，
-        // 而這裡才是真正會把 key 送出去的地方。
-        if (key.isBlank()) {
-            reportMissingApiKey(if (useOpenRouter) AiProvider.OPENROUTER else AiProvider.GEMINI)
-            return
-        }
         lastSource = source
         analysisMeal = pendingMeal ?: guessMeal()
         analysisState = AnalysisState.Analyzing
         screen = Screen.Review
         viewModelScope.launch {
-            val model = if (useOpenRouter) settings.openRouterModel else settings.geminiModel
-            // **要不要查是使用者按哪一顆章決定的**，設定只決定「按下去用誰查」。
-            //
-            // 試過讓模型自己決定（tool-calling-search 分支），兩版都輸：不強制
-            // tool_choice 它永遠不收斂，強制之後它自己下的查詢又比固定字尾差
-            // （撈到美規數字而不是台灣官方頁）。而使用者打字的當下就已經知道要不要
-            // 查了 —— 他在食物前面加店名，就是想要官方資料。
-            //
-            // Tavily 是自己先查、把結果當背景文字帶進去，所以兩家都適用；
-            // OpenRouter 內建那個是它自己在伺服器端查，只有走 OpenRouter 時才有作用。
-            // 查不到就是 null，讓模型照原本的方式估 —— 搜尋壞掉不該讓整條辨識失敗。
-            val wantsSearch = source is AnalysisSource.Text && source.useSearch
-            val searchContext = if (
-                wantsSearch && settings.searchMode == SearchMode.TAVILY
-            ) {
-                tavily.contextFor((source as AnalysisSource.Text).query, settings.tavilyApiKey)
-            } else {
-                null
+            // key 有三層退路，三層都要留。相機（尤其三星）在取景時常常把整個行程殺掉，
+            // 回來時 ViewModel 是全新的，記憶體裡什麼都沒有 —— 相簿與文字不會離開行程，
+            // 所以它們永遠停在第一層，這也是為什麼只有拍照那條會出事：
+            //   1. 記憶體：正常情況。
+            //   2. DataStore：真正的存放處，但它是非同步的，剛重建的行程裡實測會回空值。
+            //   3. SharedPreferences 快取：同步、當場就讀得到，是第二層落空時唯一接得住的。
+            // 少了第三層的那版真的送到使用者手上過，症狀就是拍完照說「還沒設定 API key」。
+            val curSettings = when {
+                settings.geminiApiKey.isNotBlank() -> settings
+                else -> settingsStore.current().let { stored ->
+                    if (stored.geminiApiKey.isNotBlank()) stored
+                    else stored.copy(
+                        geminiApiKey = cachedApiKey(),
+                        geminiModel = cachedModel().ifBlank { stored.geminiModel },
+                    )
+                }
             }
-            val result = when (source) {
-                is AnalysisSource.Text ->
-                    if (useOpenRouter)
-                        openRouter.analyzeDescription(
-                            source.query,
-                            key,
-                            model,
-                            webSearch = wantsSearch &&
-                                settings.searchMode == SearchMode.OPENROUTER,
-                            searchContext = searchContext,
-                        )
-                    else gemini.analyzeDescription(source.query, key, model, searchContext)
-                is AnalysisSource.Photo ->
+            val key = curSettings.geminiApiKey
+            val model = curSettings.geminiModel
+
+            val openRouterKey = when {
+                settings.nvidiaApiKey.isNotBlank() -> settings.nvidiaApiKey
+                else -> settingsStore.current().let { stored ->
+                    if (stored.nvidiaApiKey.isNotBlank()) stored.nvidiaApiKey
+                    else cachedNvidiaKey()
+                }
+            }.trim()
+
+            val tavilyKey = when {
+                settings.tavilyApiKey.isNotBlank() -> settings.tavilyApiKey
+                else -> settingsStore.current().let { stored ->
+                    if (stored.tavilyApiKey.isNotBlank()) stored.tavilyApiKey
+                    else cachedTavilyKey()
+                }
+            }.trim()
+
+            val result: Result<List<DetectedFood>> = when (source) {
+                is AnalysisSource.Text -> {
+                    when {
+                        openRouterKey.isNotBlank() -> {
+                            val searchContext = if (tavilyKey.isNotBlank()) {
+                                val tavilyResp = tavilySearchClient.searchFood(source.query, tavilyKey).getOrNull()
+                                tavilyResp?.let { tavilySearchClient.formatForPrompt(it) }?.takeIf { it.isNotBlank() }
+                            } else null
+                            openRouterFoodClient.analyzeDescription(
+                                description = source.query,
+                                apiKey = openRouterKey,
+                                webSearchContext = searchContext,
+                            )
+                        }
+                        key.isNotBlank() ->
+                            gemini.analyzeDescription(source.query, key, model)
+                        else -> {
+                            reportMissingApiKey()
+                            return@launch
+                        }
+                    }
+                }
+                is AnalysisSource.Photo -> {
+                    if (key.isBlank()) {
+                        reportMissingApiKey()
+                        return@launch
+                    }
                     // 壓縮失敗（檔案壞了、格式不支援）也要走同一條錯誤路徑，
                     // 不然使用者只會看到轉圈停住
                     ImageCompressor.toBase64Jpeg(getApplication(), source.uri)
                         .mapCatching { base64 ->
                             gemini.analyzeFood(base64, key, model).getOrThrow()
                         }
+                }
             }
             analysisState = result.fold(
                 onSuccess = { AnalysisState.Ready(it.map { food -> AnalysisItem(baseFood = food) }) },
@@ -747,7 +1195,12 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         val meal = analysisMeal
         val now = System.currentTimeMillis()
         viewModelScope.launch {
-            dao.insertAll(chosen.map { it.food.toEntry(selectedDate, meal, now, portionMultiplier = it.multiplier) })
+            val entries = chosen.map { it.food.toEntry(selectedDate, meal, now, portionMultiplier = it.multiplier) }
+            dao.insertAll(entries)
+            if (settings.healthConnectSyncEnabled) {
+                val todayEntries = dao.allEntries().filter { it.date == selectedDate.toString() }
+                healthConnectSync.syncEntries(todayEntries)
+            }
             analysisState = null
             screen = Screen.Today
         }
@@ -853,6 +1306,9 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             dataMessage = runCatching {
                 dao.insertAll(preview.newEntries)
+                if (settings.healthConnectSyncEnabled) {
+                    healthConnectSync.syncEntries(preview.newEntries)
+                }
                 preview.newEntries.size
             }.fold(
                 onSuccess = { count ->
@@ -892,6 +1348,32 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     fun connectDrive() = runDrive(R.string.drive_connecting) { token ->
         settingsStore.save(settingsStore.current().copy(driveBackupEnabled = true))
         BackupWorker.schedule(getApplication())
+
+        // 若雲端有先前備份的目標與個人體態數值 (BMR/TDEE)，同步還原
+        val cloudSettings = driveBackup.latestBackupSettings(token).getOrNull()
+        if (cloudSettings != null) {
+            val current = settingsStore.current()
+            updateSettings(
+                current.copy(
+                    calorieTarget = cloudSettings.calorieTarget,
+                    proteinTargetG = cloudSettings.proteinTargetG,
+                    fatTargetG = cloudSettings.fatTargetG,
+                    carbsTargetG = cloudSettings.carbsTargetG,
+                    profileGender = cloudSettings.profileGender,
+                    profileAge = cloudSettings.profileAge,
+                    profileHeightCm = cloudSettings.profileHeightCm,
+                    profileWeightKg = cloudSettings.profileWeightKg,
+                    profileActivity = cloudSettings.profileActivity,
+                    profileGoal = cloudSettings.profileGoal,
+                    profileConfigured = cloudSettings.profileConfigured,
+                )
+            )
+        } else {
+            val current = settingsStore.current()
+            if (!current.profileConfigured) {
+                openBmrDialog()
+            }
+        }
 
         val preview = driveBackup.latestBackupCsv(token).getOrNull()?.let { previewOf(it) }
         if (preview != null && preview.newEntries.isNotEmpty()) {
@@ -989,6 +1471,14 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     fun updateSettings(newSettings: NutriSettings) {
         // 先更新 UI 再落地，避免打字或拉 slider 時卡頓
         settings = newSettings
+        try {
+            fastPrefs.edit()
+                .putString(CACHED_KEY, newSettings.geminiApiKey)
+                .putString(CACHED_MODEL, newSettings.geminiModel)
+                .putString(CACHED_NVIDIA_KEY, newSettings.nvidiaApiKey)
+                .putString(CACHED_TAVILY_KEY, newSettings.tavilyApiKey)
+                .apply()
+        } catch (_: Exception) {}
         viewModelScope.launch { settingsStore.save(newSettings) }
     }
 
@@ -1002,20 +1492,421 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // --- AI 健康報告中心（週報 & 月報 & 卡路里推薦）(NVIDIA NIM DeepSeek-V4-Pro) ---
+
+    fun selectReportTab(tab: ReportTab) {
+        reportTab = tab
+        if (tab == ReportTab.MONTHLY && monthlyReportUiState is MonthlyReportUiState.Loading) {
+            loadMonthlyReport(monthlyReportMonth)
+        }
+    }
+
+    fun openReportCenter(tab: ReportTab = ReportTab.WEEKLY) {
+        reportTab = tab
+        screen = Screen.WeeklyReport
+        loadWeeklyReport(weeklyReportWeekStart)
+        loadMonthlyReport(monthlyReportMonth)
+    }
+
+    fun openWeeklyReport(start: LocalDate = weekStart) {
+        weeklyReportWeekStart = start
+        openReportCenter(ReportTab.WEEKLY)
+    }
+
+    fun shiftWeeklyReportWeek(deltaWeeks: Long) {
+        val targetStart = weeklyReportWeekStart.plusWeeks(deltaWeeks)
+        if (targetStart > weekStart) return
+        weeklyReportWeekStart = targetStart
+        loadWeeklyReport(targetStart)
+    }
+
+    fun shiftMonthlyReportMonth(deltaMonths: Long) {
+        val targetMonth = monthlyReportMonth.plusMonths(deltaMonths)
+        if (targetMonth > YearMonth.now()) return
+        monthlyReportMonth = targetMonth
+        loadMonthlyReport(targetMonth)
+    }
+
+    fun loadWeeklyReport(start: LocalDate) {
+        if (isWeeklyReportGenerating && generatingWeekStart == start) {
+            weeklyReportUiState = WeeklyReportUiState.Loading(
+                getApplication<Application>().getString(R.string.weekly_report_generating)
+            )
+            return
+        }
+
+        viewModelScope.launch {
+            weeklyReportUiState = WeeklyReportUiState.Loading()
+            val cached = weeklyReportStore.getReport(start.toString())
+            val stats = try {
+                weeklyAggregator.aggregateWeek(start, dao, healthConnectSync, settings)
+            } catch (e: Exception) {
+                null
+            }
+
+            if (isWeeklyReportGenerating && generatingWeekStart == start) {
+                return@launch
+            }
+
+            if (cached != null) {
+                weeklyReportUiState = WeeklyReportUiState.Success(
+                    report = cached,
+                    stats = stats ?: WeeklyStats(
+                        weekStart = start,
+                        weekEnd = start.plusDays(6),
+                        totalCaloriesConsumed = 0.0,
+                        avgDailyCaloriesConsumed = 0.0,
+                        totalActiveCaloriesBurned = 0.0,
+                        estimatedBmrPerDay = 1600.0,
+                        avgDailyTdee = 1600.0,
+                        netEnergyBalance = 0.0,
+                        estimatedFatChangeKg = 0.0,
+                        avgProteinG = 0.0,
+                        avgFatG = 0.0,
+                        avgCarbsG = 0.0,
+                        loggedDaysCount = 0,
+                        dailyBreakdowns = emptyList(),
+                        workoutsList = emptyList(),
+                        comparison = cached.comparison,
+                    ),
+                    isApplied = cached.isApplied,
+                )
+            } else {
+                weeklyReportUiState = WeeklyReportUiState.Empty(stats)
+            }
+        }
+    }
+
+    fun generateWeeklyReport(forceRefresh: Boolean = false) {
+        if (isWeeklyReportGenerating) return
+        if (settings.nvidiaApiKey.isBlank()) {
+            weeklyReportUiState = WeeklyReportUiState.Error(
+                getApplication<Application>().getString(R.string.settings_nvidia_no_key)
+            )
+            return
+        }
+
+        val targetStart = weeklyReportWeekStart
+        isWeeklyReportGenerating = true
+        generatingWeekStart = targetStart
+        weeklyReportUiState = WeeklyReportUiState.Loading(
+            getApplication<Application>().getString(R.string.weekly_report_generating)
+        )
+
+        reportScope.launch {
+            val stats = try {
+                weeklyAggregator.aggregateWeek(targetStart, dao, healthConnectSync, settings)
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    isWeeklyReportGenerating = false
+                    generatingWeekStart = null
+                    if (weeklyReportWeekStart == targetStart) {
+                        weeklyReportUiState = WeeklyReportUiState.Error("資料統計失敗：${e.localizedMessage}")
+                    }
+                }
+                return@launch
+            }
+
+            if (stats.loggedDaysCount == 0 && stats.totalActiveCaloriesBurned == 0.0) {
+                withContext(Dispatchers.Main) {
+                    isWeeklyReportGenerating = false
+                    generatingWeekStart = null
+                    if (weeklyReportWeekStart == targetStart) {
+                        weeklyReportUiState = WeeklyReportUiState.Empty(stats)
+                    }
+                }
+                return@launch
+            }
+
+            val (sysPrompt, userPrompt) = weeklyAggregator.buildPrompts(stats, settings)
+            val targetModel = resolveReportModel(settings)
+            val result = nvidiaClient.generateWeeklyReport(
+                apiKey = settings.nvidiaApiKey,
+                model = targetModel,
+                systemPrompt = sysPrompt,
+                userPrompt = userPrompt,
+            )
+
+            withContext(Dispatchers.Main) {
+                isWeeklyReportGenerating = false
+                generatingWeekStart = null
+                result.fold(
+                    onSuccess = { rawText ->
+                        val (markdown, recommendation) = weeklyAggregator.parseReportResponse(rawText)
+                        val report = WeeklyReport(
+                            weekStartDate = stats.weekStart.toString(),
+                            weekEndDate = stats.weekEnd.toString(),
+                            generatedAt = System.currentTimeMillis(),
+                            model = targetModel,
+                            markdownContent = markdown,
+                            recommendation = recommendation,
+                            isApplied = false,
+                            comparison = stats.comparison,
+                        )
+                        viewModelScope.launch {
+                            weeklyReportStore.saveReport(report)
+                        }
+                        if (weeklyReportWeekStart == targetStart) {
+                            weeklyReportUiState = WeeklyReportUiState.Success(
+                                report = report,
+                                stats = stats,
+                                isApplied = false,
+                            )
+                        }
+                        backgroundReportMessage = getApplication<Application>().getString(R.string.report_bg_finished)
+                    },
+                    onFailure = { error ->
+                        backgroundReportMessage = null
+                        if (weeklyReportWeekStart == targetStart) {
+                            weeklyReportUiState = WeeklyReportUiState.Error(
+                                error.localizedMessage ?: "生成週報失敗，請確認網路或 API Key",
+                                stats = stats,
+                            )
+                        }
+                    }
+                )
+            }
+        }
+    }
+
+    fun applyRecommendedTargets(recommendation: TargetRecommendation) {
+        updateSettings(
+            settings.copy(
+                calorieTarget = recommendation.calorieTarget,
+                proteinTargetG = recommendation.proteinTargetG,
+                fatTargetG = recommendation.fatTargetG,
+                carbsTargetG = recommendation.carbsTargetG,
+            )
+        )
+        val cur = weeklyReportUiState
+        if (cur is WeeklyReportUiState.Success) {
+            val updatedReport = cur.report.copy(isApplied = true)
+            weeklyReportUiState = cur.copy(report = updatedReport, isApplied = true)
+            viewModelScope.launch {
+                weeklyReportStore.saveReport(updatedReport)
+            }
+        }
+    }
+
+    fun loadMonthlyReport(month: YearMonth) {
+        if (isMonthlyReportGenerating && generatingMonth == month) {
+            monthlyReportUiState = MonthlyReportUiState.Loading(
+                getApplication<Application>().getString(R.string.monthly_report_generating)
+            )
+            return
+        }
+
+        viewModelScope.launch {
+            monthlyReportUiState = MonthlyReportUiState.Loading()
+            val cached = monthlyReportStore.getReport(month.toString())
+            val stats = try {
+                monthlyAggregator.aggregateMonth(month, dao, healthConnectSync, settings)
+            } catch (e: Exception) {
+                null
+            }
+
+            if (isMonthlyReportGenerating && generatingMonth == month) {
+                return@launch
+            }
+
+            if (cached != null) {
+                monthlyReportUiState = MonthlyReportUiState.Success(
+                    report = cached,
+                    stats = stats ?: MonthlyStats(
+                        yearMonth = month.toString(),
+                        totalCaloriesConsumed = 0.0,
+                        avgDailyCaloriesConsumed = 0.0,
+                        totalActiveCaloriesBurned = 0.0,
+                        avgDailyActiveBurned = 0.0,
+                        estimatedBmrPerDay = 1600.0,
+                        avgDailyTdee = 1600.0,
+                        netEnergyBalance = 0.0,
+                        estimatedFatChangeKg = 0.0,
+                        avgProteinG = 0.0,
+                        avgFatG = 0.0,
+                        avgCarbsG = 0.0,
+                        loggedDaysCount = 0,
+                        daysInMonth = month.lengthOfMonth(),
+                        comparison = cached.comparison,
+                    )
+                )
+            } else {
+                monthlyReportUiState = MonthlyReportUiState.Empty(stats)
+            }
+        }
+    }
+
+    fun generateMonthlyReport(forceRefresh: Boolean = false) {
+        if (isMonthlyReportGenerating) return
+        if (settings.nvidiaApiKey.isBlank()) {
+            monthlyReportUiState = MonthlyReportUiState.Error(
+                getApplication<Application>().getString(R.string.settings_nvidia_no_key)
+            )
+            return
+        }
+
+        val targetMonth = monthlyReportMonth
+        isMonthlyReportGenerating = true
+        generatingMonth = targetMonth
+        monthlyReportUiState = MonthlyReportUiState.Loading(
+            getApplication<Application>().getString(R.string.monthly_report_generating)
+        )
+
+        reportScope.launch {
+            val stats = try {
+                monthlyAggregator.aggregateMonth(targetMonth, dao, healthConnectSync, settings)
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    isMonthlyReportGenerating = false
+                    generatingMonth = null
+                    if (monthlyReportMonth == targetMonth) {
+                        monthlyReportUiState = MonthlyReportUiState.Error("資料統計失敗：${e.localizedMessage}")
+                    }
+                }
+                return@launch
+            }
+
+            if (stats.loggedDaysCount == 0 && stats.totalActiveCaloriesBurned == 0.0) {
+                withContext(Dispatchers.Main) {
+                    isMonthlyReportGenerating = false
+                    generatingMonth = null
+                    if (monthlyReportMonth == targetMonth) {
+                        monthlyReportUiState = MonthlyReportUiState.Empty(stats)
+                    }
+                }
+                return@launch
+            }
+
+            val (sysPrompt, userPrompt) = monthlyAggregator.buildPrompts(stats, settings)
+            val targetModel = resolveReportModel(settings)
+            val result = nvidiaClient.generateWeeklyReport(
+                apiKey = settings.nvidiaApiKey,
+                model = targetModel,
+                systemPrompt = sysPrompt,
+                userPrompt = userPrompt,
+            )
+
+            withContext(Dispatchers.Main) {
+                isMonthlyReportGenerating = false
+                generatingMonth = null
+                result.fold(
+                    onSuccess = { rawText ->
+                        val cleanText = rawText.replace(Regex("<think>[\\s\\S]*?</think>", RegexOption.IGNORE_CASE), "").trim()
+                        val report = MonthlyReport(
+                            yearMonth = stats.yearMonth,
+                            generatedAt = System.currentTimeMillis(),
+                            model = targetModel,
+                            markdownContent = cleanText,
+                            comparison = stats.comparison,
+                        )
+                        viewModelScope.launch {
+                            monthlyReportStore.saveReport(report)
+                        }
+                        if (monthlyReportMonth == targetMonth) {
+                            monthlyReportUiState = MonthlyReportUiState.Success(
+                                report = report,
+                                stats = stats,
+                            )
+                        }
+                        backgroundReportMessage = getApplication<Application>().getString(R.string.report_bg_finished)
+                    },
+                    onFailure = { error ->
+                        backgroundReportMessage = null
+                        if (monthlyReportMonth == targetMonth) {
+                            monthlyReportUiState = MonthlyReportUiState.Error(
+                                error.localizedMessage ?: "生成月報失敗，請確認網路或 API Key",
+                                stats = stats,
+                            )
+                        }
+                    }
+                )
+            }
+        }
+    }
+
+    /**
+     * 週日自動結算檢查：
+     * 若今日為週日，且（從未生成過 或 上次生成時間不是在今天），
+     * 自動重新跑一次覆蓋，確保週日結算包含完整 7 天最新數據。
+     */
+    fun checkSundayAutoReport(newSettings: NutriSettings) {
+        val today = LocalDate.now()
+        if (today.dayOfWeek != DayOfWeek.SUNDAY) return
+        if (newSettings.nvidiaApiKey.isBlank()) return
+
+        val curWeekStart = today.minusDays((today.dayOfWeek.value % 7).toLong())
+        viewModelScope.launch {
+            val existing = weeklyReportStore.getReport(curWeekStart.toString())
+            val todayStartEpoch = today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            val shouldRun = existing == null || existing.generatedAt < todayStartEpoch
+            if (shouldRun) {
+                val stats = try {
+                    weeklyAggregator.aggregateWeek(curWeekStart, dao, healthConnectSync, newSettings)
+                } catch (e: Exception) {
+                    null
+                }
+                if (stats != null && (stats.loggedDaysCount > 0 || stats.totalActiveCaloriesBurned > 0.0)) {
+                    val (sysPrompt, userPrompt) = weeklyAggregator.buildPrompts(stats, newSettings)
+                    val targetModel = resolveReportModel(newSettings)
+                    val result = nvidiaClient.generateWeeklyReport(
+                        apiKey = newSettings.nvidiaApiKey,
+                        model = targetModel,
+                        systemPrompt = sysPrompt,
+                        userPrompt = userPrompt,
+                    )
+                    result.onSuccess { rawText ->
+                        val (markdown, recommendation) = weeklyAggregator.parseReportResponse(rawText)
+                        val report = WeeklyReport(
+                            weekStartDate = stats.weekStart.toString(),
+                            weekEndDate = stats.weekEnd.toString(),
+                            generatedAt = System.currentTimeMillis(),
+                            model = targetModel,
+                            markdownContent = markdown,
+                            recommendation = recommendation,
+                            isApplied = false,
+                            comparison = stats.comparison,
+                        )
+                        weeklyReportStore.saveReport(report)
+                        if (weeklyReportWeekStart == curWeekStart) {
+                            weeklyReportUiState = WeeklyReportUiState.Success(
+                                report = report,
+                                stats = stats,
+                                isApplied = false,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun resolveReportModel(s: NutriSettings): String {
+        return if (s.nvidiaModel.isNotBlank() && s.nvidiaModel != "deepseek-ai/deepseek-v4-pro-0813") {
+            s.nvidiaModel
+        } else {
+            NvidiaClient.DEFAULT_MODEL
+        }
+    }
+
     companion object {
         /** 用哨兵字串而不是寫死訊息，UI 才能把它換成有「去設定」按鈕的畫面。 */
         const val NO_API_KEY = "NO_API_KEY"
+
+        // key 與模型的同步快取欄位。改名等於讓舊資料失效（下一次啟動就會被重新寫回），
+        // 不會壞掉，但拍照那條在改名後的第一次會少一層保護，所以沒事別動。
+        private const val CACHED_KEY = "cached_gemini_key"
+        private const val CACHED_MODEL = "cached_gemini_model"
+        private const val CACHED_NVIDIA_KEY = "cached_nvidia_key"
+        private const val CACHED_TAVILY_KEY = "cached_tavily_key"
 
         /** 「常吃」只算最近這麼多天 —— 它該反映現在的習慣，不是三個月前戒掉的東西。 */
         private const val FREQUENT_WINDOW_DAYS = 90L
 
         private const val LIBRARY_LIMIT = 60
         private const val SEARCH_DEBOUNCE_MS = 250L
+        private val WHITESPACE = Regex("\\s+")
     }
 }
-
-/** 逐筆搜尋與食物庫篩選共用同一套拆字規則，所以放在檔案層級而不是 companion 裡。 */
-private val WHITESPACE = Regex("\\s+")
 
 /** 模型的估算值 -> 可以入庫的一筆紀錄。 */
 private fun DetectedFood.toEntry(date: LocalDate, meal: Meal, loggedAt: Long, portionMultiplier: Double = 1.0) = FoodEntry(
@@ -1129,86 +2020,6 @@ fun Double.asInputValue(): String =
  */
 fun FoodEntry.matches(token: String): Boolean =
     name.contains(token, ignoreCase = true) || servingText.contains(token, ignoreCase = true)
-
-/**
- * 近似命中的門檻。這是整套模糊比對唯一的旋鈕。
- *
- * 調高會退回「打太細就找不到」，調低會開始推薦只共用一個常見字的東西。
- * 0.3 的實際意義最好記的說法是：**兩個字的關鍵字，兩個字都要出現**
- * （只中一個是 0.25，落在門檻外）。
- */
-private const val NEAR_MATCH_THRESHOLD = 0.3
-
-/** 整串命中。刻意大於近似分數的上限 1.0，理由見 [matchScore]。 */
-private const val EXACT_MATCH_SCORE = 2.0
-
-/**
- * 相鄰兩字比單字重幾倍。相鄰兩字帶著詞的邊界資訊（「黑咖」幾乎只會出現在黑咖啡裡），
- * 單字沒有（「咖」咖哩也有），所以兩者都要算但不能等重。
- */
-private const val BIGRAM_WEIGHT = 2
-
-/**
- * 一個品項對關鍵字的相符程度。0 是完全沒關係，[EXACT_MATCH_SCORE] 是整串命中，
- * 中間是 n-gram 的重疊比例。
- *
- * **不能只用 `contains`。** 這個框同時服務兩件事：篩自己的清單，以及把描述交給 AI。
- * 而使用者為了讓 AI 估得準，打的往往是「手沖藝妓黑咖啡」這種很細的描述 ——
- * 整串比對的話，庫裡明明有「手沖黑咖啡」也會被判成找不到，畫面就理直氣壯地叫他
- * 去問 AI。那正是這個畫面最該避免的事。
- *
- * 近似的部分**同時看相鄰兩字與單字**，相鄰兩字加權 [BIGRAM_WEIGHT] 倍。中文沒有
- * 空白可以拆詞，而這兩種 n-gram 各自補對方的洞：
- *
- * - **只看相鄰兩字會漏掉拆開的詞。** 「烤肉」在「煎烤豬肉排」裡是拆開的（烤…肉），
- *   相鄰兩字一個都對不上，但兩個字其實都在。
- * - **只看單字會把不相干的拉進來。** 「咖」對上咖哩，「肉」對上任何有肉的東西。
- *
- * 加權相加之後兩件事同時成立：「烤肉」對「煎烤豬肉排」是 0.5（單字全中），
- * 「咖啡」對「咖哩飯」是 0.25（只中一個單字，而且沒有相鄰兩字撐）。這也是
- * CJK 搜尋的標準做法 —— 單字與相鄰兩字各建一份索引再加權合分。
- *
- * 整串命中給的是**比 1 大**的分數，不是 1.0：近似的比例上限就是 1.0（所有 n-gram
- * 都湊得到，但整串不在裡面），兩者撞在一起的話「真的有這個」就不保證排在
- * 「長得有點像」前面了。
- *
- * **它仍然沒有語意。** 「拿鐵」和「牛奶咖啡」一個字都不共用，這裡就是配不起來；
- * 那種事只有 AI 做得到，而那正是底下那顆章存在的理由。
- */
-fun FoodSuggestion.matchScore(query: String): Double {
-    val hay = (name + " " + servingText).lowercase()
-    val compact = query.filterNot(Char::isWhitespace).lowercase()
-    if (compact.isEmpty()) return 0.0
-
-    // 整串就在裡面，或使用者自己用空白拆好的關鍵字全部命中（「珍奶 大杯」——
-    // 那兩個字分別落在名稱與份量欄位，合起來反而找不到）
-    val tokens = query.trim().split(WHITESPACE).filter { it.isNotBlank() }
-    if (hay.contains(compact)) return EXACT_MATCH_SCORE
-    if (tokens.size > 1 && tokens.all { hay.contains(it.lowercase()) }) return EXACT_MATCH_SCORE
-
-    val unigrams = compact.toSet().map(Char::toString)
-    val bigrams = compact.windowed(2).toSet()
-    val hits = BIGRAM_WEIGHT * bigrams.count(hay::contains) + unigrams.count(hay::contains)
-    val total = BIGRAM_WEIGHT * bigrams.size + unigrams.size
-    return hits.toDouble() / total
-}
-
-/**
- * 依關鍵字篩食物庫（常吃／最近），並把最像的排前面。空字串就原封不動回傳。
- *
- * 排序用 [sortedByDescending]，它是穩定的 —— 同分的維持原本的順序，
- * 所以整串命中的那幾筆仍然照「常吃」的次數／「最近」的日期排。
- *
- * **這是純記憶體篩選，不查資料庫**，所以不需要 debounce：常吃與最近整份都已經在
- * [NutriViewModel] 裡（各最多 LIBRARY_LIMIT 筆），打一個字就能立刻收斂。
- */
-fun List<FoodSuggestion>.filterByQuery(query: String): List<FoodSuggestion> {
-    if (query.isBlank()) return this
-    return map { it to it.matchScore(query) }
-        .filter { it.second >= NEAR_MATCH_THRESHOLD }
-        .sortedByDescending { it.second }
-        .map { it.first }
-}
 
 /**
  * 食物庫的一項 -> 可以直接存的草稿。

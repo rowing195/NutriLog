@@ -1,7 +1,11 @@
 package com.watson.nutrilog.ui
 
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.provider.MediaStore
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -14,11 +18,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
@@ -27,9 +36,26 @@ import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.CsvExport
-import com.watson.nutrilog.data.SearchMode
+import com.watson.nutrilog.data.HealthConnectSync
+import androidx.health.connect.client.PermissionController
 import java.io.File
 import java.time.LocalDate
+import java.time.YearMonth
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
+import com.watson.nutrilog.ui.theme.NutrientColors
 
 /**
  * 根 composable：把 ViewModel 的狀態分派到各畫面，並持有所有跨 App 的啟動器。
@@ -42,40 +68,85 @@ import java.time.LocalDate
 fun NutriLogApp(viewModel: NutriViewModel) {
     val context = LocalContext.current
 
-    // TakePicture 只回傳成功與否，圖存到我們事先指定的 URI，
-    // 所以要把它記住才知道等一下要分析哪一張。
-    var pendingPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    val cameraPrefs = remember { context.getSharedPreferences("camera_pending", Context.MODE_PRIVATE) }
+
+    // 三重保險防止相機開啟期間 Activity 重建導致 URI 遺失：
+    // 1. rememberSaveable 跨 Activity 重建保持
+    // 2. viewModel.pendingCameraPhotoUri 保持在 ViewModel
+    // 3. SharedPreferences 跨行程重啟保持
+    var pendingPhotoUriString by rememberSaveable { mutableStateOf<String?>(null) }
 
     val takePicture = rememberLauncherForActivityResult(
         ActivityResultContracts.TakePicture()
     ) { success ->
-        pendingPhotoUri?.let { if (success) viewModel.analyzePhoto(it) }
+        val uriString = pendingPhotoUriString
+            ?: viewModel.pendingCameraPhotoUri?.toString()
+            ?: cameraPrefs.getString("pending_uri", null)
+        val uri = uriString?.let { Uri.parse(it) }
+        val hasData = uri != null && isPhotoValid(context, uri)
+
+        // 確保相機返回時若 ViewModel 重建，立即恢復快取金鑰
+        val cachedKey = cameraPrefs.getString("cached_gemini_key", "") ?: ""
+        if (viewModel.settings.geminiApiKey.isBlank() && cachedKey.isNotBlank()) {
+            val cachedModel = cameraPrefs.getString("cached_gemini_model", "") ?: ""
+            viewModel.restoreApiKey(cachedKey, cachedModel)
+        }
+
+        Log.d("NutriLogCamera", "TakePicture result: success=$success, uri=$uri, hasData=$hasData, hasKey=${viewModel.settings.geminiApiKey.isNotBlank()}")
+
+        // 部分三星裝置與相機版本在拍照確認後回傳 RESULT_CANCELED (success=false)，
+        // 但檔案已確實寫入。因此只要 success 為 true 或檔案有寫入有效資料，均觸發辨識。
+        if ((success || hasData) && uri != null) {
+            viewModel.analyzePhoto(uri)
+        } else if (uri != null) {
+            // 使用者真的取消且無照片資料，嘗試清理 0 位元組空檔案
+            try {
+                context.contentResolver.delete(uri, null, null)
+            } catch (_: Exception) {}
+        }
+
+        // 清理暫存狀態
+        pendingPhotoUriString = null
+        viewModel.pendingCameraPhotoUri = null
+        cameraPrefs.edit().remove("pending_uri").apply()
     }
 
     val pickPhoto = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri -> uri?.let(viewModel::analyzePhoto) }
 
-    // 沒設 key 就先攔下來。等使用者拍完照才說「你沒設 key」，
-    // 等於白拍一張，而且他還得自己想到問題出在設定頁。
     val startCamera = {
-        if (!viewModel.hasApiKey()) {
-            viewModel.reportMissingApiKey()
-        } else {
-            // 每張都用新檔名。沿用同一個檔名時，相機 App 有時會因為
-            // 檔案已存在而直接失敗，而且舊圖也可能被誤讀成新拍的。
-            val uri = newPhotoUri(context)
-            pendingPhotoUri = uri
-            takePicture.launch(uri)
+        // 每張都用新檔名。沿用同一個檔名時，相機 App 有時會因為
+        // 檔案已存在而直接失敗，而且舊圖也可能被誤讀成新拍的。
+        val uri = newPhotoUri(context)
+        pendingPhotoUriString = uri.toString()
+        viewModel.pendingCameraPhotoUri = uri
+        cameraPrefs.edit()
+            .putString("pending_uri", uri.toString())
+            .putString("cached_gemini_key", viewModel.settings.geminiApiKey)
+            .putString("cached_gemini_model", viewModel.settings.geminiModel)
+            .apply()
+
+        // 明確授權相機 App 讀寫權限，避免部分相機 App 或 ROM 權限不足
+        try {
+            val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+            val resolved = context.packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
+            for (info in resolved) {
+                context.grantUriPermission(
+                    info.activityInfo.packageName,
+                    uri,
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+        } catch (e: Exception) {
+            Log.e("NutriLogCamera", "grantUriPermission failed: ${e.message}")
         }
+
+        takePicture.launch(uri)
     }
 
     val startGallery = {
-        if (!viewModel.hasApiKey()) {
-            viewModel.reportMissingApiKey()
-        } else {
-            pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-        }
+        pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
     }
 
     // 走 SAF 讓使用者自己挑存檔位置：不需要儲存權限，
@@ -98,6 +169,33 @@ fun NutriLogApp(viewModel: NutriViewModel) {
         LaunchedEffect(pending) {
             driveConsent.launch(IntentSenderRequest.Builder(pending.intentSender).build())
             viewModel.consentLaunched()
+        }
+    }
+
+    // Health Connect（健康連線）之權限請求發射器
+    val healthPermissionLauncher = rememberLauncherForActivityResult(
+        PermissionController.createRequestPermissionResultContract()
+    ) { granted ->
+        viewModel.onHealthPermissionsResult(granted)
+    }
+
+    if (viewModel.pendingHealthPermissionRequest) {
+        LaunchedEffect(Unit) {
+            healthPermissionLauncher.launch(HealthConnectSync.REQUIRED_PERMISSIONS)
+            viewModel.onHealthPermissionRequestLaunched()
+        }
+    }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.onAppResume()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
@@ -155,6 +253,10 @@ fun NutriLogApp(viewModel: NutriViewModel) {
             onOpenHistory = viewModel::openHistory,
             onOpenSearch = viewModel::openSearch,
             onOpenSettings = { viewModel.goTo(Screen.Settings) },
+            activeCaloriesMap = viewModel.activeCaloriesMap,
+            workoutSessionsMap = viewModel.workoutSessionsMap,
+            onFetchActiveCalories = viewModel::fetchActiveCalories,
+            onRefreshActiveCalories = viewModel::refreshActiveCalories,
         )
 
         Screen.EditEntry -> {
@@ -190,8 +292,6 @@ fun NutriLogApp(viewModel: NutriViewModel) {
                 recent = viewModel.recentFoods,
                 onReuseSuggestion = viewModel::reuse,
                 onLookup = viewModel::analyzeText,
-                // 沒選搜尋來源的話「AI 查」那顆按不下去，helper 會講去哪裡選
-                searchAvailable = viewModel.settings.searchMode != SearchMode.OFF,
                 onClose = viewModel::backToToday,
             )
         }
@@ -235,27 +335,39 @@ fun NutriLogApp(viewModel: NutriViewModel) {
                 totals = viewModel.monthTotals,
                 settings = viewModel.settings,
                 selectedDate = viewModel.selectedDate,
+                activeCaloriesMap = viewModel.activeCaloriesMap,
                 onShiftMonth = viewModel::shiftMonth,
                 onOpenDay = viewModel::showDate,
+                onOpenWeeklyReport = { viewModel.openReportCenter() },
                 onClose = viewModel::backToToday,
+            )
+        }
+
+        Screen.WeeklyReport -> {
+            BackHandler { viewModel.goTo(Screen.History) }
+            WeeklyReportScreen(
+                selectedTab = viewModel.reportTab,
+                onTabSelect = viewModel::selectReportTab,
+                weekStart = viewModel.weeklyReportWeekStart,
+                currentWeekStart = viewModel.weekStart,
+                uiState = viewModel.weeklyReportUiState,
+                onShiftWeek = viewModel::shiftWeeklyReportWeek,
+                onGenerate = { viewModel.generateWeeklyReport(forceRefresh = true) },
+                onApplyRecommendation = viewModel::applyRecommendedTargets,
+                activeMonth = viewModel.monthlyReportMonth,
+                currentMonth = YearMonth.now(),
+                monthlyUiState = viewModel.monthlyReportUiState,
+                onShiftMonth = viewModel::shiftMonthlyReportMonth,
+                onGenerateMonthly = { viewModel.generateMonthlyReport(forceRefresh = true) },
+                settings = viewModel.settings,
+                onOpenSettings = { viewModel.goTo(Screen.Settings) },
+                onClose = { viewModel.goTo(Screen.History) },
             )
         }
 
         Screen.Settings -> {
             BackHandler { viewModel.backToToday() }
-            SettingsMenuScreen(
-                settings = viewModel.settings,
-                onOpen = viewModel::openSettingsPage,
-                onClose = viewModel::backToToday,
-            )
-        }
-
-        // 設定是整個 app 唯一有兩層的地方，所以這裡的返回鍵回的是設定選單而不是
-        // 今日頁。子頁進得去卻只能一路退回今日，等於每改一項設定都要重新點兩次。
-        is Screen.SettingsDetail -> {
-            BackHandler { viewModel.goTo(Screen.Settings) }
-            SettingsDetailScreen(
-                page = screen.page,
+            SettingsScreen(
                 settings = viewModel.settings,
                 dataMessage = viewModel.dataMessage,
                 importPreview = viewModel.importPreview,
@@ -272,24 +384,94 @@ fun NutriLogApp(viewModel: NutriViewModel) {
                 onConnectDrive = viewModel::connectDrive,
                 onBackupNow = viewModel::backupNow,
                 onDisconnectDrive = viewModel::disconnectDrive,
-                onOpenService = viewModel::openApiKey,
-                onBack = { viewModel.goTo(Screen.Settings) },
+                onOpenBmrCalculator = viewModel::openBmrDialog,
+                isHealthConnectSupported = viewModel.isHealthConnectSupported,
+                healthConnectAuthorized = viewModel.healthConnectAuthorized,
+                healthConnectReadAuthorized = viewModel.healthConnectReadAuthorized,
+                healthSyncBusy = viewModel.healthSyncBusy,
+                healthMessage = viewModel.healthMessage,
+                onToggleHealthConnect = viewModel::toggleHealthConnect,
+                onToggleReadExerciseCalories = viewModel::toggleReadExerciseCalories,
+                onSyncAllHealthConnect = viewModel::syncAllToHealthConnect,
+                onClose = viewModel::backToToday,
             )
+        }
+    }
+    }
+
+        val bgMsg = viewModel.backgroundReportMessage
+        val isGenerating = viewModel.isWeeklyReportGenerating || viewModel.isMonthlyReportGenerating
+        if (viewModel.screen != Screen.WeeklyReport && (isGenerating || bgMsg != null)) {
+            val text = if (isGenerating) {
+                stringResource(R.string.report_bg_generating)
+            } else {
+                bgMsg ?: stringResource(R.string.report_bg_finished)
+            }
+            Box(
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 48.dp, start = 20.dp, end = 20.dp)
+                    .zIndex(10f)
+                    .clip(RoundedCornerShape(20.dp))
+                    .border(1.dp, NutrientColors.FieldBorder, RoundedCornerShape(20.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                    .clickable {
+                        viewModel.openReportCenter()
+                        viewModel.dismissBackgroundReportMessage()
+                    }
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (isGenerating) {
+                        CircularProgressIndicator(
+                            color = NutrientColors.Accent,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(14.dp),
+                        )
+                    } else {
+                        Text("✦", color = NutrientColors.Accent, style = MaterialTheme.typography.bodySmall)
+                    }
+                    Text(
+                        text,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+            }
         }
 
-        // 第三層：某一個服務的 key。返回回到「AI 影像辨識」那一頁，
-        // 一路退回今日頁的話，改完 key 想接著換模型就要重點三次。
-        is Screen.ApiKeyDetail -> {
-            BackHandler { viewModel.openSettingsPage(SettingsPage.AI) }
-            ApiKeyScreen(
-                service = screen.service,
-                settings = viewModel.settings,
-                onChange = viewModel::updateSettings,
-                onBack = { viewModel.openSettingsPage(SettingsPage.AI) },
+        if (viewModel.showBmrDialog) {
+            BmrCalculatorDialog(
+                initialSettings = viewModel.settings,
+                onApply = { updated ->
+                    viewModel.updateSettings(updated.copy(profileConfigured = true))
+                    viewModel.closeBmrDialog()
+                },
+                onDismiss = viewModel::dismissBmrDialog,
             )
         }
     }
-    }
+}
+
+/**
+ * 檢查照片 URI 是否具有有效寫入資料（避免三星相機回傳 resultCode=0 但檔案已寫入的狀況，或取消未拍留下的空檔）。
+ */
+private fun isPhotoValid(context: Context, uri: Uri): Boolean {
+    return try {
+        val pfd = context.contentResolver.openFileDescriptor(uri, "r")
+        val size = pfd?.statSize ?: 0L
+        pfd?.close()
+        if (size > 0L) return true
+
+        context.contentResolver.openInputStream(uri)?.use { stream ->
+            stream.read() != -1
+        } ?: false
+    } catch (e: Exception) {
+        Log.e("NutriLogCamera", "isPhotoValid error: ${e.message}")
+        false
     }
 }
 
@@ -298,7 +480,14 @@ fun NutriLogApp(viewModel: NutriViewModel) {
  * 把 file:// 丟給別的 App 會直接 FileUriExposedException。
  */
 private fun newPhotoUri(context: Context): Uri {
-    val dir = File(context.cacheDir, "photos").apply { mkdirs() }
-    val file = File(dir, "meal_" + System.currentTimeMillis() + ".jpg")
-    return FileProvider.getUriForFile(context, context.packageName + ".fileprovider", file)
+    val dir = File(context.cacheDir, "photos").apply { if (!exists()) mkdirs() }
+    val file = File(dir, "meal_${System.currentTimeMillis()}.jpg")
+    try {
+        if (!file.exists()) {
+            file.createNewFile()
+        }
+    } catch (e: Exception) {
+        Log.e("NutriLogCamera", "newPhotoUri createNewFile failed: ${e.message}")
+    }
+    return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
 }

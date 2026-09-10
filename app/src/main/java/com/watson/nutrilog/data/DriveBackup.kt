@@ -3,6 +3,7 @@ package com.watson.nutrilog.data
 import android.content.Context
 import com.watson.nutrilog.data.db.NutriDatabase
 import com.watson.nutrilog.data.net.DriveClient
+import kotlinx.serialization.json.Json
 import java.time.LocalDate
 
 /**
@@ -25,6 +26,7 @@ class DriveBackup(
     private val appContext = context.applicationContext
     private val dao = NutriDatabase.get(context).dao()
     private val settingsStore = SettingsStore(context)
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     /** 需要使用者同意時回傳這個，呼叫端（Activity）負責把同意畫面叫出來。 */
     class NeedsConsent(val pendingIntent: android.app.PendingIntent) : Exception("需要 Google 授權")
@@ -44,10 +46,14 @@ class DriveBackup(
         val csv = CsvExport.build(dao.allEntries())
         drive.upload(accessToken, folderId, name, csv).getOrThrow()
 
+        // 同步備份設定、個人身體數據與每日飲食目標 (BMR / TDEE)
+        val current = settingsStore.current()
+        val settingsJson = json.encodeToString(NutriSettings.serializer(), current)
+        drive.upload(accessToken, folderId, SETTINGS_FILE_NAME, settingsJson).getOrThrow()
+
         prune(accessToken, folderId)
 
         val email = drive.accountEmail(accessToken).getOrNull().orEmpty()
-        val current = settingsStore.current()
         settingsStore.save(
             current.copy(
                 driveAccount = email.ifBlank { current.driveAccount },
@@ -55,6 +61,16 @@ class DriveBackup(
             )
         )
         today.toString()
+    }
+
+    /** 雲端最新備份的設定與飲食目標數值。沒有任何備份時回傳 null。 */
+    suspend fun latestBackupSettings(token: String? = null): Result<NutriSettings?> = runCatching {
+        val accessToken = token ?: requireToken()
+        val folderId = drive.ensureFolder(accessToken, FOLDER_NAME).getOrThrow()
+        val file = drive.list(accessToken, folderId).getOrThrow().firstOrNull { it.name == SETTINGS_FILE_NAME }
+            ?: return@runCatching null
+        val raw = drive.download(accessToken, file.id).getOrThrow()
+        runCatching { json.decodeFromString(NutriSettings.serializer(), raw) }.getOrNull()
     }
 
     /** 雲端最新那一份的內容。沒有任何備份時回傳 null。 */
@@ -84,6 +100,7 @@ class DriveBackup(
     companion object {
         const val FOLDER_NAME = "NutriLog"
         const val KEEP_DAYS = 30
+        const val SETTINGS_FILE_NAME = "nutrilog-settings.json"
 
         /**
          * 超過保留天數、該刪掉的檔名。

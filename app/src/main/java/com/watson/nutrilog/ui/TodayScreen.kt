@@ -13,8 +13,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -55,10 +53,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.ui.draw.blur
@@ -78,10 +72,10 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.sp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.NutriSettings
+import com.watson.nutrilog.data.WorkoutSessionItem
 import com.watson.nutrilog.data.db.DayTotal
 import com.watson.nutrilog.data.db.FoodEntry
 import com.watson.nutrilog.data.db.Meal
@@ -93,6 +87,7 @@ import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
  * 日分頁的頁碼半徑。以「開啟這個畫面那一刻」為基準日，左右各留這麼多天，
@@ -129,6 +124,10 @@ fun TodayScreen(
     onOpenHistory: () -> Unit,
     onOpenSearch: () -> Unit,
     onOpenSettings: () -> Unit,
+    activeCaloriesMap: Map<LocalDate, Double> = emptyMap(),
+    workoutSessionsMap: Map<LocalDate, List<WorkoutSessionItem>> = emptyMap(),
+    onFetchActiveCalories: (LocalDate) -> Unit = {},
+    onRefreshActiveCalories: (LocalDate) -> Unit = {},
 ) {
     val today = LocalDate.now()
     var showAddSheet by remember { mutableStateOf(false) }
@@ -281,6 +280,8 @@ fun TodayScreen(
                     weekTotalsFlow = weekTotalsFlow,
                     today = today,
                     target = settings.calorieTarget,
+                    activeCaloriesMap = activeCaloriesMap,
+                    readExerciseCalories = settings.readExerciseCalories,
                     onPickDay = onPickDay,
                     onShiftWeek = onShiftWeek,
                 )
@@ -300,11 +301,16 @@ fun TodayScreen(
                 .fillMaxSize()
                 .padding(inner),
         ) { page ->
+            val pageDate = dayOfPage(page)
             DayPage(
-                date = dayOfPage(page),
+                date = pageDate,
                 entriesFlow = entriesFlow,
                 entriesCache = entriesCache,
                 settings = settings,
+                activeCalories = activeCaloriesMap[pageDate] ?: 0.0,
+                workoutSessions = workoutSessionsMap[pageDate].orEmpty(),
+                onFetchActiveCalories = onFetchActiveCalories,
+                onRefreshActiveCalories = onRefreshActiveCalories,
                 onOpenEntry = onOpenEntry,
                 onDeleteEntry = onDeleteEntry,
                 // 「還沒記」開的是同一個新增選單，不是直接跳空白表單 ——
@@ -433,6 +439,8 @@ private fun WeekStrip(
     weekTotalsFlow: (LocalDate) -> Flow<List<DayTotal>>,
     today: LocalDate,
     target: Int,
+    activeCaloriesMap: Map<LocalDate, Double> = emptyMap(),
+    readExerciseCalories: Boolean = true,
     onPickDay: (LocalDate) -> Unit,
     onShiftWeek: (Long) -> Unit,
 ) {
@@ -465,6 +473,8 @@ private fun WeekStrip(
                 weekTotalsCache = weekTotalsCache,
                 today = today,
                 target = target,
+                activeCaloriesMap = activeCaloriesMap,
+                readExerciseCalories = readExerciseCalories,
                 dayPagerState = dayPagerState,
                 dayPageOf = dayPageOf,
                 onPickDay = onPickDay,
@@ -499,6 +509,8 @@ private fun WeekPageContent(
     weekTotalsCache: MutableMap<LocalDate, List<DayTotal>>,
     today: LocalDate,
     target: Int,
+    activeCaloriesMap: Map<LocalDate, Double> = emptyMap(),
+    readExerciseCalories: Boolean = true,
     dayPagerState: PagerState,
     dayPageOf: (LocalDate) -> Int,
     onPickDay: (LocalDate) -> Unit,
@@ -512,16 +524,16 @@ private fun WeekPageContent(
         val rowWidthPx = with(LocalDensity.current) { maxWidth.toPx() }
 
         Box(Modifier.graphicsLayer { translationX = (overflowBefore - overflowAfter) * rowWidthPx }) {
-            WeekRow(weekStart, weekTotalsFlow, weekTotalsCache, today, target, dayPagerState, dayPageOf, onPickDay)
+            WeekRow(weekStart, weekTotalsFlow, weekTotalsCache, today, target, activeCaloriesMap, readExerciseCalories, dayPagerState, dayPageOf, onPickDay)
         }
         if (overflowAfter > 0f) {
             Box(Modifier.graphicsLayer { translationX = (1f - overflowAfter) * rowWidthPx }) {
-                WeekRow(weekStart.plusWeeks(1), weekTotalsFlow, weekTotalsCache, today, target, dayPagerState, dayPageOf, onPickDay)
+                WeekRow(weekStart.plusWeeks(1), weekTotalsFlow, weekTotalsCache, today, target, activeCaloriesMap, readExerciseCalories, dayPagerState, dayPageOf, onPickDay)
             }
         }
         if (overflowBefore > 0f) {
             Box(Modifier.graphicsLayer { translationX = (overflowBefore - 1f) * rowWidthPx }) {
-                WeekRow(weekStart.minusWeeks(1), weekTotalsFlow, weekTotalsCache, today, target, dayPagerState, dayPageOf, onPickDay)
+                WeekRow(weekStart.minusWeeks(1), weekTotalsFlow, weekTotalsCache, today, target, activeCaloriesMap, readExerciseCalories, dayPagerState, dayPageOf, onPickDay)
             }
         }
     }
@@ -564,6 +576,8 @@ private fun WeekRow(
     weekTotalsCache: MutableMap<LocalDate, List<DayTotal>>,
     today: LocalDate,
     target: Int,
+    activeCaloriesMap: Map<LocalDate, Double> = emptyMap(),
+    readExerciseCalories: Boolean = true,
     dayPagerState: PagerState,
     dayPageOf: (LocalDate) -> Int,
     onPickDay: (LocalDate) -> Unit,
@@ -586,10 +600,13 @@ private fun WeekRow(
     Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
         repeat(7) { index ->
             val day = weekStart.plusDays(index.toLong())
+            val dayKcal = byDate[day.toString()]?.kcal ?: 0.0
+            val dayActive = if (readExerciseCalories) activeCaloriesMap[day] ?: 0.0 else 0.0
+            val effectiveTarget = if (target > 0 && dayActive > 0) target + dayActive.roundToInt() else target
             DayColumn(
                 day = day,
-                kcal = byDate[day.toString()]?.kcal ?: 0.0,
-                target = target,
+                kcal = dayKcal,
+                target = effectiveTarget,
                 isFuture = day.isAfter(today),
                 overColor = over,
                 pillAlpha = (1f - abs(pillPosition - index)).coerceIn(0f, 1f),
@@ -714,10 +731,20 @@ private fun DayPage(
     entriesFlow: (LocalDate) -> Flow<List<FoodEntry>>,
     entriesCache: MutableMap<LocalDate, List<FoodEntry>>,
     settings: NutriSettings,
+    activeCalories: Double = 0.0,
+    workoutSessions: List<WorkoutSessionItem> = emptyList(),
+    onFetchActiveCalories: (LocalDate) -> Unit = {},
+    onRefreshActiveCalories: (LocalDate) -> Unit = {},
     onOpenEntry: (FoodEntry) -> Unit,
     onDeleteEntry: (FoodEntry) -> Unit,
     onAddForMeal: (Meal) -> Unit,
 ) {
+    LaunchedEffect(date, settings.readExerciseCalories) {
+        if (settings.readExerciseCalories) {
+            onFetchActiveCalories(date)
+        }
+    }
+
     // 同時只有一列是開的：滑開第二列時第一列自己收回去，
     // 不然畫面上會留著一排半開的列，看起來像壞掉。
     var revealedId by remember(date) { mutableStateOf<Long?>(null) }
@@ -749,7 +776,17 @@ private fun DayPage(
         contentPadding = PaddingValues(horizontal = 22.dp),
     ) {
         item { Hairline() }
-        item { Budget(entries, totals, settings) }
+        item {
+            Budget(
+                date = date,
+                entries = entries,
+                totals = totals,
+                settings = settings,
+                activeCalories = activeCalories,
+                workoutSessions = workoutSessions,
+                onSyncExercise = { onRefreshActiveCalories(date) },
+            )
+        }
         item { Hairline() }
         item { Macros(totals, settings) }
         item { Hairline() }
@@ -793,7 +830,7 @@ private fun DayPage(
         }
         // 角落那顆章是浮在內容之上的，不佔 Scaffold 的 innerPadding，
         // 所以最後一筆要自己留出它的高度，不然會被蓋住。
-        item { Spacer(Modifier.height(92.dp)) }
+        item { Spacer(Modifier.height(80.dp)) }
     }
 }
 
@@ -808,18 +845,43 @@ private fun DayPage(
  * 「午餐一次吃掉一大半」和「三餐平均」是完全不同的一天，看形狀就分得出來。
  */
 @Composable
-private fun Budget(entries: List<FoodEntry>, totals: Totals, settings: NutriSettings) {
+private fun Budget(
+    date: LocalDate,
+    entries: List<FoodEntry>,
+    totals: Totals,
+    settings: NutriSettings,
+    activeCalories: Double = 0.0,
+    workoutSessions: List<WorkoutSessionItem> = emptyList(),
+    onSyncExercise: () -> Unit = {},
+) {
     val scheme = MaterialTheme.colorScheme
     val target = settings.calorieTarget
     val consumed = totals.calories
-    val remaining = target - consumed
+    val exerciseBurned = if (settings.readExerciseCalories) activeCalories else 0.0
+    val effectiveTarget = if (target > 0 && exerciseBurned > 0) target + exerciseBurned.roundToInt() else target
+    val remaining = if (target > 0) effectiveTarget - consumed else 0.0
     val over = remaining < 0
     // 超標 10% 以內是橘色警示、超過 10% 才轉紅；severityColor 是 null 代表沒超標，
     // 沿用原本的中性色。
-    val severityColor = when (overSeverity(consumed, target)) {
+    val severityColor = when (overSeverity(consumed, effectiveTarget)) {
         OverSeverity.OVER -> NutrientColors.Over
         OverSeverity.WARNING -> NutrientColors.Warning
         OverSeverity.NORMAL -> null
+    }
+
+    var showHealthDialog by remember { mutableStateOf(false) }
+
+    if (showHealthDialog) {
+        SamsungHealthDetailDialog(
+            date = date,
+            activeCalories = exerciseBurned,
+            calorieTarget = target,
+            consumedCalories = consumed,
+            entries = entries,
+            workoutSessions = workoutSessions,
+            onSyncNow = onSyncExercise,
+            onDismiss = { showHealthDialog = false },
+        )
     }
 
     Column(
@@ -829,23 +891,46 @@ private fun Budget(entries: List<FoodEntry>, totals: Totals, settings: NutriSett
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
             // 大數字不掛「已經吃」的標籤：旁邊就是目標與剩餘，讀起來已經夠清楚，
             // 而標籤會把版面上最大的那個字往右擠掉一截。
-            Row {
-                Text(
-                    consumed.fmtInt(),
-                    style = MaterialTheme.typography.displayLarge.numeric(),
-                    color = severityColor ?: scheme.onSurface,
-                    modifier = Modifier.alignByBaseline(),
-                )
-                Spacer(Modifier.width(7.dp))
-                Text(
-                    stringResource(R.string.unit_kcal),
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontSize = 17.sp,
-                        fontStyle = FontStyle.Italic,
-                    ).numeric(),
-                    color = scheme.onSurfaceVariant,
-                    modifier = Modifier.alignByBaseline(),
-                )
+            Column {
+                Row {
+                    Text(
+                        consumed.fmtInt(),
+                        style = MaterialTheme.typography.displayLarge.numeric(),
+                        color = severityColor ?: scheme.onSurface,
+                        modifier = Modifier.alignByBaseline(),
+                    )
+                    Spacer(Modifier.width(7.dp))
+                    Text(
+                        stringResource(R.string.unit_kcal),
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            fontSize = 17.sp,
+                            fontStyle = FontStyle.Italic,
+                        ).numeric(),
+                        color = scheme.onSurfaceVariant,
+                        modifier = Modifier.alignByBaseline(),
+                    )
+                }
+                if (exerciseBurned > 0) {
+                    val net = (consumed - exerciseBurned).coerceAtLeast(0.0)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.padding(top = 1.dp),
+                    ) {
+                        Text(
+                            stringResource(R.string.exercise_net_calories_label),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onSurfaceVariant,
+                            modifier = Modifier.alignByBaseline(),
+                        )
+                        Text(
+                            "${net.fmtInt()} kcal",
+                            style = MaterialTheme.typography.bodySmall.numeric(),
+                            color = scheme.onSurfaceVariant,
+                            modifier = Modifier.alignByBaseline(),
+                        )
+                    }
+                }
             }
             Spacer(Modifier.weight(1f))
             // 目標為 0 等於關掉額度的意義，就不要講「還有 2000 的空間」
@@ -855,12 +940,45 @@ private fun Budget(entries: List<FoodEntry>, totals: Totals, settings: NutriSett
                     verticalArrangement = Arrangement.spacedBy(3.dp),
                     modifier = Modifier.padding(bottom = 5.dp),
                 ) {
+                    // ★ 樣式 C：精準放在目標上方紅框位置，無中文「手錶」，純數字 + kcal + ↻ 同步按鈕 ★
+                    if (settings.readExerciseCalories) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            // 只掛一個 clickable：兩個疊在同一條 modifier 上時，
+                            // 後面那個是內層、會先把點擊吃掉，外層那個等於不存在
+                            // —— 症狀是點下去只有同步、明細面板永遠打不開。
+                            // 同步的入口在面板裡面（↻ 立即從手錶重新同步），這裡不用再放一個。
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { showHealthDialog = true }
+                                .padding(vertical = 1.dp, horizontal = 2.dp),
+                        ) {
+                            Text(
+                                text = if (exerciseBurned > 0) "+${exerciseBurned.fmtInt()}" else "+0",
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 14.sp).numeric(),
+                                color = if (exerciseBurned > 0) Color(0xFF4EBA6F) else scheme.onSurfaceVariant,
+                                modifier = Modifier.alignByBaseline(),
+                            )
+                            Spacer(Modifier.width(1.dp))
+                            Text(
+                                text = stringResource(R.string.unit_kcal),
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontSize = 10.sp,
+                                    fontStyle = FontStyle.Italic,
+                                ),
+                                color = scheme.onSurfaceVariant,
+                                modifier = Modifier.alignByBaseline(),
+                            )
+                        }
+                    }
+
                     LabelledNumber(
                         label = stringResource(R.string.budget_target),
                         number = target.toString(),
                         labelColor = scheme.onSurfaceVariant,
                         numberColor = scheme.onSurfaceVariant,
-                        numberSize = 14.sp,
+                        numberSize = 13.sp,
                     )
                     LabelledNumber(
                         label = stringResource(
@@ -875,7 +993,7 @@ private fun Budget(entries: List<FoodEntry>, totals: Totals, settings: NutriSett
             }
         }
 
-        MealSegmentBar(entries = entries, target = target)
+        MealSegmentBar(entries = entries, target = effectiveTarget)
 
         // 額度條下面補一行小計。條子講的是形狀（哪一餐吃掉一大半），
         // 這一行才回答「所以早餐到底幾大卡」——兩個問題不必各佔一塊版面。
@@ -1050,44 +1168,18 @@ private fun MacroColumn(
     }
 }
 
-/** 進階營養素：一行四個值，放不下就左右捲（理由看函式裡的長註解）。 */
+/**
+ * 進階營養素。
+ *
+ * 原本是四個有底色的 chip，還為了窄螢幕加了橫向捲動 —— 而那排能捲的幅度只有
+ * 幾十 dp，手指很容易滑過頭把位移傳給外層的日分頁器，變成不小心換了一天，
+ * 所以又補了一個 nestedScroll 去吃掉溢出的捲動。整串工程是為了「四個色塊要排一列」
+ * 而長出來的。這裡改成一行純文字：不捲動，就沒有那條路徑，那些程式碼一起消失。
+ */
 @Composable
 private fun ExtraLine(totals: Totals) {
-    // **一行到底，放不下就左右捲。**
-    //
-    // 不能讓它換行：高度一變動，日分頁器拖到一半時兩天的餐別清單就對不齊
-    // —— 鈉填得出來的那天兩行、沒填的那天一行，滑一次就看得出來。
-    // 也不能什麼都不做：Row 溢出是**默默切掉**，實測 800px 寬時最後一項
-    // 只剩「飽和脂肪 93.」，沒有刪節號也沒有任何路可以把它拉出來。
-    //
-    // v1.9.0 曾經把橫向捲動拿掉過，**但那時候的前提現在不成立了**：那是四個
-    // 有底色有內距的 chip，連一般寬度的螢幕都溢出，所以每次捲都在那幾十 dp
-    // 裡打轉、一滑過頭就換了一天。現在是純文字，1080 寬實測只用掉 781 ——
-    // **絕大多數螢幕根本沒有捲動範圍**，沒範圍就不會有位移外溢，那條路徑
-    // 等於不存在；拖這一行照樣換日，和畫面上其他地方一致。
-    val state = rememberScrollState()
-    // 真的捲得動的時候（窄螢幕）把溢出的位移吃掉，不要傳給日分頁器 ——
-    // 不吃的話捲到底那一瞬間手指還沒放，剩下的位移就直接換了一天，
-    // 而使用者以為自己只是在看這一行。規則就是「這一行捲得動，它就是自己的
-    // 地盤」；捲不動時 maxValue 是 0，什麼都不吃，位移照樣上分頁器。
-    val keepInside = remember(state) {
-        object : NestedScrollConnection {
-            override fun onPostScroll(
-                consumed: Offset,
-                available: Offset,
-                source: NestedScrollSource,
-            ): Offset = if (state.maxValue > 0) Offset(available.x, 0f) else Offset.Zero
-
-            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity =
-                if (state.maxValue > 0) Velocity(available.x, 0f) else Velocity.Zero
-        }
-    }
-
     Row(
-        Modifier
-            .fillMaxWidth()
-            .nestedScroll(keepInside)
-            .horizontalScroll(state),
+        Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         ExtraItem(stringResource(R.string.nutrient_sugar), totals.sugarG.fmt(), "g")
@@ -1289,7 +1381,7 @@ private fun AddMenu(
                     .align(Alignment.BottomEnd)
                     .navigationBarsPadding()
                     // 讓出角落那顆章的位置，面板不要壓在它上面
-                    .padding(bottom = 92.dp)
+                    .padding(bottom = 80.dp)
                     .fillMaxWidth()
                     .graphicsLayer {
                         alpha = cover
@@ -1371,11 +1463,11 @@ private fun AddMenu(
                 .align(Alignment.BottomEnd)
                 .navigationBarsPadding()
                 .padding(20.dp)
-                .size(60.dp)
+                .size(48.dp)
                 .background(scheme.inverseSurface)
                 .clickable(onClick = onToggle)
                 .semantics { contentDescription = addLabel }
-                .padding(4.dp),
+                .padding(3.5.dp),
         ) {
             Box(
                 Modifier
@@ -1384,7 +1476,7 @@ private fun AddMenu(
                 contentAlignment = Alignment.Center,
             ) {
                 Box(Modifier.graphicsLayer { rotationZ = plusRotation }) {
-                    PlusMark(scheme.inverseOnSurface, size = 22.dp, stroke = 1.8.dp)
+                    PlusMark(scheme.inverseOnSurface, size = 18.dp, stroke = 1.8.dp)
                 }
             }
         }
