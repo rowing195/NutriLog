@@ -140,18 +140,21 @@ fun SettingsMenuScreen(
                     label = "row",
                 ) { if (it) 1f else 0f }
 
-                Column(
-                    Modifier.graphicsLayer {
-                        alpha = slide
-                        translationX = (1f - slide) * ROW_SLIDE_DP.toPx()
-                    }
-                ) {
+                // **只有內容在動，規線不動。** 規線是這套版面的骨架，骨架跟著內容
+                // 一起飛進來的話整頁會晃；讓線先在、墨一列一列蓋上去，才是「紙已經
+                // 印好」的那個意思。所以 graphicsLayer 掛在 MenuRow 上而不是外面
+                // 這層 —— 掛外面 Hairline 會一起走。
+                Column {
                     MenuRow(
                         title = stringResource(page.titleRes()),
                         summary = page.summary(settings),
                         // 退場途中不接點擊：那幾百毫秒裡畫面還在，點下去會在
                         // 關閉的路上又開一個子頁。
                         onClick = { if (!closing) onOpen(page) },
+                        modifier = Modifier.graphicsLayer {
+                            alpha = slide
+                            translationX = (1f - slide) * ROW_SLIDE_DP.toPx()
+                        },
                     )
                     Hairline()
                 }
@@ -160,10 +163,15 @@ fun SettingsMenuScreen(
     }
 }
 
-/** 一列滑進來要多久、從多右邊開始、整批延後多久起跑。 */
+/**
+ * 一列滑進來要多久、從多右邊開始、整批延後多久起跑。
+ *
+ * 位移曾經是 64dp，看起來像整頁被推了一把而不是列自己就定位。收到 28dp 之後
+ * 節奏還在，推擠感沒了 —— 這一列本來就是滿版寬，不需要走那麼遠才讀得出方向。
+ */
 private const val ROW_SLIDE_MS = 260
 private const val ROW_LEAD_MS = 70
-private val ROW_SLIDE_DP = 64.dp
+private val ROW_SLIDE_DP = 28.dp
 
 /**
  * 相鄰兩列之間的間隔。
@@ -190,9 +198,14 @@ private const val EXIT_BUDGET_MS = 100
 
 /** 選單的一列：標題、目前的值、指向右邊的箭頭。 */
 @Composable
-private fun MenuRow(title: String, summary: String, onClick: () -> Unit) {
+private fun MenuRow(
+    title: String,
+    summary: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(vertical = 16.dp),

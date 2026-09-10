@@ -2,6 +2,10 @@ package com.watson.nutrilog.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Transition
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
@@ -37,8 +41,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -97,6 +103,17 @@ fun HistoryScreen(
     // month 會永遠抓到「開啟畫面當下」那個舊值 —— 和今日頁那個滾雪球 bug 同一類陷阱，
     // 所以包 rememberUpdatedState。
     val currentMonth = rememberUpdatedState(month)
+
+    // 進場時整張月曆由上往下逐週落下。**星期列不跟著動** —— 它每個月都一樣，
+    // 而且左右滑換月時它本來就釘在分頁器外面不滑；進場讓它動等於同一個元件
+    // 講兩套規則。不動的表頭配上落下的內容，也正好是這套版面的紙與墨分工。
+    //
+    // 一次性的：`shown` 只翻一次。之後滑到別的月份是**新組出來的頁**，那時
+    // transition 早就落定在 true，新的那幾列直接是最終狀態 —— 換月不會重播，
+    // 不然水平的換頁動畫和垂直的落下會在同一段時間裡打架。
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { shown = true }
+    val enter = updateTransition(shown, label = "historyEnter")
 
     // 外部改月份（兩側箭頭、「回到本月」）就把分頁器滑過去；使用者自己滑出來的頁碼
     // 在 onShiftMonth 之前就已經和 month 一致，這裡是 no-op。
@@ -163,8 +180,28 @@ fun HistoryScreen(
                         today = today,
                         selectedDate = selectedDate,
                         onOpenDay = onOpenDay,
+                        enter = enter,
                     )
-                    MonthSummary(pageMonth, totals, settings)
+                    // 概況接在最後一週後面，當作落下的最後一階 —— 不接的話它會在
+                    // 上面幾列還在落的時候就先站好，變成整段動畫少了收尾。
+                    val summarySlide by enter.animateFloat(
+                        transitionSpec = {
+                            tween(
+                                durationMillis = GRID_DROP_MS,
+                                delayMillis = weekRowCount(pageMonth) * GRID_STEP_MS,
+                                easing = FastOutSlowInEasing,
+                            )
+                        },
+                        label = "summary",
+                    ) { if (it) 1f else 0f }
+                    Box(
+                        Modifier.graphicsLayer {
+                            alpha = summarySlide
+                            translationY = (1f - summarySlide) * GRID_DROP_DP.toPx()
+                        }
+                    ) {
+                        MonthSummary(pageMonth, totals, settings)
+                    }
                 }
             }
             // **「回到本月」放在畫面最底下，不在報頭裡。** 兩個理由：
@@ -319,19 +356,37 @@ private fun MonthGrid(
     today: LocalDate,
     selectedDate: LocalDate,
     onOpenDay: (LocalDate) -> Unit,
+    enter: Transition<Boolean>,
 ) {
     val firstDay = month.atDay(1)
     // ISO 的星期一是 1、星期日是 7。要排成「日一二三四五六」，
     // 星期日的前置空格數就是 0，所以取 value % 7。
     val leadingBlanks = firstDay.dayOfWeek.value % 7
     val daysInMonth = month.lengthOfMonth()
-    val totalCells = leadingBlanks + daysInMonth
-    val rows = (totalCells + 6) / 7
+    val rows = weekRowCount(month)
 
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         repeat(rows) { row ->
+            // 一週一階。列數本來就封頂在 6（一個月最多跨六週），所以這裡不需要
+            // 設定選單那種「錯開總長度有上限」的算法 —— 最壞情況也只錯開 240ms。
+            val slide by enter.animateFloat(
+                transitionSpec = {
+                    tween(
+                        durationMillis = GRID_DROP_MS,
+                        delayMillis = row * GRID_STEP_MS,
+                        easing = FastOutSlowInEasing,
+                    )
+                },
+                label = "week",
+            ) { if (it) 1f else 0f }
+
             Row(
-                Modifier.fillMaxWidth(),
+                Modifier
+                    .fillMaxWidth()
+                    .graphicsLayer {
+                        alpha = slide
+                        translationY = (1f - slide) * GRID_DROP_DP.toPx()
+                    },
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 repeat(7) { column ->
@@ -510,6 +565,21 @@ private fun SummaryStat(label: String, value: String, tint: Color?) {
  * （約一百年），換算成頁碼給 [HorizontalPager]。用得到的範圍遠小於這個數字，
  * 但頁碼只是個 Int，留寬一點不花任何成本 —— 和今日頁那兩個分頁器同一套。
  */
+/**
+ * 進場時一週落下多遠、多久、每一週之間錯開多少。
+ *
+ * 星期列不在這套動畫裡（見 [HistoryScreen] 裡 `enter` 那段），概況接在最後一週
+ * 後面當收尾，所以整段的長度是「週數 × [GRID_STEP_MS] ＋ [GRID_DROP_MS]」，
+ * 最壞情況（六週）約 500ms。
+ */
+private const val GRID_DROP_MS = 260
+private const val GRID_STEP_MS = 40
+private val GRID_DROP_DP = 14.dp
+
+/** 這個月要排幾週。[MonthGrid] 與概況的落下順序共用同一個算法。 */
+private fun weekRowCount(month: YearMonth): Int =
+    (month.atDay(1).dayOfWeek.value % 7 + month.lengthOfMonth() + 6) / 7
+
 /** 「回到本月」進出場的時長。進場先看到形狀再看到字，退場快一倍。 */
 private const val BACK_GROW_MS = 240
 private const val BACK_FADE_MS = 190
