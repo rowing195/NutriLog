@@ -997,18 +997,28 @@ fun StampButton(
                 )
             }
         }
-        helper?.let {
-            Text(
-                it,
-                style = MaterialTheme.typography.bodySmall,
-                color = scheme.outline,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 7.dp),
-            )
-        }
+        helper?.let { StampHelperText(it) }
     }
+}
+
+/**
+ * 章底下那句「為什麼現在按不下去」。
+ *
+ * 從 [StampButton] 裡抽出來是因為常吃頁要自己用 `AnimatedVisibility` 包著它做進場動畫
+ * （見 `TextLookupScreen`），而那句話的長相必須和章內建的那一份完全一樣 ——
+ * 兩邊各寫一份遲早會漂，而漂掉的症狀是「同一句話在不同畫面長得不一樣」。
+ */
+@Composable
+fun StampHelperText(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.outline,
+        textAlign = TextAlign.Center,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = 7.dp),
+    )
 }
 
 /** 藥丸：就地確認（收鍵盤、重試、去設定）。比印章小一號、圓端。 */

@@ -1,9 +1,23 @@
 package com.watson.nutrilog.ui
 
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
@@ -13,11 +27,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -56,8 +73,12 @@ import java.time.LocalDate
  * 三層（標題＋說明＋章）比清單本身還高，實測只剩兩列看得到 —— 而使用者正在看的
  * 就是那個收斂中的清單。所以聚焦時只留那顆章；除非連一筆都篩不到，那時候
  * 「沒有『⋯』？」是畫面上唯一還在講話的東西，要留著。
+ *
+ * **收起來與長回來是兩段、不是同一段**（見 [GuideEnter]）：離開搜尋框時先讓鍵盤退完、
+ * 整區沉到定位，文字才從章的底邊往上長出來。兩件事一起做的話，畫面在同一段時間裡
+ * 往兩個方向動，讀起來是彈一下而不是一個動作。
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TextLookupScreen(
     targetDate: LocalDate,
@@ -76,6 +97,20 @@ fun TextLookupScreen(
     val shownFrequent = remember(query, frequent) { frequent.filterByQuery(query) }
     val shownRecent = remember(query, recent) { recent.filterByQuery(query) }
     val hasMatch = shownFrequent.isNotEmpty() || shownRecent.isNotEmpty()
+
+    // **「鍵盤收完了沒」問系統，不要自己數毫秒。** 說明文字要等整區沉到定位才長出來
+    // （見 [GuideEnter]），而那段時間就是 IME 的退場動畫 —— 各家鍵盤不一樣長，
+    // 寫死一個延遲在慢的機器上會提早搶拍、在沒有鍵盤動畫的機器上則是乾等。
+    //
+    // 包在 derivedStateOf 裡是為了**把重組關在這個布林值上**：`getBottom()` 在鍵盤
+    // 動畫的每一幀都會變，直接讀等於整個畫面（含底下那份清單）每幀重組一次；
+    // 包起來之後只有 true/false 真的翻面時才會通知讀它的人。
+    val density = LocalDensity.current
+    val imeInsets = WindowInsets.ime
+    val keyboardGone by remember(density, imeInsets) {
+        derivedStateOf { imeInsets.getBottom(density) == 0 }
+    }
+    val guideSettled = !focused && keyboardGone
 
     Scaffold(
         modifier = Modifier.dismissKeyboardOnTap().dismissKeyboardOnScroll(),
@@ -138,18 +173,35 @@ fun TextLookupScreen(
 
             Hairline()
 
+            // 欄位在畫面最上面，離這裡很遠 —— 不講一句的話，使用者看到的
+            // 就只是兩顆按不下去的鈕。
+            val stampHelper = when {
+                query.isBlank() -> stringResource(R.string.text_lookup_need_query)
+                !searchAvailable -> stringResource(R.string.text_lookup_search_off)
+                else -> null
+            }
+
+            // **這一區不用 spacedBy，間距各自寫在會動的內容裡面。**
+            // spacedBy 是照「有幾個子項」算的，而 AnimatedVisibility 收起來之後
+            // 節點還在（高度 0）—— 間距照樣算進去，收合狀態會多出兩段 12dp 的空白。
             Column(
                 Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 // 這一行要接得上使用者剛做完的動作，而那有三種：還沒打字、打了但
                 // 上面篩得到東西、打了而且什麼都沒有。**篩得到的時候不能說「沒有」**
                 // —— 上面明明就列著幾筆相近的，那句話會顯得這個 app 沒在看自己的清單。
                 //
                 // 鍵盤開著而且上面有東西可看時整行收掉，把高度讓給清單。
-                if (!focused || !hasMatch) {
+                // **只有「篩得到東西才收起來」那一段要等鍵盤。** 打字打到一筆都篩不到
+                // 時這行要立刻接上（那時候鍵盤還開著、根本沒有要等的東西），
+                // 慢半拍會讀成卡頓。
+                AnimatedVisibility(
+                    visible = !hasMatch || guideSettled,
+                    enter = GuideEnter,
+                    exit = GuideExit,
+                ) {
                     Text(
                         withNumerals(
                             when {
@@ -160,14 +212,20 @@ fun TextLookupScreen(
                         ),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 12.dp),
                     )
                 }
                 // 這段是「還沒開始打」時的指引，打字中沒有人在讀它，而它就是兩行。
-                if (!focused) {
+                AnimatedVisibility(
+                    visible = guideSettled,
+                    enter = GuideEnter,
+                    exit = GuideExit,
+                ) {
                     Text(
                         stringResource(R.string.text_lookup_hint),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 12.dp),
                     )
                 }
 
@@ -182,6 +240,7 @@ fun TextLookupScreen(
                     enabled = query.isNotBlank(),
                     onClick = { submit(false) },
                 )
+                Spacer(Modifier.height(12.dp))
                 // 退一階的深灰章：形狀一致才讀得出「這兩顆是一對」，顏色負責講
                 // 「這一顆比較慢、而且會花掉一次搜尋額度」。
                 //
@@ -190,18 +249,56 @@ fun TextLookupScreen(
                 StampButton(
                     label = stringResource(R.string.text_lookup_search),
                     enabled = query.isNotBlank() && searchAvailable,
-                    helper = when {
-                        // 欄位在畫面最上面，離這裡很遠 —— 不講一句的話，
-                        // 使用者看到的就只是兩顆按不下去的鈕。
-                        query.isBlank() -> stringResource(R.string.text_lookup_need_query)
-                        !searchAvailable -> stringResource(R.string.text_lookup_search_off)
-                        else -> null
-                    },
+                    // helper 不交給章自己畫：它要和上面兩段一起長出來，
+                    // 而章內建的那一份是說有就有。畫的是同一個 StampHelperText。
                     color = NutrientColors.StampSecondary,
                     onClick = { submit(true) },
                 )
+                AnimatedVisibility(
+                    visible = guideSettled && stampHelper != null,
+                    enter = GuideEnter,
+                    exit = GuideExit,
+                ) {
+                    StampHelperText(stampHelper.orEmpty())
+                }
             }
         }
     }
 
 }
+
+private const val GUIDE_GROW_MS = 260
+private const val GUIDE_FADE_MS = 200
+private const val GUIDE_FADE_LAG_MS = 60
+private const val GUIDE_HIDE_MS = 130
+
+/**
+ * 說明文字的進場：**從底邊往上長**（`expandFrom = Bottom`），而不是整段淡進來。
+ *
+ * 這一區的底邊貼著那兩顆章，而這一區在 Column 裡是最後一個子項、底邊釘在畫面底部
+ * —— 所以它長高的時候章不會動，只有上緣往上推。底邊錨定的展開配上這個版面，
+ * 看起來就是「文字從章底下被抽出來」，有一個明確的來源。
+ *
+ * 淡入晚 [GUIDE_FADE_LAG_MS] 起跑、和展開同時結束：**先看到形狀再看到字**，
+ * 才像長出來而不是浮現。
+ *
+ * 什麼時候開始長由 `guideSettled` 決定（問系統鍵盤收完了沒），不是靠延遲。
+ */
+private val GuideEnter: EnterTransition =
+    expandVertically(
+        animationSpec = tween(GUIDE_GROW_MS, easing = LinearOutSlowInEasing),
+        expandFrom = Alignment.Bottom,
+    ) + fadeIn(
+        animationSpec = tween(GUIDE_FADE_MS, GUIDE_FADE_LAG_MS, LinearOutSlowInEasing),
+    )
+
+/**
+ * 退場刻意比進場快一倍，而且沒有延遲：點進搜尋框的當下鍵盤正在升起來，
+ * 這一區慢吞吞地收會和鍵盤搶同一塊空間，看起來像被鍵盤推走的。
+ */
+private val GuideExit: ExitTransition =
+    fadeOut(tween(GUIDE_HIDE_MS / 2, easing = FastOutLinearInEasing)) +
+        shrinkVertically(
+            animationSpec = tween(GUIDE_HIDE_MS, easing = FastOutLinearInEasing),
+            shrinkTowards = Alignment.Bottom,
+        )
