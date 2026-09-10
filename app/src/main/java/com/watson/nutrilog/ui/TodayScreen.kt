@@ -56,12 +56,14 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
@@ -1273,19 +1275,25 @@ private fun AddMenu(
         // 收完就整塊不畫，才不會擋住底下的點擊。判斷式要把 expanded 也算進去 ——
         // 只看動畫值的話，展開那一幀 cover 還是 0，內容永遠不會被組出來。
         if (expanded || cover > 0.004f) {
-            // **這一層不做方向性的掃過，就地淡進來。** 試過由上往下蓋，實測是一片
-            // 灰幕壓過整個畫面，注意力被它帶走，反而看不到真正要看的那五列。
-            // 這個選單和換畫面不是同一件事：換畫面是整張紙換掉，需要講「從哪來」；
-            // 這裡今日頁還在原地，背景只要退到後面去就好，而那件事 blur 已經講完了。
+            // **這一片是由上往下蓋的**，和其他畫面（由下往上）刻意相反：報頭那三顆
+            // 圖示站在畫面頂端，開出來的東西從底下升上來；這顆章站在右下角，
+            // 蓋下來的東西就從頂端來。兩邊各自朝著自己入口的反方向走，對應得起來。
             //
-            // **這層 0.32 的壓暗仍然不能拿掉**，它是 blur 的退路：`Modifier.blur`
-            // 只在 API 31+ 有效而 minSdk 是 26，Android 8～11 上完全沒有模糊，
-            // 那時候「後面暫時停用了」就只剩這層在講。
+            // **自己畫一塊從上緣長高的矩形，不要用 `layout` 去縮節點的高度。**
+            // 縮節點那個寫法實測是**從下緣往上長**的：節點縮短了，但裡面的內容
+            // 仍然是滿版、也沒有被縮短後的邊界切掉，畫出來是一片從底部長上來的灰
+            // —— 正好和這裡要的方向相反。直接畫矩形沒有這層轉換，
+            // `size.height * cover` 就是它畫多高。
+            //
+            // 這層 0.32 的壓暗同時是 blur 的退路：`Modifier.blur` 只在 API 31+
+            // 有效而 minSdk 是 26，Android 8～11 上完全沒有模糊。
+            val scrimColor = scheme.scrim.copy(alpha = 0.32f)
             Box(
                 Modifier
                     .fillMaxSize()
-                    .graphicsLayer { alpha = cover }
-                    .background(scheme.scrim.copy(alpha = 0.32f))
+                    .drawBehind {
+                        drawRect(color = scrimColor, size = Size(size.width, size.height * cover))
+                    }
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
