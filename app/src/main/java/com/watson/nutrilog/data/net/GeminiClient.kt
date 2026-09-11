@@ -82,6 +82,55 @@ class GeminiClient(private val client: OkHttpClient = SharedHttp.client) {
         addJsonObject { put("text", AiPrompts.textRequest(description, searchContext)) }
     }
 
+    /**
+     * 寫週報／月報用的純文字呼叫。
+     *
+     * 和 [analyze] 不同，這裡**不鎖 JSON schema**：報告本體是給人讀的長文，建議的
+     * 每日目標放在文末那個 ```json:targets 區塊帶回來，由報表的彙整器自己取出。
+     * 鎖 schema 的話整篇長文得塞進單一字串欄位，換行與標題都要跳脫，模型反而寫得差。
+     *
+     * 重試與錯誤訊息沿用同一套 [sendWithRetry] —— 金鑰錯、額度用完時講的話
+     * 和辨識食物時一致，使用者不必學兩套。
+     */
+    suspend fun generateText(
+        systemPrompt: String,
+        userPrompt: String,
+        apiKey: String,
+        model: String,
+    ): Result<String> = withContext(Dispatchers.IO) {
+        runCatching {
+            val payload = buildJsonObject {
+                putJsonObject("systemInstruction") {
+                    putJsonArray("parts") { addJsonObject { put("text", systemPrompt) } }
+                }
+                putJsonArray("contents") {
+                    addJsonObject {
+                        put("role", "user")
+                        putJsonArray("parts") { addJsonObject { put("text", userPrompt) } }
+                    }
+                }
+                thinkingConfigFor(model)?.let { config ->
+                    putJsonObject("generationConfig") { put("thinkingConfig", config) }
+                }
+            }
+
+            val request = Request.Builder()
+                .url(BASE_URL + model + ":generateContent")
+                .header("x-goog-api-key", apiKey)
+                .post(payload.toString().toRequestBody(JSON_MEDIA))
+                .build()
+
+            val body = sendWithRetry(request)
+            val parsed = json.decodeFromString(GeminiResponse.serializer(), body)
+            // 長文有時會被切成好幾個 part，要全部接起來，只拿第一段會少掉後半篇。
+            parsed.candidates.firstOrNull()?.content?.parts
+                ?.mapNotNull { it.text }
+                ?.joinToString("")
+                ?.takeIf { it.isNotBlank() }
+                ?: error("模型沒有回傳內容")
+        }
+    }
+
     private suspend fun analyze(
         apiKey: String,
         model: String,

@@ -10,6 +10,20 @@
       相簿選圖走 PickVisualMedia，也不需要讀取儲存空間的權限。
     -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Health Connect（健康連線）：將飲食記錄同步至系統與 Samsung Health，並讀取運動消耗熱量 -->
+    <uses-permission android:name="android.permission.health.WRITE_NUTRITION" />
+    <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
+    <!-- 三星不保證會寫「活動大卡」，很多機種只同步步數與總消耗。
+         這兩個是 readDailyActivity 的退路，少了它們那些機種的運動消耗永遠是 0。 -->
+    <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED" />
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
+    <!-- 體能訓練（重訓、跑步、健走等專項運動場次） -->
+    <uses-permission android:name="android.permission.health.READ_EXERCISE" />
+
+    <queries>
+        <package android:name="com.google.android.apps.healthdata" />
+        <package android:name="com.sec.android.app.shealth" />
+    </queries>
 
     <application
         android:allowBackup="true"
@@ -28,7 +42,23 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Health Connect (Android 13 及以下之權限說明進入點) -->
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
         </activity>
+
+        <!-- Health Connect (Android 14+ 系統隱私設定中的權限說明進入點) -->
+        <activity-alias
+            android:name=".ViewPermissionUsageActivity"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>
 
         <!--
           TakePicture 要把照片寫到「我們指定的 URI」，而 file:// 從 Android 7 起

@@ -3,6 +3,7 @@ package com.watson.nutrilog.data
 import android.content.Context
 import com.watson.nutrilog.data.db.NutriDatabase
 import com.watson.nutrilog.data.net.DriveClient
+import okhttp3.MediaType.Companion.toMediaType
 import java.time.LocalDate
 
 /**
@@ -44,6 +45,15 @@ class DriveBackup(
         val csv = CsvExport.build(dao.allEntries())
         drive.upload(accessToken, folderId, name, csv).getOrThrow()
 
+        // 目標與身型另外一份。一天一份、和 CSV 一樣留 30 天：只存一份的話，只要被覆蓋一次
+        // （例如新手機還沒還原就先備份），雲端那份就回不來了。
+        val profile = BackedUpProfile.from(settingsStore.current())
+        if (profile != BackedUpProfile.DEFAULT) {
+            drive.upload(
+                accessToken, folderId, BackedUpProfile.fileName(today), profile.toJson(), JSON_MEDIA,
+            ).getOrThrow()
+        }
+
         prune(accessToken, folderId)
 
         val email = drive.accountEmail(accessToken).getOrNull().orEmpty()
@@ -68,6 +78,17 @@ class DriveBackup(
         drive.download(accessToken, newest.id).getOrThrow()
     }
 
+    /** 雲端最新那一份目標與身型。沒有備份過、或檔案讀不懂時回傳 null。 */
+    suspend fun latestBackupProfile(token: String? = null): Result<BackedUpProfile?> = runCatching {
+        val accessToken = token ?: requireToken()
+        val folderId = drive.ensureFolder(accessToken, FOLDER_NAME).getOrThrow()
+        val newest = drive.list(accessToken, folderId).getOrThrow()
+            .filter { it.name.matches(PROFILE_NAME) }
+            .maxByOrNull { it.name }
+            ?: return@runCatching null
+        BackedUpProfile.fromJson(drive.download(accessToken, newest.id).getOrThrow())
+    }
+
     /** 已經授權過就直接拿權杖；還沒的話丟 [NeedsConsent] 讓 UI 去問。 */
     private suspend fun requireToken(): String =
         when (val outcome = auth.authorize().getOrThrow()) {
@@ -77,7 +98,9 @@ class DriveBackup(
 
     private suspend fun prune(token: String, folderId: String) {
         val files = drive.list(token, folderId).getOrNull() ?: return
-        val doomed = namesToPrune(files.map { it.name }, KEEP_DAYS).toSet()
+        val names = files.map { it.name }
+        // 兩種檔各自算 30 天，混在一起算的話一天兩個檔，實際只會留 15 天。
+        val doomed = (namesToPrune(names, KEEP_DAYS) + namesToPrune(names, KEEP_DAYS, PROFILE_NAME)).toSet()
         files.filter { it.name in doomed }.forEach { drive.delete(token, it.id) }
     }
 
@@ -92,11 +115,16 @@ class DriveBackup(
          * 這個資料夾的東西一律不碰。檔名的日期是固定寬度的，所以字串排序就是日期排序，
          * 不必真的去 parse 日期。
          */
-        fun namesToPrune(names: List<String>, keep: Int): List<String> =
-            names.filter { it.matches(BACKUP_NAME) }
+        fun namesToPrune(names: List<String>, keep: Int, pattern: Regex = BACKUP_NAME): List<String> =
+            names.filter { it.matches(pattern) }
                 .sortedDescending()
                 .drop(keep)
 
         private val BACKUP_NAME = Regex("""nutrilog-\d{4}-\d{2}-\d{2}\.csv""")
+
+        /** 目標與身型那份的檔名，見 [BackedUpProfile.fileName]。 */
+        val PROFILE_NAME = Regex("""nutrilog-profile-\d{4}-\d{2}-\d{2}\.json""")
+
+        private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
     }
 }

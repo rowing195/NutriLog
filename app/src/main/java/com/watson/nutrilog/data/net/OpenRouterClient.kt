@@ -102,6 +102,53 @@ class OpenRouterClient(private val client: okhttp3.OkHttpClient = SharedHttp.cli
     }
 
     /**
+     * 寫週報／月報用的純文字呼叫。
+     *
+     * 不帶 tools、也不強制 tool_choice：報告本體是給人讀的長文，建議的每日目標放在
+     * 文末那個 ```json:targets 區塊，由報表的彙整器取出。辨識食物那條靠強制函式呼叫
+     * 鎖 JSON，用在長文上等於逼模型把整篇塞進一個字串參數。
+     *
+     * 有些推理模型會把思考過程包在 `<think>` 裡一起回來，這裡不剝，交給呼叫端 ——
+     * Gemini 那條也可能遇到，放在同一個地方處理才不會漏一家。
+     */
+    suspend fun generateText(
+        systemPrompt: String,
+        userPrompt: String,
+        apiKey: String,
+        model: String,
+    ): Result<String> = withContext(Dispatchers.IO) {
+        runCatching {
+            val payload = buildJsonObject {
+                put("model", model)
+                putJsonArray("messages") {
+                    addJsonObject {
+                        put("role", "system")
+                        put("content", systemPrompt)
+                    }
+                    addJsonObject {
+                        put("role", "user")
+                        put("content", userPrompt)
+                    }
+                }
+            }
+
+            val request = Request.Builder()
+                .url(BASE_URL)
+                .header("Authorization", "Bearer " + apiKey)
+                .header("HTTP-Referer", "https://github.com/rowing195/NutriLog")
+                .header("X-Title", "NutriLog")
+                .post(payload.toString().toRequestBody(JSON_MEDIA))
+                .build()
+
+            val body = sendWithRetry(request)
+            json.decodeFromString(ChatResponse.serializer(), body)
+                .choices.firstOrNull()?.message?.content
+                ?.takeIf { it.isNotBlank() }
+                ?: error("模型沒有回傳內容")
+        }
+    }
+
+    /**
      * 和 [GeminiClient] 同一套重試規則：只重試 5xx 與連線層的失敗。
      * 4xx 重試幾次結果都一樣，只是讓使用者多等好幾秒才看到同一則錯誤。
      */
@@ -165,6 +212,8 @@ class OpenRouterClient(private val client: okhttp3.OkHttpClient = SharedHttp.cli
     private data class Message(
         @kotlinx.serialization.SerialName("tool_calls")
         val toolCalls: List<ToolCall> = emptyList(),
+        /** 純文字回答（寫報告那條）。辨識食物那條強制函式呼叫，這欄會是 null。 */
+        val content: String? = null,
     )
 
     @Serializable

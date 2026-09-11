@@ -66,10 +66,13 @@ class DriveClient(private val client: OkHttpClient = SharedHttp.client) {
         folderId: String,
         name: String,
         content: String,
+        // 預設 CSV 是因為原本只傳飲食紀錄；身型與目標那份是 JSON，型別標錯的話
+        // 在 Drive 網頁上會被當成試算表打開。
+        mediaType: okhttp3.MediaType = CSV_MEDIA,
     ): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
             val existing = list(token, folderId).getOrThrow().firstOrNull { it.name == name }
-            val media = content.toRequestBody(CSV_MEDIA)
+            val media = content.toRequestBody(mediaType)
             val metadata = if (existing == null) {
                 """{"name":"${name.jsonEscaped()}","parents":["$folderId"]}"""
             } else {

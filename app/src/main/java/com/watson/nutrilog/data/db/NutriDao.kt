@@ -117,12 +117,18 @@ interface NutriDao {
     )
     fun observeRange(from: String, to: String): Flow<List<DayTotal>>
 
+    /** 週報用：查詢某區間所有飲食明細，以利統計餐別分佈與微量營養素 */
+    @Query("SELECT * FROM food_entries WHERE date BETWEEN :from AND :to ORDER BY date, loggedAt")
+    suspend fun getEntriesInRange(from: String, to: String): List<FoodEntry>
+
     /** 新增回傳 rowId、更新回傳原 id，呼叫端不必分辨是哪一種 */
     @Upsert
     suspend fun upsert(entry: FoodEntry): Long
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAll(entries: List<FoodEntry>)
+    // 回傳新列的 id：寫進健康連線要用它當 clientRecordId。拿插入前的物件（id 還是 0）去同步的話，
+    // 一整批會全部叫 nutrilog_0、在健康連線裡互相覆蓋成只剩一筆。
+    suspend fun insertAll(entries: List<FoodEntry>): List<Long>
 
     @Delete
     suspend fun delete(entry: FoodEntry)
@@ -132,4 +138,21 @@ interface NutriDao {
 
     @Upsert
     suspend fun cacheProduct(product: CachedProduct)
+
+    // --- 每日運動與健康指標快取 ---
+
+    @Upsert
+    suspend fun upsertHealthMetric(metric: DailyHealthMetric)
+
+    @Upsert
+    suspend fun upsertHealthMetrics(metrics: List<DailyHealthMetric>)
+
+    @Query("SELECT * FROM daily_health_metrics WHERE date = :date")
+    suspend fun getHealthMetric(date: String): DailyHealthMetric?
+
+    @Query("SELECT * FROM daily_health_metrics WHERE date BETWEEN :from AND :to ORDER BY date ASC")
+    suspend fun getHealthMetricsInRange(from: String, to: String): List<DailyHealthMetric>
+
+    @Query("SELECT * FROM daily_health_metrics")
+    suspend fun getAllHealthMetrics(): List<DailyHealthMetric>
 }

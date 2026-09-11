@@ -49,6 +49,21 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.YearMonth
 import kotlin.math.roundToInt
+import androidx.compose.runtime.mutableStateMapOf
+import com.watson.nutrilog.data.ActivitySource
+import com.watson.nutrilog.data.DailyActivity
+import com.watson.nutrilog.data.HealthConnectSync
+import com.watson.nutrilog.data.MonthlyAggregator
+import com.watson.nutrilog.data.MonthlyReport
+import com.watson.nutrilog.data.MonthlyReportStore
+import com.watson.nutrilog.data.MonthlyStats
+import com.watson.nutrilog.data.NO_ACTIVITY_DATA_REASON
+import com.watson.nutrilog.data.TargetRecommendation
+import com.watson.nutrilog.data.WeeklyAggregator
+import com.watson.nutrilog.data.WeeklyReport
+import com.watson.nutrilog.data.WeeklyReportStore
+import com.watson.nutrilog.data.WeeklyStats
+import com.watson.nutrilog.data.db.DailyHealthMetric
 
 /**
  * 畫面。沿用 LocalReader 的做法：sealed interface + when 分派，不引入導航函式庫。
@@ -531,7 +546,9 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         if (!draft.isValid) return
         val entry = draft.toEntry(selectedDate)
         viewModelScope.launch {
-            dao.upsert(entry)
+            val id = dao.upsert(entry)
+            // 新增時 upsert 回傳新的 id；編輯時沿用原本那個（回傳值沒有意義）
+            pushToHealthConnect(listOf(if (entry.id != 0L) entry else entry.copy(id = id)))
             pendingMeal = null
             screen = Screen.Today
         }
@@ -549,6 +566,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         undoJob?.cancel()
         viewModelScope.launch {
             dao.delete(entry)
+            removeFromHealthConnect(entry.id)
             pendingUndo = entry
             undoJob = launch {
                 delay(UNDO_WINDOW_MS)
@@ -561,14 +579,20 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         val entry = pendingUndo ?: return
         undoJob?.cancel()
         pendingUndo = null
-        viewModelScope.launch { dao.upsert(entry) }
+        viewModelScope.launch {
+            dao.upsert(entry)
+            pushToHealthConnect(listOf(entry))
+        }
     }
 
     /** 刪掉正在編輯的那一筆。新增中的草稿還沒進資料庫，沒得刪。 */
     fun deleteCurrentDraft() {
         val id = draft.id ?: return
         viewModelScope.launch {
-            dao.findEntry(id)?.let { dao.delete(it) }
+            dao.findEntry(id)?.let {
+                dao.delete(it)
+                removeFromHealthConnect(it.id)
+            }
             // 刪完要退出去，不然會停在一張已經不存在的紀錄上
             screen = Screen.Today
         }
@@ -747,7 +771,9 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         val meal = analysisMeal
         val now = System.currentTimeMillis()
         viewModelScope.launch {
-            dao.insertAll(chosen.map { it.food.toEntry(selectedDate, meal, now, portionMultiplier = it.multiplier) })
+            val fresh = chosen.map { it.food.toEntry(selectedDate, meal, now, portionMultiplier = it.multiplier) }
+            val ids = dao.insertAll(fresh)
+            pushToHealthConnect(fresh.zip(ids) { entry, id -> entry.copy(id = id) })
             analysisState = null
             screen = Screen.Today
         }
@@ -852,7 +878,8 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         importPreview = null
         viewModelScope.launch {
             dataMessage = runCatching {
-                dao.insertAll(preview.newEntries)
+                val ids = dao.insertAll(preview.newEntries)
+                pushToHealthConnect(preview.newEntries.zip(ids) { entry, id -> entry.copy(id = id) })
                 preview.newEntries.size
             }.fold(
                 onSuccess = { count ->
@@ -869,6 +896,515 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun cancelImport() { importPreview = null }
+
+    // --- 健康連線（Health Connect／Samsung Health）---
+
+    private val healthConnectSync = HealthConnectSync(application)
+    val isHealthConnectSupported: Boolean get() = healthConnectSync.isSupported()
+
+    /** 讀運動資料的權限（四種讀取型別至少拿到一種就算，它們彼此是退路）。 */
+    var healthReadAuthorized by mutableStateOf(false)
+        private set
+
+    /** 把飲食寫進健康連線的權限。 */
+    var healthWriteAuthorized by mutableStateOf(false)
+        private set
+
+    /**
+     * 每一天從健康連線讀到的活動消耗。**今日頁、週長條、月曆格子、月摘要讀的是同一份** ——
+     * 各算各的話，同一天在今日頁沒超標、到了月曆上卻是紅的。
+     */
+    val activeCaloriesMap = mutableStateMapOf<LocalDate, Double>()
+
+    /** 那一天這次讀到的完整結果（來源、步數、運動場次、讀不到的原因），同步明細要講數字從哪來。 */
+    val dailyActivityMap = mutableStateMapOf<LocalDate, DailyActivity>()
+
+    var healthSyncBusy by mutableStateOf(false)
+        private set
+
+    /** 最近一次整批寫入或權限要求的結果，設定頁顯示用。 */
+    var healthSyncResult by mutableStateOf<HealthSyncResult?>(null)
+        private set
+
+    /**
+     * 要叫出健康連線權限畫面時設成這次要的那一組，App.kt 看到就 launch。
+     * 權限畫面是 Activity 層的事，ViewModel 叫不出來，只能留一個請求讓畫面層接走。
+     */
+    var pendingHealthPermissions by mutableStateOf<Set<String>?>(null)
+        private set
+
+    /** 送出去的是哪一組 —— 回來時只打開這次要的那一邊，見 [onHealthPermissionsResult]。 */
+    private var requestedHealthPermissions: Set<String> = emptySet()
+
+    fun checkHealthPermissions() {
+        if (!healthConnectSync.isSupported()) return
+        viewModelScope.launch {
+            healthReadAuthorized = healthConnectSync.hasReadExercisePermission()
+            healthWriteAuthorized = healthConnectSync.hasWritePermission()
+        }
+    }
+
+    /** 回到 app：權限可能在系統設定裡被改過，運動消耗也可能剛同步進來。只重讀今天，不整批重寫飲食。 */
+    fun onAppResume() {
+        checkHealthPermissions()
+        fetchActiveCalories(selectedDate)
+    }
+
+    /** 讀某一天的活動消耗。沒有權限或裝置不支援就只看本機快取，不主動打擾使用者。 */
+    fun fetchActiveCalories(date: LocalDate = selectedDate) {
+        if (!settings.readExerciseCalories) return
+        viewModelScope.launch { readActivity(date) }
+    }
+
+    /**
+     * 使用者在同步明細裡按「重新讀取」。和 [fetchActiveCalories] 不同，這是明確要求，
+     * 所以缺權限時可以直接去要。
+     */
+    fun refreshActiveCalories(date: LocalDate = selectedDate) {
+        if (!settings.readExerciseCalories) return
+        viewModelScope.launch {
+            if (!healthConnectSync.isSupported()) {
+                healthSyncResult = HealthSyncResult.NotSupported
+                return@launch
+            }
+            if (!healthConnectSync.hasReadExercisePermission()) {
+                pendingHealthPermissions = HealthConnectSync.READ_EXERCISE_PERMISSIONS
+                return@launch
+            }
+            val activity = syncDailyActivity(date)
+            // 讀不到、而且真的還缺某些讀取型別時補問一次：只授權過活動大卡的人，
+            // 光看 hasReadExercisePermission() 會以為一切正常，永遠不會被問到步數。
+            val missingRead = HealthConnectSync.READ_EXERCISE_PERMISSIONS intersect
+                healthConnectSync.missingPermissions()
+            if (activity.source == ActivitySource.NONE && missingRead.isNotEmpty()) {
+                pendingHealthPermissions = HealthConnectSync.READ_EXERCISE_PERMISSIONS
+            }
+        }
+    }
+
+    private suspend fun readActivity(date: LocalDate) {
+        if (healthConnectSync.isSupported() && healthConnectSync.hasReadExercisePermission()) {
+            healthReadAuthorized = true
+            syncDailyActivity(date)
+        } else {
+            dao.getHealthMetric(date.toString())?.let { activeCaloriesMap[date] = it.activeCalories }
+        }
+    }
+
+    /**
+     * 讀一天的活動量，更新記憶體與本機快取，回傳這次讀到的結果。
+     *
+     * 讀不到（[ActivitySource.NONE]）時要分兩種：**真的出錯或缺權限**就保留舊快取，
+     * 不要把之前讀到的 400 大卡蓋成 0；**讀得到但那天就是沒動**則照實寫 0 ——
+     * 沿用舊值的話，一天沒戴錶也會一直掛著前一次的數字。
+     */
+    private suspend fun syncDailyActivity(date: LocalDate): DailyActivity {
+        val activity = healthConnectSync.readDailyActivity(date, settings)
+        dailyActivityMap[date] = activity
+        val dateKey = date.toString()
+        val cached = dao.getHealthMetric(dateKey)
+        if (activity.source == ActivitySource.NONE &&
+            activity.unavailableReason != null &&
+            activity.unavailableReason != NO_ACTIVITY_DATA_REASON
+        ) {
+            activeCaloriesMap[date] = cached?.activeCalories ?: 0.0
+            return activity
+        }
+        activeCaloriesMap[date] = activity.calories
+        dao.upsertHealthMetric(
+            (cached ?: DailyHealthMetric(date = dateKey)).copy(
+                activeCalories = activity.calories,
+                steps = activity.steps,
+                workoutCalories = activity.workoutCalories,
+                lastSyncedAt = System.currentTimeMillis(),
+            )
+        )
+        return activity
+    }
+
+    /**
+     * 月曆換到某個月：先把本機快取貼上去，再去讀「有記錄的那幾天」與今天。
+     *
+     * **一次一天、依序讀**，不要整個月一起丟出去 —— 每一天背後是好幾個查詢，
+     * 同時送出去容易撞到健康連線的讀取頻率限制。過去的日子讀過一次就不太會變，
+     * 已經有快取的就不重讀；今天永遠重讀。
+     */
+    fun refreshMonthHealthMetrics(month: YearMonth) {
+        viewModelScope.launch {
+            dao.getHealthMetricsInRange(month.atDay(1).toString(), month.atEndOfMonth().toString())
+                .forEach { metric ->
+                    runCatching { LocalDate.parse(metric.date) }.getOrNull()
+                        ?.let { activeCaloriesMap[it] = metric.activeCalories }
+                }
+            if (!settings.readExerciseCalories || !healthConnectSync.isSupported() ||
+                !healthConnectSync.hasReadExercisePermission()
+            ) return@launch
+            val today = LocalDate.now()
+            val prefix = "%04d-%02d".format(month.year, month.monthValue)
+            val loggedDays = monthTotals.keys.filter { it.startsWith(prefix) }
+                .mapNotNull { runCatching { LocalDate.parse(it) }.getOrNull() }
+            (loggedDays + today).distinct().sorted()
+                .filter { it.year == month.year && it.month == month.month && !it.isAfter(today) }
+                .filter { it == today || it !in activeCaloriesMap }
+                .forEach { syncDailyActivity(it) }
+        }
+    }
+
+    /** 「讀取運動消耗」開關。打開時缺讀取權限就去要，拿到權限才真的打開。 */
+    fun setReadExerciseCalories(enabled: Boolean) {
+        if (!enabled) {
+            updateSettings(settings.copy(readExerciseCalories = false))
+            return
+        }
+        viewModelScope.launch {
+            if (!healthConnectSync.isSupported()) {
+                healthSyncResult = HealthSyncResult.NotSupported
+                return@launch
+            }
+            if (healthConnectSync.hasReadExercisePermission()) {
+                healthReadAuthorized = true
+                updateSettings(settings.copy(readExerciseCalories = true))
+                readActivity(selectedDate)
+            } else {
+                pendingHealthPermissions = HealthConnectSync.READ_EXERCISE_PERMISSIONS
+            }
+        }
+    }
+
+    /** 「寫入飲食」開關。**預設關**；打開時缺寫入權限就去要，拿到之後把既有紀錄補寫一次。 */
+    fun setHealthConnectSync(enabled: Boolean) {
+        if (!enabled) {
+            updateSettings(settings.copy(healthConnectSyncEnabled = false))
+            return
+        }
+        viewModelScope.launch {
+            if (!healthConnectSync.isSupported()) {
+                healthSyncResult = HealthSyncResult.NotSupported
+                return@launch
+            }
+            if (healthConnectSync.hasWritePermission()) {
+                healthWriteAuthorized = true
+                updateSettings(settings.copy(healthConnectSyncEnabled = true))
+                syncAllToHealthConnect()
+            } else {
+                pendingHealthPermissions = HealthConnectSync.WRITE_PERMISSIONS
+            }
+        }
+    }
+
+    fun onHealthPermissionRequestLaunched() {
+        requestedHealthPermissions = pendingHealthPermissions.orEmpty()
+        pendingHealthPermissions = null
+    }
+
+    /**
+     * 權限畫面回來。**只打開這次要的那一邊** —— 使用者為了讀運動資料而授權時順手連寫入也給了，
+     * 不代表他想把飲食寫出去。授權結果重新向系統查，不信任回傳的集合（使用者可能中途跳出）。
+     */
+    fun onHealthPermissionsResult() {
+        val requested = requestedHealthPermissions
+        requestedHealthPermissions = emptySet()
+        viewModelScope.launch {
+            healthReadAuthorized = healthConnectSync.hasReadExercisePermission()
+            healthWriteAuthorized = healthConnectSync.hasWritePermission()
+            val askedRead = requested.any { it in HealthConnectSync.READ_EXERCISE_PERMISSIONS }
+            val askedWrite = requested.any { it in HealthConnectSync.WRITE_PERMISSIONS }
+            when {
+                askedWrite && healthWriteAuthorized -> {
+                    updateSettings(settings.copy(healthConnectSyncEnabled = true))
+                    syncAllToHealthConnect()
+                }
+                askedRead && healthReadAuthorized -> {
+                    updateSettings(settings.copy(readExerciseCalories = true))
+                    readActivity(selectedDate)
+                }
+                askedRead || askedWrite -> healthSyncResult = HealthSyncResult.PermissionDenied
+            }
+        }
+    }
+
+    /** 設定頁的「立即同步」：把全部紀錄重寫一次。靠 clientRecordId 更新，不會產生重複。 */
+    fun syncAllToHealthConnect() {
+        if (healthSyncBusy) return
+        if (!healthConnectSync.isSupported()) {
+            healthSyncResult = HealthSyncResult.NotSupported
+            return
+        }
+        viewModelScope.launch {
+            healthSyncBusy = true
+            healthSyncResult = healthConnectSync.syncEntries(dao.allEntries()).fold(
+                onSuccess = { count ->
+                    updateSettings(settings.copy(lastHealthSyncAt = System.currentTimeMillis()))
+                    HealthSyncResult.Written(count)
+                },
+                onFailure = { HealthSyncResult.Failed(it.message ?: "unknown") },
+            )
+            healthSyncBusy = false
+        }
+    }
+
+    /**
+     * 開了寫入才把這幾筆變動同步出去。**失敗只記 log，不擋存檔** —— 本機才是資料的主體，
+     * 健康連線寫不進去不該讓使用者以為這一筆沒記到；設定頁的「立即同步」可以補。
+     */
+    private fun pushToHealthConnect(entries: List<FoodEntry>) {
+        if (!settings.healthConnectSyncEnabled || entries.isEmpty()) return
+        viewModelScope.launch {
+            healthConnectSync.syncEntries(entries)
+                .onFailure { android.util.Log.w("NutriViewModel", "health connect write failed", it) }
+        }
+    }
+
+    private fun removeFromHealthConnect(entryId: Long) {
+        if (!settings.healthConnectSyncEnabled) return
+        viewModelScope.launch {
+            healthConnectSync.deleteEntry(entryId)
+                .onFailure { android.util.Log.w("NutriViewModel", "health connect delete failed", it) }
+        }
+    }
+
+    // --- 依身型計算目標 ---
+
+    var showBmrCalculator by mutableStateOf(false)
+        private set
+
+    fun openBmrCalculator() { showBmrCalculator = true }
+
+    fun closeBmrCalculator() { showBmrCalculator = false }
+
+    /** 身型計算按「套用」：身型與算出來的目標一起寫進設定。 */
+    fun applyBmrPlan(updated: NutriSettings) {
+        showBmrCalculator = false
+        updateSettings(updated.copy(profileConfigured = true))
+    }
+
+    // --- AI 週報／月報 ---
+
+    private val weeklyReportStore = WeeklyReportStore(application)
+    private val monthlyReportStore = MonthlyReportStore(application)
+    private val weeklyAggregator = WeeklyAggregator()
+    private val monthlyAggregator = MonthlyAggregator()
+
+    var reportTab by mutableStateOf(ReportTab.WEEKLY)
+        private set
+    var reportWeekStart by mutableStateOf(sundayOf(LocalDate.now()))
+        private set
+    var reportMonth by mutableStateOf(YearMonth.now())
+        private set
+
+    var weeklyReportState by mutableStateOf<ReportUiState<WeeklyReport>>(ReportUiState.Loading)
+        private set
+    var monthlyReportState by mutableStateOf<ReportUiState<MonthlyReport>>(ReportUiState.Loading)
+        private set
+
+    /**
+     * 統計和報告分開放：統計是本機算的、隨時都有，報告要花一次 AI 呼叫才有。
+     * 還沒產生報告的那一週，畫面照樣要能看數字。
+     */
+    var weeklyStats by mutableStateOf<WeeklyStats?>(null)
+        private set
+    var monthlyStats by mutableStateOf<MonthlyStats?>(null)
+        private set
+
+    /** 正在產生的是哪一週／哪個月。產生到一半切去看別週，回來時要看得出還在跑。 */
+    private var generatingWeek: LocalDate? = null
+    private var generatingMonth: YearMonth? = null
+
+    fun selectReportTab(tab: ReportTab) { reportTab = tab }
+
+    fun loadReports() {
+        loadWeeklyReport()
+        loadMonthlyReport()
+    }
+
+    fun shiftReportWeek(weeks: Long) {
+        val target = reportWeekStart.plusWeeks(weeks)
+        if (target.isAfter(sundayOf(LocalDate.now()))) return
+        reportWeekStart = target
+        loadWeeklyReport()
+    }
+
+    fun shiftReportMonth(months: Long) {
+        val target = reportMonth.plusMonths(months)
+        if (target.isAfter(YearMonth.now())) return
+        reportMonth = target
+        loadMonthlyReport()
+    }
+
+    private fun loadWeeklyReport() {
+        val start = reportWeekStart
+        viewModelScope.launch {
+            val stats = runCatching {
+                weeklyAggregator.aggregateWeek(start, dao, healthConnectSync, settings)
+            }.getOrNull()
+            if (start != reportWeekStart) return@launch
+            weeklyStats = stats
+            weeklyReportState = when {
+                generatingWeek == start -> ReportUiState.Generating
+                else -> weeklyReportStore.getReport(start.toString())
+                    ?.let { ReportUiState.Ready(it) }
+                    ?: ReportUiState.Empty
+            }
+        }
+    }
+
+    private fun loadMonthlyReport() {
+        val month = reportMonth
+        viewModelScope.launch {
+            val stats = runCatching {
+                monthlyAggregator.aggregateMonth(month, dao, healthConnectSync, settings)
+            }.getOrNull()
+            if (month != reportMonth) return@launch
+            monthlyStats = stats
+            monthlyReportState = when {
+                generatingMonth == month -> ReportUiState.Generating
+                else -> monthlyReportStore.getReport(month.toString())
+                    ?.let { ReportUiState.Ready(it) }
+                    ?: ReportUiState.Empty
+            }
+        }
+    }
+
+    fun generateWeeklyReport() {
+        if (generatingWeek != null) return
+        val start = reportWeekStart
+        val provider = settings.reportProvider
+        val key = reportKeyFor(provider)
+        if (key.isBlank()) {
+            weeklyReportState = ReportUiState.MissingKey(provider)
+            return
+        }
+        val snapshot = settings
+        generatingWeek = start
+        weeklyReportState = ReportUiState.Generating
+        viewModelScope.launch {
+            val outcome = runCatching {
+                val stats = weeklyAggregator.aggregateWeek(start, dao, healthConnectSync, snapshot)
+                if (stats.loggedDaysCount == 0 && stats.totalActiveCaloriesBurned == 0.0) {
+                    return@runCatching null
+                }
+                val (system, user) = weeklyAggregator.buildPrompts(stats, snapshot)
+                val raw = generateReportText(provider, system, user, key, snapshot).getOrThrow()
+                val (markdown, recommendation) = weeklyAggregator.parseReportResponse(raw)
+                WeeklyReport(
+                    weekStartDate = stats.weekStart.toString(),
+                    weekEndDate = stats.weekEnd.toString(),
+                    generatedAt = System.currentTimeMillis(),
+                    model = reportModelFor(provider, snapshot),
+                    markdownContent = markdown,
+                    recommendation = recommendation,
+                    isApplied = false,
+                    comparison = stats.comparison,
+                ).also { weeklyReportStore.saveReport(it) }
+            }
+            generatingWeek = null
+            if (start != reportWeekStart) return@launch
+            weeklyReportState = outcome.fold(
+                onSuccess = { report -> report?.let { ReportUiState.Ready(it) } ?: ReportUiState.Empty },
+                onFailure = { ReportUiState.Failed(it.message ?: "unknown") },
+            )
+        }
+    }
+
+    fun generateMonthlyReport() {
+        if (generatingMonth != null) return
+        val month = reportMonth
+        val provider = settings.reportProvider
+        val key = reportKeyFor(provider)
+        if (key.isBlank()) {
+            monthlyReportState = ReportUiState.MissingKey(provider)
+            return
+        }
+        val snapshot = settings
+        generatingMonth = month
+        monthlyReportState = ReportUiState.Generating
+        viewModelScope.launch {
+            val outcome = runCatching {
+                val stats = monthlyAggregator.aggregateMonth(month, dao, healthConnectSync, snapshot)
+                if (stats.loggedDaysCount == 0 && stats.totalActiveCaloriesBurned == 0.0) {
+                    return@runCatching null
+                }
+                val (system, user) = monthlyAggregator.buildPrompts(stats, snapshot)
+                val raw = generateReportText(provider, system, user, key, snapshot).getOrThrow()
+                MonthlyReport(
+                    yearMonth = stats.yearMonth,
+                    generatedAt = System.currentTimeMillis(),
+                    model = reportModelFor(provider, snapshot),
+                    markdownContent = stripThinking(raw),
+                    comparison = stats.comparison,
+                ).also { monthlyReportStore.saveReport(it) }
+            }
+            generatingMonth = null
+            if (month != reportMonth) return@launch
+            monthlyReportState = outcome.fold(
+                onSuccess = { report -> report?.let { ReportUiState.Ready(it) } ?: ReportUiState.Empty },
+                onFailure = { ReportUiState.Failed(it.message ?: "unknown") },
+            )
+        }
+    }
+
+    /** 週報建議的目標，按了「套用」才寫進設定 —— 模型算出來的數字一律要經過使用者確認。 */
+    fun applyRecommendedTargets(recommendation: TargetRecommendation) {
+        updateSettings(
+            settings.copy(
+                calorieTarget = recommendation.calorieTarget,
+                proteinTargetG = recommendation.proteinTargetG,
+                fatTargetG = recommendation.fatTargetG,
+                carbsTargetG = recommendation.carbsTargetG,
+            )
+        )
+        val state = weeklyReportState
+        if (state is ReportUiState.Ready) {
+            val updated = state.report.copy(isApplied = true)
+            weeklyReportState = ReportUiState.Ready(updated)
+            viewModelScope.launch { weeklyReportStore.saveReport(updated) }
+        }
+    }
+
+    /** 報告送去哪一家，就用那一家已經填好的金鑰與模型 —— 報告不另外要一把金鑰。 */
+    private fun reportKeyFor(provider: AiProvider): String = when (provider) {
+        AiProvider.GEMINI -> settings.geminiApiKey
+        AiProvider.OPENROUTER -> settings.openRouterApiKey
+    }
+
+    private fun reportModelFor(provider: AiProvider, s: NutriSettings): String = when (provider) {
+        AiProvider.GEMINI -> s.geminiModel
+        AiProvider.OPENROUTER -> s.openRouterModel
+    }
+
+    private suspend fun generateReportText(
+        provider: AiProvider,
+        system: String,
+        user: String,
+        key: String,
+        s: NutriSettings,
+    ): Result<String> = when (provider) {
+        AiProvider.GEMINI -> gemini.generateText(system, user, key, s.geminiModel)
+        AiProvider.OPENROUTER -> openRouter.generateText(system, user, key, s.openRouterModel)
+    }
+
+    /** 有些推理模型會把思考過程包在 <think> 裡一起回來，那不是報告的一部分。 */
+    private fun stripThinking(raw: String): String =
+        raw.replace(Regex("<think>[\\s\\S]*?</think>", RegexOption.IGNORE_CASE), "").trim()
+
+    /** 報表的一週從星期日開始，和今日頁的週長條一致（日 一 二 … 六）。 */
+    private fun sundayOf(date: LocalDate): LocalDate = date.minusDays((date.dayOfWeek.value % 7).toLong())
+
+    // 放在所有健康連線與報表的欄位之後：init 區塊和屬性初始化是照書寫順序跑的，
+    // 寫在前面的話這裡用到的 healthConnectSync 還是 null。
+    init {
+        checkHealthPermissions()
+        // 先把本機快取的每日運動消耗貼上：週長條與月曆一打開就要用加上運動後的目標判斷，
+        // 等健康連線回應才更新的話，每次開 app 顏色都會跳一次。
+        viewModelScope.launch {
+            dao.getAllHealthMetrics().forEach { metric ->
+                runCatching { LocalDate.parse(metric.date) }.getOrNull()
+                    ?.let { activeCaloriesMap[it] = metric.activeCalories }
+            }
+        }
+        viewModelScope.launch { snapshotFlow { selectedDate }.collect { fetchActiveCalories(it) } }
+        viewModelScope.launch { snapshotFlow { visibleMonth }.collect { refreshMonthHealthMetrics(it) } }
+    }
 
     // --- Google Drive 備份 ---
 
@@ -1242,4 +1778,31 @@ private fun Double?.asInput(): String = when {
     this == 0.0 -> ""
     this % 1.0 == 0.0 -> toLong().toString()
     else -> toString()
+}
+
+/** 健康連線整批寫入或權限要求的結果。文字由畫面層決定，這裡只說發生了什麼。 */
+sealed interface HealthSyncResult {
+    data class Written(val count: Int) : HealthSyncResult
+    data class Failed(val reason: String) : HealthSyncResult
+    data object PermissionDenied : HealthSyncResult
+    data object NotSupported : HealthSyncResult
+}
+
+enum class ReportTab { WEEKLY, MONTHLY }
+
+/** 週報／月報頁的狀態。統計數字另外放（見 NutriViewModel.weeklyStats），不綁在報告上。 */
+sealed interface ReportUiState<out R> {
+    data object Loading : ReportUiState<Nothing>
+
+    /** 這段期間還沒產生過報告（或根本沒有資料可寫）。 */
+    data object Empty : ReportUiState<Nothing>
+
+    data object Generating : ReportUiState<Nothing>
+
+    data class Ready<out R>(val report: R) : ReportUiState<R>
+
+    data class Failed(val reason: String) : ReportUiState<Nothing>
+
+    /** 報告選的那一家還沒填金鑰；帶著 [provider] 讓畫面講清楚要去填哪一把。 */
+    data class MissingKey(val provider: AiProvider) : ReportUiState<Nothing>
 }
