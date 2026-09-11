@@ -269,4 +269,38 @@
     <!-- Drive 還原時一併帶回的身型與目標 -->
     <string name="import_summary_profile">也會還原身型與每日目標（每日 %1$d kcal）。</string>
     <string name="import_profile_restored">已還原身型與每日目標</string>
+
+    <!-- AI 週報／月報 -->
+    <string name="settings_report_provider">AI 報告</string>
+    <string name="settings_report_note">週報、月報用這一家，沿用它的金鑰與模型。</string>
+    <string name="report_entry">AI 週報／月報</string>
+    <string name="report_title">AI 報告</string>
+    <string name="report_tab_weekly">週報</string>
+    <string name="report_tab_monthly">月報</string>
+    <string name="report_week_range">%1$d 月 %2$d 日 – %3$d 日</string>
+    <string name="report_week_range_cross">%1$d 月 %2$d 日 – %3$d 月 %4$d 日</string>
+    <string name="report_this_week">（本週）</string>
+    <string name="report_month_label">%1$d 年 %2$d 月</string>
+    <string name="report_this_month">（本月）</string>
+    <string name="report_logged">記錄 %1$d 天・平均 %2$s</string>
+    <string name="report_vs_last_week">比上週 %1$s</string>
+    <string name="report_vs_last_month">比上月 %1$s</string>
+    <string name="report_exercise">運動消耗 %1$s</string>
+    <string name="report_exercise_daily">運動消耗 每天 %1$s</string>
+    <string name="report_tdee">每日消耗 %1$s（基礎代謝 %2$s＋運動）</string>
+    <string name="report_balance">熱量收支 %1$s（約 %2$s kg）</string>
+    <string name="report_average">平均</string>
+    <string name="report_empty_week">這一週還沒有報告</string>
+    <string name="report_empty_month">這個月還沒有報告</string>
+    <string name="report_no_data_week">這一週沒有紀錄可以寫成報告</string>
+    <string name="report_no_data_month">這個月沒有紀錄可以寫成報告</string>
+    <string name="report_generate_week">產生週報</string>
+    <string name="report_generate_month">產生月報</string>
+    <string name="report_generating">產生中…</string>
+    <string name="report_missing_key">還沒設定 %1$s 的 API key</string>
+    <string name="report_go_api">前往 API 管理</string>
+    <string name="report_failed">產生失敗：%1$s</string>
+    <string name="report_recommend_title">建議下週每日目標</string>
+    <string name="report_applied">已套用</string>
+    <string name="report_regenerate">重新產生</string>
 </resources>

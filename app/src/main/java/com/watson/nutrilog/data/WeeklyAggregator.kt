@@ -188,42 +188,18 @@ class WeeklyAggregator {
         }
 
         val systemPrompt = """
-你是一位擁有 ACSM 體能教練與 ISSN 運動營養專家的資深教練。
-你的任務是根據使用者本週真實的【NutriLog 飲食明細與營養素】與【Samsung Health 手錶記錄的真實每日活動/運動消耗】，撰寫一份兼具專業科學依據、鼓勵性且具備高度實操性的每週健康覆盤週報，並精準推薦下週的最佳目標。
+你是營養師。根據使用者這一週的飲食紀錄與手錶記錄的運動消耗，寫一份簡短、平實的週報。
 
-請嚴格遵循以下輸出結構規範（採用清晰優雅的 Markdown 排版）：
-### 1. 🏆 本週總結與體態進度評級
-- 深度分析能量天秤（總攝取 vs 實測總消耗 vs 淨熱量收支）。
-- 根據使用者的個人目標（$goalDesc），評估本週達成率評級（如：S 級完美達標 / A 級良好 / B 級需微調）。
-- 預估體脂變化趨勢（以熱量赤字/盈餘換算體重變化）。
+格式：
+- Markdown，段落標題用 ###
+- 不要用 emoji，不要評分或分級
+- 依序五段：總結、飲食與營養素、運動、跟上週比（沒有上週資料就省略）、下週建議（最多三點，要具體可做）
+- 數字直接引用給你的資料，不要自己重算或編造
+- 全文 600 字以內，繁體中文
 
-### 2. 🥗 飲食與三大營養素體檢
-- 檢視每日平均蛋白質（${stats.avgProteinG.roundToInt()}g），評估是否足夠支援肌肉保留與運動修復（參考體重 ${settings.profileWeightKg}kg）。
-- 剖析碳水化合物與脂肪配置，並指出精緻糖與鈉攝取是否偏高。
-- 點出本週哪一天飲食控制得最好、哪一天熱量偏高（爆卡日分析）。
-
-### 3. 🏃 運動與生活活動量點評
-- 點評 Samsung Health 手錶實測的動態活動熱量（平均每日實測活動消耗約 ${(stats.totalActiveCaloriesBurned / 7).roundToInt()} kcal）${if (stats.workoutsList.isNotEmpty()) "，並針對各項手錶專項體能訓練（如跑步機、健走等）給予具體修復與運動表現建議" else ""}。
-- 肯定日常非運動步數與專項體能訓練的去重疊加成果，鼓勵持續保持良好的活動習慣。
-
-${if (stats.comparison != null) """
-### 4. 📈 跨週進展對比分析
-- 深入點評相較於上週的具體進步（每日攝取控制、手錶活動消耗變化與體能習慣演進）。
-""" else ""}
-
-### 5. 📋 下週個人化行動清單（3 大具體微習慣）
-- 提出 3 項下週馬上能執行的具體行動方針（例如運動日前後碳水補充、平日下午改無糖茶、增加蛋白質攝取時機等）。
-
-【核心要求：下週目標推薦 JSON 區塊】：
-在你的週報文本最結尾，請務必附帶一個專屬的 JSON 代碼塊（包含建議每日攝取大卡與蛋白質/脂肪/碳水克數，數值必須為整數）：
+最後附上建議的下週每日目標（整數），放在這個區塊裡：
 ```json:targets
-{
-  "calorieTarget": 1850,
-  "proteinTargetG": 140,
-  "fatTargetG": 50,
-  "carbsTargetG": 210,
-  "reason": "根據上週手錶實測平均真實 TDEE 與目標，設定最佳每日熱量與巨量營養素配置。"
-}
+{ "calorieTarget": 1900, "proteinTargetG": 110, "fatTargetG": 55, "carbsTargetG": 220, "reason": "一句話理由" }
 ```
 """.trimIndent()
 
@@ -277,7 +253,7 @@ ${if (stats.comparison != null) """
             )
         }
         userPromptBuilder.appendLine()
-        userPromptBuilder.appendLine("請根據以上本週真實數據與上週對比，為我撰寫一份深度的每週健康覆盤週報，並給出下週最精確的每日卡路里與三大營養素推薦！")
+        userPromptBuilder.appendLine("請依上面的資料寫這一週的週報，並附上建議的下週每日目標。")
 
         return Pair(systemPrompt, userPromptBuilder.toString())
     }

@@ -105,6 +105,9 @@ sealed interface Screen {
     data object TextLookup : Screen
     data object Review : Screen
     data object Search : Screen
+
+    /** AI 週報／月報。從月曆開進來，所以是月曆的下一層。 */
+    data object Reports : Screen
 }
 
 /** AI 辨識的三個階段。照片與文字描述共用。 */
@@ -1227,6 +1230,20 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     fun loadReports() {
         loadWeeklyReport()
         loadMonthlyReport()
+    }
+
+    /**
+     * 從月曆開報表。月報看月曆正在看的那個月；週報看那個月的最後一週（本月就是本週）——
+     * 翻到上個月再點進來，卻看到這一週的週報，會以為點錯了。
+     */
+    fun openReports(month: YearMonth) {
+        val now = YearMonth.now()
+        reportMonth = if (month.isAfter(now)) now else month
+        val today = LocalDate.now()
+        val lastDay = reportMonth.atEndOfMonth().let { if (it.isAfter(today)) today else it }
+        reportWeekStart = sundayOf(lastDay)
+        screen = Screen.Reports
+        loadReports()
     }
 
     fun shiftReportWeek(weeks: Long) {

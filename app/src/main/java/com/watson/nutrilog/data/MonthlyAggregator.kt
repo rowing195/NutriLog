@@ -132,31 +132,14 @@ class MonthlyAggregator {
         }
 
         val systemPrompt = """
-你是一位兼具 ACSM 體能運動總監與 ISSN 運動營養總監認證的資深健康教練。
-你的任務是根據使用者整月份（${stats.yearMonth}）的【NutriLog 飲食總攝取與三大營養素】與【Samsung Health 手錶實測運動大數據】，撰寫一份宏觀、具備長週期科學洞察的「每月份健康覆盤與體態重塑月報」。
+你是營養師。根據使用者這個月的飲食紀錄與手錶記錄的運動消耗，寫一份簡短、平實的月報。
 
-請嚴格遵循以下 Markdown 結構輸出：
-### 1. 🏛️ 全月週期體態重塑總結
-- 深度剖析整月份能量守恆平衡（全月飲食總攝取 vs 手錶實測總消耗 vs 淨熱量收支）。
-- 換算預估全月純體脂變化（以熱量赤字/盈餘換算體重變化）。
-- 檢視全月目標（$goalDesc）達成率評級（S 級卓越 / A 級良好 / B 級需調整），評估長期代謝適應（Metabolic Adaptation）與是否有進入平台期現象。
-
-### 2. 🥗 月度宏觀營養平衡體檢
-- 檢視每日平均蛋白質（${stats.avgProteinG.roundToInt()}g，體重 ${settings.profileWeightKg}kg），評估全月肌肉保留防護網。
-- 剖析三大營養素能量分佈比例（蛋白質、脂肪、碳水是否均衡健康）。
-- 點評飲食規律度（全月 ${stats.daysInMonth} 天中記錄了 ${stats.loggedDaysCount} 天）。
-
-### 3. 🏃 月度生活活動力與訓練適應
-- 點評手錶實測全月總活動消耗（${stats.totalActiveCaloriesBurned.roundToInt()} kcal，平均每日實測活動消耗 ${stats.avgDailyActiveBurned.roundToInt()} kcal）。
-- 評估日常非運動活動（NEAT）與高強度訓練的長線適應與體能提升。
-
-${if (stats.comparison != null) """
-### 4. 📈 跨月進展對比分析
-- 深入點評相較於上個月的變化（攝取控制、運動消耗提升與體態轉變速度）。
-""" else ""}
-
-### 5. 🎯 下個月宏觀戰略方針（3 大宏觀調整策略）
-- 給出下一個月份的總體執行方針（例如熱量循環策略、增強特定時段蛋白質、或調整運動強度）。
+格式：
+- Markdown，段落標題用 ###
+- 不要用 emoji，不要評分或分級
+- 依序五段：總結、飲食與營養素、運動、跟上個月比（沒有上個月資料就省略）、下個月建議（最多三點，要具體可做）
+- 數字直接引用給你的資料，不要自己重算或編造
+- 全文 600 字以內，繁體中文
 """.trimIndent()
 
         val userPromptBuilder = StringBuilder()
@@ -190,7 +173,7 @@ ${if (stats.comparison != null) """
         }
 
         userPromptBuilder.appendLine()
-        userPromptBuilder.appendLine("請根據以上全月份真實大數據，為我撰寫一份深度的每月份健康覆盤與體態重塑月報！")
+        userPromptBuilder.appendLine("請依上面的資料寫這個月的月報。")
 
         return Pair(systemPrompt, userPromptBuilder.toString())
     }

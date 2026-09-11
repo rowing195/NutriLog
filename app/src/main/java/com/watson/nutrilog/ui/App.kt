@@ -384,8 +384,32 @@ fun NutriLogApp(viewModel: NutriViewModel) {
                 selectedDate = viewModel.selectedDate,
                 activeCaloriesMap = viewModel.activeCaloriesMap,
                 onShiftMonth = viewModel::shiftMonth,
+                onOpenReports = viewModel::openReports,
                 onOpenDay = viewModel::showDate,
                 onClose = viewModel::backToToday,
+            )
+        }
+
+        // 從月曆開進來的，返回回月曆 —— 報表講的就是月曆上那一段期間，
+        // 一路退回今日頁的話，看完週報想接著看別的月份就要重點兩次。
+        Screen.Reports -> {
+            BackHandler { viewModel.goTo(Screen.History) }
+            ReportScreen(
+                tab = viewModel.reportTab,
+                weekStart = viewModel.reportWeekStart,
+                month = viewModel.reportMonth,
+                weeklyState = viewModel.weeklyReportState,
+                monthlyState = viewModel.monthlyReportState,
+                weeklyStats = viewModel.weeklyStats,
+                monthlyStats = viewModel.monthlyStats,
+                onSelectTab = viewModel::selectReportTab,
+                onShiftWeek = viewModel::shiftReportWeek,
+                onShiftMonth = viewModel::shiftReportMonth,
+                onGenerateWeekly = viewModel::generateWeeklyReport,
+                onGenerateMonthly = viewModel::generateMonthlyReport,
+                onApplyTargets = viewModel::applyRecommendedTargets,
+                onOpenApiSettings = { viewModel.openSettingsPage(SettingsPage.AI) },
+                onBack = { viewModel.goTo(Screen.History) },
             )
         }
 
@@ -505,6 +529,7 @@ private val Screen.depth: Int
         Screen.Today -> 0
         is Screen.SettingsDetail -> 2
         is Screen.ApiKeyDetail -> 3
+        Screen.Reports -> 2
         else -> 1
     }
 

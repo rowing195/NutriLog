@@ -1136,6 +1136,15 @@ Tavily 免費層回的就是清洗過的頁面正文，這是兩者的根本差�
 那個檔、用試算表打開、或用本地匯入讀回來 —— 就算這個 app 哪天不在了，資料也不會被
 鎖住。**不要為了雲端另外設計一種格式。**
 
+**唯一的例外是身型與每日目標**：它們是設定、不是紀錄，塞不進 CSV 的欄位，所以另外
+存一份 `nutrilog-profile-<日期>.json`（`BackedUpProfile`）。三條規則守著它：
+
+- **白名單，不是整包 `NutriSettings`。** 只列目標與身型欄位，API 金鑰永遠不會出去 ——
+  `BackedUpProfileTest` 有一條專門檢查 JSON 裡沒有金鑰。以後在 `NutriSettings` 加欄位
+  不會自動被備份，要備份就明確加進白名單。
+- **還原併進同一個確認面板**，和 CSV 一起決定，不另外問一次。雲端那份和本機一樣就不列。
+- **還是預設值就不上傳**，清理時兩種檔名各留 30 份（`namesToPrune` 帶 pattern）。
+
 四件會咬人的事：
 
 - **範圍只能是 `drive.file`。** 它只碰得到 app 自己建立的檔案，而且**不是 Google
@@ -1194,6 +1203,73 @@ DataStore 裡），底下卻沒有東西在跑，要到想還原時才發現。�
 
 **使用者按取消不是錯誤。** GMS 用狀態碼 `CommonStatusCodes.CANCELED` 表示，
 要特別認出來把訊息清掉；照著丟 `Drive 出錯：User cancelled flow` 會讓人以為壞了。
+
+## 健康連線：讀運動消耗、選配寫入飲食
+
+這三個功能（健康連線、身型計算、AI 週報／月報）是從協作者 `waltwait` 的分支
+`feature/health-sync-and-ai-reports` **移植**過來的，不是合併：那個分支從大約 v1.10
+分出去，其餘改動都以主線為準。對方的底層（`HealthConnectSync`、`ActivityEstimate`、
+兩支 Aggregator、兩個 ReportStore）大致照搬，畫面全部照這份檔的版面語言重寫。
+
+**運動消耗是加進「當天的目標」，不是從「吃了」裡扣掉。** 使用者記的東西不能被改寫，
+「吃了 1,800」就是 1,800；變的是那天能吃多少。所以全 app 判斷超標的地方都要走
+`Common.kt` 的 **`effectiveCalorieTarget()`**：今日頁的額度與餐別長條、週長條、
+月曆格子、月摘要的超標天數。**新增任何拿熱量去比目標的地方，不要直接讀
+`settings.calorieTarget`** —— 那樣做的症狀是「今日頁說還有 200、月曆卻把同一天標紅」。
+
+四件會咬人的事：
+
+- **`connect-client` 釘在 `1.1.0-beta01`。** 1.1.0 正式版要求 compileSdk 36 與
+  AGP ≥ 8.9.1，這個專案是 35 / 8.7.3 —— 升上去的錯誤是 AAR metadata 檢查失敗，
+  看不出跟版本有關。要升先一起升 compileSdk 與 AGP。
+- **`Metadata(...)` 建構子在這版是 internal**，寫入要用
+  `Metadata.manualEntry(clientRecordId, clientRecordVersion)`。`clientRecordId` 是
+  `nutrilog_<紀錄 id>`，同一筆紀錄重寫就是 upsert、不會在健康連線裡長出重複的一份。
+- **匯入的紀錄也要有真的 id 才能寫。** `insertAll` 回傳 `List<Long>` 就是為了這件事：
+  對方原本拿插入前的物件去寫，id 全是 0，整批匯入在健康連線裡互相蓋成一筆。
+- **只在新增、編輯、刪除時寫**，不在背景整批同步（使用者選的）。「立即同步」那顆章
+  是補寫用的。權限每次回到前景（`ON_RESUME`）重查一次 —— 使用者隨時可以去系統設定
+  收回，app 不會收到通知。
+
+讀到的數字有三段退路（活動消耗 → 總消耗扣基礎代謝 → 步數換算），可信度差很多，所以
+運動明細那張面板一定要講「來源」。每天的值快取在 Room 的 `daily_health_metrics`
+（migration 2→3），週長條與月曆一打開就要用，不能等健康連線慢慢回。
+
+**模擬器上不要真的授權。** 驗到「權限畫面跳得出來、按返回之後 app 講得出沒拿到權限」
+就好；運動消耗的畫面用 `run-as` 往 `daily_health_metrics` 塞一列假資料來驗，驗完刪掉。
+
+## 身型計算：算出來的只是建議
+
+`BmrCalculatorDialog`（Mifflin-St Jeor ＋ 活動係數，算法在 `BmrCalculator`）掛在
+「每日目標」頁最上面。**按「套用」才寫進目標**，和 AI 辨識、週報推薦同一條規則。
+身型本身跟著一起存（`profile*` 欄位），週報要用體重判斷蛋白質、基礎代謝要算每日消耗。
+
+## AI 週報／月報
+
+入口在月曆月摘要底下那一列，畫面是 `Screen.Reports`。**這是設定以外第二個有兩層的
+地方**：深度 2、返回回月曆（`BackHandler` 在 `App.kt`），因為報表講的就是月曆上那段
+期間。`openReports(month)` 會把月報對到月曆正在看的月份、週報對到那個月的最後一週
+—— 翻到上個月再點進來卻看到本週，會以為點錯了。一週從**星期日**開始，和週長條一致。
+
+**統計是本機算的、報告要花一次 AI 呼叫**，所以兩者分開放（`weeklyStats` vs
+`weeklyReportState`）：沒產生報告的期間照樣看得到數字。一筆紀錄都沒有的期間不給
+「產生」—— 按下去只會花一次呼叫換來一份在講「沒有資料」的報告。
+
+- **報告用哪一家是「API 管理」頁的「AI 報告」**（`reportProvider`），沿用那一家的金鑰
+  與模型，不另外要金鑰。缺金鑰時訊息要指名是哪一家，理由同〈兩家 AI 供應商〉那節。
+- **prompt 是平實版，不要改回對方那套**（教練人設、emoji 小標、S/A/B 評級、不限字數，
+  實測動輒一千字以上，手機上讀不完）。規則是 Markdown `###` 標題、五段、數字只引用給的
+  資料、600 字內。週報結尾的 ` ```json:targets ` 區塊由 `WeeklyAggregator.parseReportResponse`
+  抽出來變成「建議下週每日目標」，**改 prompt 時這個區塊名稱不能動**。
+- **本文只認標題、條列、段落三種**（`ReportScreen.parseReportMarkdown`），粗體、表格
+  這些模型偶爾多給的記號降成純文字。不要為了它引入 Markdown 函式庫或畫表格元件 ——
+  那會長出這個 app 沒有的第四種版面，而 prompt 本來就沒要那些東西。
+- 報告存在 `filesDir/weekly_reports/<週日>.json` 與 `monthly_reports/<yyyy-MM>.json`，
+  **不進 Drive 備份**：它們隨時可以重新產生，備份的是紀錄與設定。
+
+**驗「已產生」那個狀態不要真的打 API。** 自己寫一份 `WeeklyReport` 的 JSON，
+`adb shell "run-as com.watson.nutrilog sh -c 'cat > files/weekly_reports/<週日>.json'" < seed.json`
+塞進去再開畫面，驗完 `rm` 掉。
 
 ## 改動慣例
 

@@ -82,6 +82,8 @@ fun HistoryScreen(
     activeCaloriesMap: Map<LocalDate, Double>,
     onShiftMonth: (Long) -> Unit,
     onOpenDay: (LocalDate) -> Unit,
+    /** 打開 AI 週報／月報，帶著正在看的那個月。 */
+    onOpenReports: (YearMonth) -> Unit,
     onClose: () -> Unit,
 ) {
     val today = LocalDate.now()
@@ -199,7 +201,18 @@ fun HistoryScreen(
                             translationY = (1f - summarySlide) * GRID_DROP_DP.toPx()
                         }
                     ) {
-                        MonthSummary(pageMonth, totals, settings, activeCaloriesMap)
+                        Column {
+                            MonthSummary(pageMonth, totals, settings, activeCaloriesMap)
+                            // 接在月摘要後面、跟著同一段落下動畫：報表講的就是「這一段期間」，
+                            // 和摘要是同一件事的延伸。長相跟設定選單的列一樣，安靜、不搶月曆的戲。
+                            Hairline(Modifier.padding(top = 14.dp))
+                            MenuRow(
+                                title = stringResource(R.string.report_entry),
+                                summary = "",
+                                onClick = { onOpenReports(pageMonth) },
+                            )
+                            Hairline()
+                        }
                     }
                 }
             }

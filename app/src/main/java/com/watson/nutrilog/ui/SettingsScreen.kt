@@ -210,7 +210,7 @@ private const val EXIT_BUDGET_MS = 100
 
 /** 選單的一列：標題、目前的值、指向右邊的箭頭。 */
 @Composable
-private fun MenuRow(
+internal fun MenuRow(
     title: String,
     summary: String,
     onClick: () -> Unit,
@@ -565,6 +565,22 @@ private fun AiSection(
             color = MaterialTheme.colorScheme.outline,
         )
     }
+
+    Hairline(Modifier.padding(vertical = 10.dp))
+
+    // 和文字辨識同一種圖選：兩者都是「這件事交給哪一家」。說明只講一件使用者不知道的事 ——
+    // 不用另外填金鑰。
+    SectionLabel(stringResource(R.string.settings_report_provider))
+    BallotRow(
+        labels = AiProvider.entries.map { it.label },
+        selectedIndex = AiProvider.entries.indexOf(settings.reportProvider),
+        onSelect = { onChange(settings.copy(reportProvider = AiProvider.entries[it])) },
+    )
+    Text(
+        stringResource(R.string.settings_report_note),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 
     Hairline(Modifier.padding(vertical = 10.dp))
 
