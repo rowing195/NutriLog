@@ -159,8 +159,13 @@ fun NutriLogApp(viewModel: NutriViewModel) {
             // z 序要跟著方向翻：往裡面走時新的那張要在上面才蓋得住，往回走時
             // 正在退場的那張要在上面才看得到它退。
             val forward = targetState.depth > initialState.depth
+            // **蓋的方向由「動的是哪個畫面」決定，不是由前進／後退決定。**
+            // 前進時動的是新來的那張，後退時動的是正在走的那張 —— 同一個畫面
+            // 從哪邊來就從哪邊回去，這樣返回才是真正的倒轉。
+            val moving = if (forward) targetState else initialState
+            val edge: (Int) -> Int = if (moving.coversDownward) { h -> -h } else { h -> h }
             if (forward) {
-                slideInVertically(tween(COVER_MS, easing = CoverEasing)) { it } togetherWith
+                slideInVertically(tween(COVER_MS, easing = CoverEasing), edge) togetherWith
                     // **不能用 `ExitTransition.None`**：那等於沒有退場動畫，舊畫面
                     // 會在轉場的第一幀就被丟掉，底下露出來的是根部那層底色，
                     // 「蓋住今日頁」就變成「蓋住一張空白的紙」。KeepUntil… 是留著
@@ -168,7 +173,7 @@ fun NutriLogApp(viewModel: NutriViewModel) {
                     ExitTransition.KeepUntilTransitionsFinished
             } else {
                 EnterTransition.None togetherWith
-                    slideOutVertically(tween(COVER_MS, easing = CoverEasing)) { it }
+                    slideOutVertically(tween(COVER_MS, easing = CoverEasing), edge)
             }.apply { targetContentZIndex = if (forward) 1f else 0f }
         },
         label = "screen",
@@ -183,8 +188,9 @@ fun NutriLogApp(viewModel: NutriViewModel) {
     // 各跑兩次）：等轉場結束是空白 3～4 幀、舊畫面消失到新內容出現隔 1635／1917ms；
     // 交棒點拉到 0.97 之後是 1～2 幀、隔 1077／1295ms —— 換算回正常速度省掉約 70ms。
     //
-    // 紙是**由下往上**升的，所以剩下那 3% 是畫面**最上面**那幾十個 pixel，
-    // 而那時候紙早就實心了（[SHEET_SOLID_AT] 在 0.8 就到頂），底下不會透出來。
+    // 剩下那 3% 是紙最後才走到的那一條邊（由下往上的是最上面、由上往下的是
+    // 最下面），而那時候紙早就實心了（[SHEET_SOLID_AT] 在 0.8 就到頂），
+    // 底下不會透出來。
     //
     // `!forward` 那半邊是給**返回**用的：那個方向兩張都要立刻是完整的
     // （上面那張要看得到它滑走，底下那張要看得到它被讓出來），一個都不能等。
@@ -204,11 +210,11 @@ fun NutriLogApp(viewModel: NutriViewModel) {
         label = "body",
     )
     CompositionLocalProvider(LocalScreenEntered provides covered) {
-    // **整張紙的濃度跟著它走了多遠**（[sheetAlphaAt]）：剛從畫面底下起步時只有
+    // **整張紙的濃度跟著它走了多遠**（[sheetAlphaAt]）：剛起步時只有
     // [SHEET_ALPHA_FROM]，底下那頁還看得到；一路往上走一路變實，走到
-    // [SHEET_SOLID_AT] 就完全不透明。**重點是它在紙走到頂之前就已經實心了**
-    // —— 報頭那塊（「肥胖日記」那幾個字）是最後才被蓋到的地方，如果紙到那裡還
-    // 半透明，舊報頭就會和新畫面自己的進場動畫疊在一起，兩層一起動。
+    // [SHEET_SOLID_AT] 就完全不透明。**重點是它在紙走完之前就已經實心了**
+    // —— 紙最後才走到的那一條邊（由下往上時是報頭「肥胖日記」那塊）如果到那裡還
+    // 半透明，舊畫面就會和新畫面自己的進場動畫疊在一起，兩層一起動。
     //
     // 這取代了原本掛在紙前緣的那段空間漸層。那個作法的漸層是跟著邊緣跑的，
     // 所以最後正好停在報頭上，剛好造成上面說的那個重疊 —— 方向對了、位置錯了。
@@ -438,6 +444,24 @@ private val Screen.depth: Int
         is Screen.SettingsDetail -> 2
         is Screen.ApiKeyDetail -> 3
         else -> 1
+    }
+
+/**
+ * 這張紙是**由上往下蓋**的嗎。
+ *
+ * 分界是「從哪裡開的」：報頭那排圖示（搜尋、月曆、設定）站在畫面**頂端**，
+ * 它們開出來的東西從底下升上來；右下角那顆「記一筆」站在**右下角**，它那五個
+ * 入口（常吃／文字輸入、輸入營養素、拍照、相簿、條碼）開出來的東西就從頂端蓋下來。
+ * 兩邊各自朝著自己入口的反方向走。
+ *
+ * **方向綁在畫面身上而不是綁在「這次是誰開的」。** 編輯表單也可以從紀錄列點進去、
+ * 條碼與 AI 確認也會互相接力，那些路徑沒有「入口在畫面哪個角落」可講；讓同一個
+ * 畫面永遠從同一邊來，比每條路各記一個方向好記，返回也才保證是原路。
+ */
+private val Screen.coversDownward: Boolean
+    get() = when (this) {
+        Screen.EditEntry, Screen.Barcode, Screen.TextLookup, Screen.Review -> true
+        else -> false
     }
 
 /**
