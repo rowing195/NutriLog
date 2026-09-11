@@ -28,6 +28,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -148,6 +149,17 @@ fun NutriLogApp(viewModel: NutriViewModel) {
     var lastDepth by remember { mutableIntStateOf(target.depth) }
     val forward = remember(target) { (target.depth > lastDepth).also { lastDepth = target.depth } }
 
+    // **疊放順序也要自己記，不能寫死 1／0。** `AnimatedContent` 的 zIndex 是每張在
+    // **進場那一刻**決定、之後退場沿用的。寫死「往裡走 1、往回走 0」的話：
+    // 設定 → API 管理 → 金鑰 → 返回（API 管理這次是以 0 進場的）→ 再返回（設定也是 0），
+    // 兩張同分時後加入的畫在上面，API 管理往下滑走的動畫整段被實心的設定頁蓋住 ——
+    // 看起來就是「沒有動畫」。只要是「退回中間層之後再退一次」都會中，不限設定。
+    //
+    // 改成跟著導航累加：往裡走疊在目前最上面那張之上（+1），往回走壓在正在走的
+    // 那張之下（−1）。動的那張永遠在上面，不管中間進出過幾層。
+    var topZ by remember { mutableFloatStateOf(0f) }
+    val targetZ = remember(target) { (if (forward) topZ + 1f else topZ - 1f).also { topZ = it } }
+
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
     AnimatedContent(
         targetState = target,
@@ -158,7 +170,8 @@ fun NutriLogApp(viewModel: NutriViewModel) {
             //
             // z 序要跟著方向翻：往裡面走時新的那張要在上面才蓋得住，往回走時
             // 正在退場的那張要在上面才看得到它退。
-            val forward = targetState.depth > initialState.depth
+            // 前進／後退用外面算好的那一份 [forward]：疊放順序也是照它算的，兩邊各算各的
+            // 話，萬一轉場被打斷時滑動方向與上下順序會對不起來。
             // **蓋的方向由「動的是哪個畫面」決定，不是由前進／後退決定。**
             // 前進時動的是新來的那張，後退時動的是正在走的那張 —— 同一個畫面
             // 從哪邊來就從哪邊回去，這樣返回才是真正的倒轉。
@@ -174,7 +187,7 @@ fun NutriLogApp(viewModel: NutriViewModel) {
             } else {
                 EnterTransition.None togetherWith
                     slideOutVertically(tween(COVER_MS, easing = CoverEasing), edge)
-            }.apply { targetContentZIndex = if (forward) 1f else 0f }
+            }.apply { targetContentZIndex = targetZ }
         },
         label = "screen",
     ) { screen ->
