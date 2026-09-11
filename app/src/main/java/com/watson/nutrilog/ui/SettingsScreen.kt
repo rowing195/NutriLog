@@ -469,7 +469,7 @@ private fun iconArt(icon: AppIcon): Pair<Int, Int> = when (icon) {
     AppIcon.DEFAULT -> R.mipmap.ic_launcher_foreground to R.color.ic_launcher_background
     AppIcon.CAT -> R.mipmap.ic_launcher_cat_foreground to R.color.ic_launcher_background_paper
     AppIcon.HAT -> R.mipmap.ic_launcher_hat_foreground to R.color.ic_launcher_background_paper
-    AppIcon.KEYBOARD -> R.mipmap.ic_launcher_keyboard_foreground to R.color.ic_launcher_background_white
+    AppIcon.KEYBOARD -> R.mipmap.ic_launcher_keyboard_foreground to R.color.ic_launcher_background_paper
     AppIcon.INK -> R.mipmap.ic_launcher_foreground to R.color.ic_launcher_background_ink
     AppIcon.VERMILION -> R.mipmap.ic_launcher_foreground to R.color.ic_launcher_background_vermilion
     AppIcon.BOWL -> R.drawable.ic_launcher_bowl_foreground to R.color.ic_launcher_background_paper
