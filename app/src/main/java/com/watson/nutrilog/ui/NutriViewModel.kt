@@ -15,6 +15,8 @@ import com.watson.nutrilog.data.CsvExport
 import com.watson.nutrilog.data.CsvImport
 import com.watson.nutrilog.data.DriveBackup
 import com.watson.nutrilog.data.AiProvider
+import com.watson.nutrilog.data.AppIcon
+import com.watson.nutrilog.data.AppIconSwitcher
 import com.watson.nutrilog.data.ApiService
 import com.watson.nutrilog.data.SearchMode
 import com.watson.nutrilog.data.NutriSettings
@@ -407,7 +409,14 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         dao.observeRange(weekStart.toString(), weekStart.plusDays(6).toString())
 
     init {
-        viewModelScope.launch { settingsStore.settingsFlow.collect { settings = it } }
+        viewModelScope.launch {
+            settingsStore.settingsFlow.collect {
+                settings = it
+                // 每次啟動都對一次：元件狀態存在系統那一側，重裝或使用者清資料之後
+                // 會跟設定裡記的那一款對不上，那時候桌面上的圖示就不是他選的那個。
+                AppIconSwitcher.apply(getApplication(), it.appIcon)
+            }
+        }
         // 每次啟動補排一次每日備份。
         //
         // 排程原本只在 connectDrive() 那一刻建立，而 WorkManager 的佇列是會被清掉的
@@ -1370,6 +1379,13 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
                 onFailure = { ReportUiState.Failed(it.message ?: "unknown") },
             )
         }
+    }
+
+    /** 換桌面圖示。設定與系統的元件狀態要一起改，只改一邊下次啟動就會被對回去。 */
+    fun setAppIcon(icon: AppIcon) {
+        if (!icon.ready || icon == settings.appIcon) return
+        AppIconSwitcher.apply(getApplication(), icon)
+        updateSettings(settings.copy(appIcon = icon))
     }
 
     /** 週報建議的目標，按了「套用」才寫進設定 —— 模型算出來的數字一律要經過使用者確認。 */

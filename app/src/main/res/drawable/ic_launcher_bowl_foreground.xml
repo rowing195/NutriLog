@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  紙與墨風格的碗。規格照 Common.kt 那套自繪圖示：圓端點、等粗線。
+
+  內容全部落在中央 72dp 的安全區（座標 18–90）—— 外圈那 18dp 每一家桌面
+  裁掉的形狀都不一樣，畫到那裡遲早會被切到。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 碗身：上緣一條直線當碗口，下面兜成半圓 -->
+    <path
+        android:pathData="M30,56 L78,56 C77,74 68,82 54,82 C40,82 31,74 30,56 Z"
+        android:strokeColor="#17150F"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <!-- 碗底 -->
+    <path
+        android:pathData="M46,86 L62,86"
+        android:strokeColor="#17150F"
+        android:strokeWidth="5"
+        android:strokeLineCap="round" />
+    <!-- 兩道蒸氣 -->
+    <path
+        android:pathData="M45,46 C49,40 41,36 45,28"
+        android:strokeColor="#17150F"
+        android:strokeWidth="5"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M63,46 C67,40 59,36 63,28"
+        android:strokeColor="#17150F"
+        android:strokeWidth="5"
+        android:strokeLineCap="round" />
+</vector>

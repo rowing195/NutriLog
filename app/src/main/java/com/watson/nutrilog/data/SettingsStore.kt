@@ -43,6 +43,8 @@ data class NutriSettings(
     /** 關掉時，輸入表單的進階營養素區塊預設收合 */
     val showExtendedNutrients: Boolean = false,
     val darkMode: DarkModePreference = DarkModePreference.SYSTEM,
+    /** 桌面圖示用哪一款。實際切換的是 manifest 裡的 activity-alias，見 [AppIconSwitcher]。 */
+    val appIcon: AppIcon = AppIcon.DEFAULT,
     /** 每天自動備份到 Drive。關著的時候完全不碰網路，也不會排任何背景工作。 */
     val driveBackupEnabled: Boolean = false,
     /** 備份到哪個 Google 帳號。空字串代表還沒授權過。只拿來顯示，授權本身不靠它。 */
@@ -155,6 +157,25 @@ enum class DarkModePreference { SYSTEM, LIGHT, DARK }
 enum class Gender { MALE, FEMALE }
 
 /** 日常活動量，對應 TDEE 的活動係數。 */
+/**
+ * 可以切換的桌面圖示。
+ *
+ * [aliasSuffix] 要和 `AndroidManifest.xml` 裡的 activity-alias 名稱完全一致 ——
+ * 對不上的話那一款就是「按了沒反應」，而且不會有任何錯誤訊息。
+ *
+ * [ready] 是給還沒放圖的空位用的：enum 與 alias 先留著，畫面上顯示成不能點的
+ * 「待放圖」，之後把圖放進 manifest 的 android:icon 再把這裡改成 true。
+ */
+enum class AppIcon(val aliasSuffix: String, val ready: Boolean = true) {
+    DEFAULT(".IconDefault"),
+    INK(".IconInk"),
+    VERMILION(".IconVermilion"),
+    BOWL(".IconBowl"),
+    CAT(".IconCat"),
+    SLOT1(".IconSlot1", ready = false),
+    SLOT2(".IconSlot2", ready = false),
+}
+
 enum class ActivityLevel(val multiplier: Float, val proteinPerKg: Float) {
     SEDENTARY(1.2f, 1.0f),
     LIGHT(1.375f, 1.2f),

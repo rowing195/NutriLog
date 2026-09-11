@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- 預設圖示的米底。和 app 內的紙色 (#F7F3E9) 不同是刻意的：桌面上的圖示
+         沒有其他東西襯著，稍微暖一點才立得起來。 -->
     <color name="ic_launcher_background">#F8EDE1</color>
+    <!-- 可切換的圖示用的底色，取自 app 的色票（Theme.kt 的 Paper）。 -->
+    <color name="ic_launcher_background_ink">#17150F</color>
+    <color name="ic_launcher_background_vermilion">#D8462A</color>
+    <color name="ic_launcher_background_paper">#F7F3E9</color>
 </resources>

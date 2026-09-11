@@ -33,20 +33,132 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.NutriLog">
 
+        <!--
+          **桌面入口不在 MainActivity 身上，而是底下那排 activity-alias。**
+
+          Android 不讓 app 在執行時換掉自己的 launcher 圖示：圖示是編譯進 APK 的
+          資源，系統只認資源 ID。唯一的作法是事先放好幾個 alias、各自指定 icon，
+          再用 PackageManager 開一個關其他（見 AppIconSwitcher）。
+
+          MainActivity 因此不能再帶 MAIN/LAUNCHER —— 兩邊都有的話桌面會出現兩顆。
+          代價是**從舊版升上來時，之前釘在桌面的捷徑會失效**（它記的是
+          MainActivity 這個元件），要重新從 app 抽屜拉一次。這條路沒有別的走法。
+        -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
             android:theme="@style/Theme.NutriLog">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
             <!-- Health Connect (Android 13 及以下之權限說明進入點) -->
             <intent-filter>
                 <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
             </intent-filter>
         </activity>
+
+        <!--
+          可切換的圖示。**永遠只有一個是 enabled**，預設是 .IconDefault。
+          新增一款要同時動三個地方：這裡、AppIcon enum、以及外觀頁的清單。
+
+          IconSlot1／IconSlot2 是留給之後要放的圖，還沒有自己的 icon（先沿用預設），
+          畫面上是不能點的「待放圖」。放圖時把 android:icon 指到新資源就好。
+        -->
+        <activity-alias
+            android:name=".IconDefault"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            android:label="@string/app_name"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".IconInk"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_ink"
+            android:roundIcon="@mipmap/ic_launcher_ink"
+            android:label="@string/app_name"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".IconVermilion"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_vermilion"
+            android:roundIcon="@mipmap/ic_launcher_vermilion"
+            android:label="@string/app_name"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".IconBowl"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_bowl"
+            android:roundIcon="@mipmap/ic_launcher_bowl"
+            android:label="@string/app_name"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".IconCat"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_cat"
+            android:roundIcon="@mipmap/ic_launcher_cat"
+            android:label="@string/app_name"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".IconSlot1"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            android:label="@string/app_name"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".IconSlot2"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            android:label="@string/app_name"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
 
         <!-- Health Connect (Android 14+ 系統隱私設定中的權限說明進入點) -->
         <activity-alias

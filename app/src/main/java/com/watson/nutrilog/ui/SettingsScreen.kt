@@ -9,6 +9,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
@@ -17,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -39,14 +41,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.AiProvider
+import com.watson.nutrilog.data.AppIcon
 import com.watson.nutrilog.data.ApiService
 import com.watson.nutrilog.data.SearchMode
 import com.watson.nutrilog.data.DarkModePreference
@@ -287,6 +293,7 @@ fun SettingsDetailScreen(
     onSetReadExercise: (Boolean) -> Unit,
     onSetHealthWrite: (Boolean) -> Unit,
     onSyncHealthNow: () -> Unit,
+    onSelectIcon: (AppIcon) -> Unit,
     showBmrCalculator: Boolean,
     onOpenBmr: () -> Unit,
     onApplyBmr: (NutriSettings) -> Unit,
@@ -323,7 +330,7 @@ fun SettingsDetailScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
             when (page) {
-                SettingsPage.APPEARANCE -> AppearanceSection(settings, onChange)
+                SettingsPage.APPEARANCE -> AppearanceSection(settings, onChange, onSelectIcon)
                 SettingsPage.TARGETS -> TargetsSection(settings, onChange, onOpenBmr)
                 SettingsPage.HEALTH -> HealthSection(
                     settings, healthSupported, healthReadAuthorized, healthWriteAuthorized,
@@ -356,7 +363,11 @@ fun SettingsDetailScreen(
 }
 
 @Composable
-private fun AppearanceSection(settings: NutriSettings, onChange: (NutriSettings) -> Unit) {
+private fun AppearanceSection(
+    settings: NutriSettings,
+    onChange: (NutriSettings) -> Unit,
+    onSelectIcon: (AppIcon) -> Unit,
+) {
     // 圈選，不是 M3 的 SegmentedButton —— 它靠容器色分辨選中與否，
     // 在這套低對比色票上兩個狀態幾乎看不出差別。
     BallotRow(
@@ -365,6 +376,122 @@ private fun AppearanceSection(settings: NutriSettings, onChange: (NutriSettings)
         onSelect = { onChange(settings.copy(darkMode = DarkModePreference.entries[it])) },
     )
 
+    Hairline(Modifier.padding(vertical = 10.dp))
+
+    SectionLabel(stringResource(R.string.settings_app_icon))
+    // 一排四個，第二排放剩下的 —— 不用 FlowRow（實驗性 API），列數固定看得出來
+    AppIcon.entries.chunked(4).forEach { row ->
+        Row(
+            Modifier.fillMaxWidth().padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            row.forEach { icon ->
+                IconChoice(
+                    icon = icon,
+                    selected = icon == settings.appIcon,
+                    onClick = { onSelectIcon(icon) },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            // 最後一排不足四個時補空白，剩下的才不會被撐寬
+            repeat(4 - row.size) { Box(Modifier.weight(1f)) }
+        }
+    }
+
+    Text(
+        withNumerals(stringResource(R.string.app_icon_note)),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 12.dp),
+    )
+    Text(
+        withNumerals(stringResource(R.string.app_icon_size_help)),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.outline,
+    )
+}
+
+/**
+ * 一款圖示。**預覽是照 adaptive icon 的規矩畫的**：底色填滿，前景放大到 1.5 倍再切邊 ——
+ * 前景本來就只佔中央 72/108，照原比例畫會變成縮在中間的一小塊，和桌面上看到的不一樣。
+ *
+ * 選中用墨框，不是色塊：這套版面裡「選中」一律是墨，朱紅留給超標與破壞性動作。
+ */
+@Composable
+private fun IconChoice(
+    icon: AppIcon,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scheme = MaterialTheme.colorScheme
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .border(
+                    width = if (selected) 2.dp else 1.dp,
+                    color = when {
+                        selected -> scheme.onSurface
+                        icon.ready -> NutrientColors.FieldBorder
+                        else -> scheme.outlineVariant
+                    },
+                )
+                .then(if (icon.ready) Modifier.clickable(onClick = onClick) else Modifier)
+                .padding(3.dp)
+                .clipToBounds(),
+            contentAlignment = Alignment.Center,
+        ) {
+            val art = iconArt(icon)
+            if (art == null) {
+                // 空位：不畫假圖示，畫一個明顯還沒放東西的框
+                Text(
+                    stringResource(R.string.app_icon_slot),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = scheme.outline,
+                )
+            } else {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(colorResource(art.second)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Image(
+                        painterResource(art.first),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(1.5f),
+                    )
+                }
+            }
+        }
+        Text(
+            stringResource(icon.labelRes()),
+            style = MaterialTheme.typography.labelSmall,
+            color = if (selected) scheme.onSurface else scheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+    }
+}
+
+/** 這一款的前景與底色。空位還沒有圖，回 null。 */
+private fun iconArt(icon: AppIcon): Pair<Int, Int>? = when (icon) {
+    AppIcon.DEFAULT -> R.mipmap.ic_launcher_foreground to R.color.ic_launcher_background
+    AppIcon.INK -> R.mipmap.ic_launcher_foreground to R.color.ic_launcher_background_ink
+    AppIcon.VERMILION -> R.mipmap.ic_launcher_foreground to R.color.ic_launcher_background_vermilion
+    AppIcon.BOWL -> R.drawable.ic_launcher_bowl_foreground to R.color.ic_launcher_background_paper
+    AppIcon.CAT -> R.mipmap.ic_launcher_cat_foreground to R.color.ic_launcher_background_paper
+    AppIcon.SLOT1, AppIcon.SLOT2 -> null
+}
+
+private fun AppIcon.labelRes(): Int = when (this) {
+    AppIcon.DEFAULT -> R.string.app_icon_default
+    AppIcon.INK -> R.string.app_icon_ink
+    AppIcon.VERMILION -> R.string.app_icon_vermilion
+    AppIcon.BOWL -> R.string.app_icon_bowl
+    AppIcon.CAT -> R.string.app_icon_cat
+    AppIcon.SLOT1, AppIcon.SLOT2 -> R.string.app_icon_slot
 }
 
 @Composable
