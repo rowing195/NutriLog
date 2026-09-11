@@ -55,6 +55,7 @@ import androidx.compose.foundation.layout.size
 import com.watson.nutrilog.ui.theme.NutrientColors
 import com.watson.nutrilog.ui.theme.numeric
 import kotlinx.coroutines.flow.first
+import androidx.compose.foundation.layout.Spacer
 
 /**
  * 設定的選單那一層。
@@ -67,6 +68,10 @@ import kotlinx.coroutines.flow.first
 @Composable
 fun SettingsMenuScreen(
     settings: NutriSettings,
+    /** 健康連線那一列的摘要要看系統權限，只看設定值會在權限被收回後仍然顯示「讀取運動」。 */
+    healthSupported: Boolean,
+    healthReadOn: Boolean,
+    healthWriteOn: Boolean,
     onOpen: (SettingsPage) -> Unit,
     onClose: () -> Unit,
 ) {
@@ -94,6 +99,16 @@ fun SettingsMenuScreen(
     // 返回鍵和報頭那顆「關閉」是同一件事，所以 BackHandler 掛在這裡而不是 App.kt
     // —— 退場動畫由這個畫面自己管，觸發的入口就不能留在外面。
     BackHandler(onBack = requestClose)
+
+    val healthSummary = stringResource(
+        when {
+            !healthSupported -> R.string.health_summary_unsupported
+            healthReadOn && healthWriteOn -> R.string.health_summary_read_write
+            healthReadOn -> R.string.health_summary_read
+            healthWriteOn -> R.string.health_summary_write
+            else -> R.string.health_summary_off
+        }
+    )
 
     Scaffold(
         topBar = {
@@ -144,7 +159,7 @@ fun SettingsMenuScreen(
                 Column {
                     MenuRow(
                         title = stringResource(page.titleRes()),
-                        summary = page.summary(settings),
+                        summary = page.summary(settings, healthSummary),
                         // 退場途中不接點擊：那幾百毫秒裡畫面還在，點下去會在
                         // 關閉的路上又開一個子頁。
                         onClick = { if (!closing) onOpen(page) },
@@ -223,16 +238,18 @@ private fun MenuRow(
 private fun SettingsPage.titleRes(): Int = when (this) {
     SettingsPage.APPEARANCE -> R.string.settings_appearance
     SettingsPage.TARGETS -> R.string.settings_targets
+    SettingsPage.HEALTH -> R.string.settings_health
     SettingsPage.AI -> R.string.settings_ai
     SettingsPage.DRIVE -> R.string.drive_section
     SettingsPage.DATA -> R.string.settings_data
 }
 
 @Composable
-private fun SettingsPage.summary(settings: NutriSettings): String = when (this) {
+private fun SettingsPage.summary(settings: NutriSettings, healthSummary: String): String = when (this) {
     SettingsPage.APPEARANCE -> settings.darkMode.label()
     SettingsPage.TARGETS ->
         settings.calorieTarget.toString() + " " + stringResource(R.string.unit_kcal)
+    SettingsPage.HEALTH -> healthSummary
     SettingsPage.AI -> settings.textProvider.label
     SettingsPage.DRIVE -> stringResource(
         if (settings.driveBackupEnabled) R.string.drive_summary_on else R.string.drive_summary_off
@@ -262,6 +279,18 @@ fun SettingsDetailScreen(
     onBackupNow: () -> Unit,
     onDisconnectDrive: () -> Unit,
     onOpenService: (ApiService) -> Unit,
+    healthSupported: Boolean,
+    healthReadAuthorized: Boolean,
+    healthWriteAuthorized: Boolean,
+    healthBusy: Boolean,
+    healthResult: HealthSyncResult?,
+    onSetReadExercise: (Boolean) -> Unit,
+    onSetHealthWrite: (Boolean) -> Unit,
+    onSyncHealthNow: () -> Unit,
+    showBmrCalculator: Boolean,
+    onOpenBmr: () -> Unit,
+    onApplyBmr: (NutriSettings) -> Unit,
+    onCloseBmr: () -> Unit,
     onBack: () -> Unit,
 ) {
     Scaffold(
@@ -295,7 +324,11 @@ fun SettingsDetailScreen(
             ) {
             when (page) {
                 SettingsPage.APPEARANCE -> AppearanceSection(settings, onChange)
-                SettingsPage.TARGETS -> TargetsSection(settings, onChange)
+                SettingsPage.TARGETS -> TargetsSection(settings, onChange, onOpenBmr)
+                SettingsPage.HEALTH -> HealthSection(
+                    settings, healthSupported, healthReadAuthorized, healthWriteAuthorized,
+                    healthBusy, healthResult, onSetReadExercise, onSetHealthWrite, onSyncHealthNow,
+                )
                 SettingsPage.AI -> AiSection(settings, onChange, onOpenService)
                 SettingsPage.DRIVE -> DriveSection(
                     settings, driveMessage, driveBusy, onConnectDrive, onBackupNow, onDisconnectDrive,
@@ -316,6 +349,10 @@ fun SettingsDetailScreen(
             onDismiss = onCancelImport,
         )
     }
+
+    if (showBmrCalculator) {
+        BmrCalculatorDialog(initialSettings = settings, onApply = onApplyBmr, onDismiss = onCloseBmr)
+    }
 }
 
 @Composable
@@ -331,7 +368,14 @@ private fun AppearanceSection(settings: NutriSettings, onChange: (NutriSettings)
 }
 
 @Composable
-private fun TargetsSection(settings: NutriSettings, onChange: (NutriSettings) -> Unit) {
+private fun TargetsSection(
+    settings: NutriSettings,
+    onChange: (NutriSettings) -> Unit,
+    onOpenBmr: () -> Unit,
+) {
+    // 放在欄位上面：算完按套用會直接改下面這四格，入口擺在它們前面讀起來是因果順序。
+    MenuRow(title = stringResource(R.string.bmr_open), summary = "", onClick = onOpenBmr)
+    Hairline()
     TargetField(
         label = stringResource(R.string.nutrient_calories) + "（" + stringResource(R.string.unit_kcal) + "）",
         value = settings.calorieTarget,
@@ -375,6 +419,104 @@ private fun TargetsSection(settings: NutriSettings, onChange: (NutriSettings) ->
         )
     }
 
+}
+
+/**
+ * 健康連線。**讀運動與寫飲食是兩個開關、各要各的權限**：使用者可能只想讓運動消耗
+ * 算進目標，而不想把吃了什麼寫進 Samsung Health。
+ */
+@Composable
+private fun HealthSection(
+    settings: NutriSettings,
+    supported: Boolean,
+    readAuthorized: Boolean,
+    writeAuthorized: Boolean,
+    busy: Boolean,
+    result: HealthSyncResult?,
+    onSetRead: (Boolean) -> Unit,
+    onSetWrite: (Boolean) -> Unit,
+    onSyncNow: () -> Unit,
+) {
+    if (!supported) {
+        Text(
+            stringResource(R.string.health_not_supported),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        return
+    }
+    // 開關亮不亮看「設定想開 且 系統真的有給權限」：只看設定的話，權限在系統那邊被收回之後
+    // 開關仍然亮著，數字卻永遠是 0，使用者找不到原因。
+    SwitchRow(
+        title = stringResource(R.string.health_read_title),
+        help = stringResource(R.string.health_read_help),
+        checked = settings.readExerciseCalories && readAuthorized,
+        onCheckedChange = onSetRead,
+    )
+    Hairline()
+    val writeOn = settings.healthConnectSyncEnabled && writeAuthorized
+    SwitchRow(
+        title = stringResource(R.string.health_write_title),
+        help = stringResource(R.string.health_write_help),
+        checked = writeOn,
+        onCheckedChange = onSetWrite,
+    )
+    if (writeOn) {
+        Hairline()
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            StampButton(
+                label = stringResource(R.string.health_sync_now),
+                onClick = onSyncNow,
+                enabled = !busy,
+                color = Color.Transparent,
+            )
+            Spacer(Modifier.weight(1f))
+            if (settings.lastHealthSyncAt > 0) {
+                Text(
+                    withNumerals(
+                        stringResource(R.string.health_last_sync, lastBackupLabel(settings.lastHealthSyncAt))
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+    if (busy) IndeterminateRule()
+    result?.let {
+        Text(
+            withNumerals(
+                when (it) {
+                    is HealthSyncResult.Written -> stringResource(R.string.health_sync_done, it.count)
+                    is HealthSyncResult.Failed -> stringResource(R.string.health_sync_failed, it.reason)
+                    HealthSyncResult.PermissionDenied -> stringResource(R.string.health_permission_denied)
+                    HealthSyncResult.NotSupported -> stringResource(R.string.health_not_supported)
+                }
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun SwitchRow(title: String, help: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // 開關固定 46dp 寬，左邊文字要自己留出間距，不然會貼到它身上（同每日目標頁那一列）
+        Column(Modifier.weight(1f).padding(end = 16.dp)) {
+            Text(title)
+            Text(
+                help,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        NutriSwitch(checked = checked, onCheckedChange = onCheckedChange)
+    }
 }
 
 @Composable
@@ -664,20 +806,24 @@ private fun DataSection(
  */
 @Composable
 private fun importSummary(preview: ImportPreview): String = buildList {
-    add(
-        stringResource(
-    R.string.import_summary_new,
-    preview.newEntries.size,
-    preview.firstDate.orEmpty(),
-    preview.lastDate.orEmpty(),
+    // 只接回身型、沒有新紀錄時不要講「會新增 0 筆（ ～ ）」
+    if (preview.newEntries.isNotEmpty()) {
+        add(
+            stringResource(
+                R.string.import_summary_new,
+                preview.newEntries.size,
+                preview.firstDate.orEmpty(),
+                preview.lastDate.orEmpty(),
+            )
         )
-    )
+    }
     if (preview.duplicates > 0) {
         add(stringResource(R.string.import_summary_duplicates, preview.duplicates))
     }
     if (preview.skipped > 0) {
         add(stringResource(R.string.import_summary_skipped, preview.skipped))
     }
+    preview.profile?.let { add(stringResource(R.string.import_summary_profile, it.calorieTarget)) }
 }.joinToString(" ")
 
 /** 上次備份的時間。今天以內講時分，跨天就講日期 —— 「昨天備份過」是使用者真正在意的事。 */

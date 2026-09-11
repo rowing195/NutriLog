@@ -78,6 +78,8 @@ fun HistoryScreen(
     totals: Map<String, DayTotal>,
     settings: NutriSettings,
     selectedDate: LocalDate,
+    /** 每一天的運動消耗，格子與月摘要的超標判斷要用加上它之後的目標。 */
+    activeCaloriesMap: Map<LocalDate, Double>,
     onShiftMonth: (Long) -> Unit,
     onOpenDay: (LocalDate) -> Unit,
     onClose: () -> Unit,
@@ -175,6 +177,7 @@ fun HistoryScreen(
                         settings = settings,
                         today = today,
                         selectedDate = selectedDate,
+                        activeCaloriesMap = activeCaloriesMap,
                         onOpenDay = onOpenDay,
                         enter = enter,
                     )
@@ -196,7 +199,7 @@ fun HistoryScreen(
                             translationY = (1f - summarySlide) * GRID_DROP_DP.toPx()
                         }
                     ) {
-                        MonthSummary(pageMonth, totals, settings)
+                        MonthSummary(pageMonth, totals, settings, activeCaloriesMap)
                     }
                 }
             }
@@ -343,6 +346,7 @@ private fun MonthGrid(
     settings: NutriSettings,
     today: LocalDate,
     selectedDate: LocalDate,
+    activeCaloriesMap: Map<LocalDate, Double>,
     onOpenDay: (LocalDate) -> Unit,
     enter: Transition<Boolean>,
 ) {
@@ -386,6 +390,7 @@ private fun MonthGrid(
                             date = date,
                             total = totals[date.toString()],
                             settings = settings,
+                            activeCalories = activeCaloriesMap[date] ?: 0.0,
                             isToday = date == today,
                             isSelected = date == selectedDate,
                             isFuture = date.isAfter(today),
@@ -407,6 +412,7 @@ private fun DayCell(
     date: LocalDate,
     total: DayTotal?,
     settings: NutriSettings,
+    activeCalories: Double,
     isToday: Boolean,
     isSelected: Boolean,
     isFuture: Boolean,
@@ -414,7 +420,9 @@ private fun DayCell(
     modifier: Modifier = Modifier,
 ) {
     val kcal = total?.kcal ?: 0.0
-    val severity = overSeverity(kcal, settings.calorieTarget)
+    // 和今日頁同一個判斷：那天有運動，額度就跟著變多
+    val goal = effectiveCalorieTarget(settings.calorieTarget, activeCalories, settings.readExerciseCalories)
+    val severity = overSeverity(kcal, goal)
     val severityColor = when (severity) {
         OverSeverity.OVER -> NutrientColors.Over
         OverSeverity.WARNING -> NutrientColors.Warning
@@ -431,8 +439,8 @@ private fun DayCell(
         total == null -> Color.Transparent
         severityColor != null -> severityColor.copy(alpha = 0.16f)
         else -> {
-            val ratio = if (settings.calorieTarget > 0) {
-                (kcal / settings.calorieTarget).coerceIn(0.0, 1.0).toFloat()
+            val ratio = if (goal > 0) {
+                (kcal / goal).coerceIn(0.0, 1.0).toFloat()
             } else {
                 0.5f
             }
@@ -497,7 +505,12 @@ private fun DayCell(
  * 不濾的話「記了幾天」會把鄰月的也算進來。日期是 ISO 字串，比前綴就夠了。
  */
 @Composable
-private fun MonthSummary(month: YearMonth, totals: Map<String, DayTotal>, settings: NutriSettings) {
+private fun MonthSummary(
+    month: YearMonth,
+    totals: Map<String, DayTotal>,
+    settings: NutriSettings,
+    activeCaloriesMap: Map<LocalDate, Double>,
+) {
     val prefix = "%04d-%02d".format(month.year, month.monthValue)
     val mine = remember(prefix, totals) { totals.filterKeys { it.startsWith(prefix) } }
     if (mine.isEmpty()) {
@@ -514,7 +527,11 @@ private fun MonthSummary(month: YearMonth, totals: Map<String, DayTotal>, settin
     }
     val loggedDays = mine.size
     val average = mine.values.sumOf { it.kcal } / loggedDays
-    val overDays = mine.values.count { settings.calorieTarget > 0 && it.kcal > settings.calorieTarget }
+    val overDays = mine.values.count { day ->
+        val active = runCatching { LocalDate.parse(day.date) }.getOrNull()?.let { activeCaloriesMap[it] } ?: 0.0
+        val goal = effectiveCalorieTarget(settings.calorieTarget, active, settings.readExerciseCalories)
+        goal > 0 && day.kcal > goal
+    }
     Column(Modifier.fillMaxWidth().padding(top = 14.dp)) {
         Hairline()
         Row(

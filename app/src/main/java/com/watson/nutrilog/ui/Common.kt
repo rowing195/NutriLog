@@ -1442,3 +1442,16 @@ fun Modifier.enterSlide(index: Int = 0, count: Int = 1, from: Dp = 28.dp): Modif
 private const val ENTER_SLIDE_MS = 260
 private const val ENTER_STEP_MAX_MS = 45
 private const val ENTER_BUDGET_MS = 180
+
+/**
+ * 加上運動消耗之後，這一天真正的熱量目標。
+ *
+ * **今日頁、週長條、月曆格子、月摘要一律用這一個。** 各算各的話，同一天在今日頁
+ * 沒超標、到了月曆上卻是紅的。目標為 0（關掉額度）時不加：加了等於憑空長出一個目標。
+ */
+fun effectiveCalorieTarget(target: Int, activeCalories: Double, readExercise: Boolean): Int =
+    if (target > 0 && readExercise && activeCalories > 0) {
+        target + kotlin.math.round(activeCalories).toInt()
+    } else {
+        target
+    }

@@ -64,6 +64,7 @@ import com.watson.nutrilog.data.WeeklyReport
 import com.watson.nutrilog.data.WeeklyReportStore
 import com.watson.nutrilog.data.WeeklyStats
 import com.watson.nutrilog.data.db.DailyHealthMetric
+import com.watson.nutrilog.data.BackedUpProfile
 
 /**
  * 畫面。沿用 LocalReader 的做法：sealed interface + when 分派，不引入導航函式庫。
@@ -79,7 +80,7 @@ import com.watson.nutrilog.data.db.DailyHealthMetric
  * 「顯示進階營養素」那個開關沒有自己的一頁 —— 它講的是編輯表單要不要攤開糖、鈉、
  * 膳食纖維、飽和脂肪，跟每日目標同樣是在講營養素，為了一個開關多開一頁不划算。
  */
-enum class SettingsPage { APPEARANCE, TARGETS, AI, DRIVE, DATA }
+enum class SettingsPage { APPEARANCE, TARGETS, HEALTH, AI, DRIVE, DATA }
 
 sealed interface Screen {
     data object Today : Screen
@@ -170,6 +171,11 @@ data class ImportPreview(
     val duplicates: Int,
     /** 認不得而跳過的資料列數。 */
     val skipped: Int,
+    /**
+     * 連結 Drive 時雲端那份目標與身型，跟本機不同才會有值。本地匯入 CSV 永遠是 null。
+     * 和紀錄放在同一個確認面板：外部來的資料一律先停下來問，設定也不例外。
+     */
+    val profile: BackedUpProfile? = null,
 ) {
     val firstDate: String? get() = newEntries.minOfOrNull { it.date }
     val lastDate: String? get() = newEntries.maxOfOrNull { it.date }
@@ -876,6 +882,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     fun confirmImport() {
         val preview = importPreview ?: return
         importPreview = null
+        preview.profile?.let { updateSettings(it.applyTo(settings)) }
         viewModelScope.launch {
             dataMessage = runCatching {
                 val ids = dao.insertAll(preview.newEntries)
@@ -883,7 +890,12 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
                 preview.newEntries.size
             }.fold(
                 onSuccess = { count ->
-                    getApplication<Application>().getString(R.string.import_done, count)
+                    // 只接回身型、沒有新紀錄時，講「匯入 0 筆」會讓人以為什麼都沒發生
+                    if (count == 0 && preview.profile != null) {
+                        getApplication<Application>().getString(R.string.import_profile_restored)
+                    } else {
+                        getApplication<Application>().getString(R.string.import_done, count)
+                    }
                 },
                 onFailure = { cause ->
                     getApplication<Application>().getString(
@@ -1430,8 +1442,13 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         BackupWorker.schedule(getApplication())
 
         val preview = driveBackup.latestBackupCsv(token).getOrNull()?.let { previewOf(it) }
-        if (preview != null && preview.newEntries.isNotEmpty()) {
-            importPreview = preview
+        // 跟本機一模一樣就不必問（例如同一支手機斷開再連回來）。
+        val profile = driveBackup.latestBackupProfile(token).getOrNull()
+            ?.takeIf { it != BackedUpProfile.from(settings) }
+        if ((preview != null && preview.newEntries.isNotEmpty()) || profile != null) {
+            // 有東西可以接回來時**絕對不能先備份**：紀錄那邊會被當天日期的檔蓋掉，
+            // 身型這邊則會多出一份日期最新的預設值，下次還原反而拿到它。
+            importPreview = (preview ?: ImportPreview(emptyList(), 0, 0)).copy(profile = profile)
             null
         } else {
             val name = driveBackup.backupNow(token).getOrThrow()

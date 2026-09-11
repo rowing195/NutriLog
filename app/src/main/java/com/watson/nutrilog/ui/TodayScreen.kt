@@ -93,6 +93,7 @@ import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import kotlin.math.abs
+import com.watson.nutrilog.data.DailyActivity
 
 /**
  * 日分頁的頁碼半徑。以「開啟這個畫面那一刻」為基準日，左右各留這麼多天，
@@ -131,6 +132,12 @@ fun TodayScreen(
     onOpenSettings: () -> Unit,
     /** 今日頁是不是目前的畫面。換頁那 320ms 裡它還在（正被紙蓋住），但已經不是了。 */
     isCurrent: Boolean,
+    /** 每一天從健康連線讀到的活動消耗，見 NutriViewModel.activeCaloriesMap。 */
+    activeCaloriesMap: Map<LocalDate, Double>,
+    dailyActivityMap: Map<LocalDate, DailyActivity>,
+    /** 飲食有沒有同步寫進健康連線；運動明細最後那一行只在開著時出現。 */
+    healthWriteOn: Boolean,
+    onRefreshActiveCalories: (LocalDate) -> Unit,
 ) {
     val today = LocalDate.now()
     var showAddSheet by remember { mutableStateOf(false) }
@@ -288,6 +295,8 @@ fun TodayScreen(
                     weekTotalsFlow = weekTotalsFlow,
                     today = today,
                     target = settings.calorieTarget,
+                    activeCaloriesMap = activeCaloriesMap,
+                    readExercise = settings.readExerciseCalories,
                     onPickDay = onPickDay,
                     onShiftWeek = onShiftWeek,
                 )
@@ -312,6 +321,10 @@ fun TodayScreen(
                 entriesFlow = entriesFlow,
                 entriesCache = entriesCache,
                 settings = settings,
+                activeCalories = activeCaloriesMap[dayOfPage(page)] ?: 0.0,
+                activity = dailyActivityMap[dayOfPage(page)],
+                healthWriteOn = healthWriteOn,
+                onRefreshActiveCalories = onRefreshActiveCalories,
                 onOpenEntry = onOpenEntry,
                 onDeleteEntry = onDeleteEntry,
                 // 「還沒記」開的是同一個新增選單，不是直接跳空白表單 ——
@@ -449,6 +462,8 @@ private fun WeekStrip(
     weekTotalsFlow: (LocalDate) -> Flow<List<DayTotal>>,
     today: LocalDate,
     target: Int,
+    activeCaloriesMap: Map<LocalDate, Double>,
+    readExercise: Boolean,
     onPickDay: (LocalDate) -> Unit,
     onShiftWeek: (Long) -> Unit,
 ) {
@@ -481,6 +496,8 @@ private fun WeekStrip(
                 weekTotalsCache = weekTotalsCache,
                 today = today,
                 target = target,
+                activeCaloriesMap = activeCaloriesMap,
+                readExercise = readExercise,
                 dayPagerState = dayPagerState,
                 dayPageOf = dayPageOf,
                 onPickDay = onPickDay,
@@ -515,6 +532,8 @@ private fun WeekPageContent(
     weekTotalsCache: MutableMap<LocalDate, List<DayTotal>>,
     today: LocalDate,
     target: Int,
+    activeCaloriesMap: Map<LocalDate, Double>,
+    readExercise: Boolean,
     dayPagerState: PagerState,
     dayPageOf: (LocalDate) -> Int,
     onPickDay: (LocalDate) -> Unit,
@@ -528,16 +547,16 @@ private fun WeekPageContent(
         val rowWidthPx = with(LocalDensity.current) { maxWidth.toPx() }
 
         Box(Modifier.graphicsLayer { translationX = (overflowBefore - overflowAfter) * rowWidthPx }) {
-            WeekRow(weekStart, weekTotalsFlow, weekTotalsCache, today, target, dayPagerState, dayPageOf, onPickDay)
+            WeekRow(weekStart, weekTotalsFlow, weekTotalsCache, today, target, activeCaloriesMap, readExercise, dayPagerState, dayPageOf, onPickDay)
         }
         if (overflowAfter > 0f) {
             Box(Modifier.graphicsLayer { translationX = (1f - overflowAfter) * rowWidthPx }) {
-                WeekRow(weekStart.plusWeeks(1), weekTotalsFlow, weekTotalsCache, today, target, dayPagerState, dayPageOf, onPickDay)
+                WeekRow(weekStart.plusWeeks(1), weekTotalsFlow, weekTotalsCache, today, target, activeCaloriesMap, readExercise, dayPagerState, dayPageOf, onPickDay)
             }
         }
         if (overflowBefore > 0f) {
             Box(Modifier.graphicsLayer { translationX = (overflowBefore - 1f) * rowWidthPx }) {
-                WeekRow(weekStart.minusWeeks(1), weekTotalsFlow, weekTotalsCache, today, target, dayPagerState, dayPageOf, onPickDay)
+                WeekRow(weekStart.minusWeeks(1), weekTotalsFlow, weekTotalsCache, today, target, activeCaloriesMap, readExercise, dayPagerState, dayPageOf, onPickDay)
             }
         }
     }
@@ -580,6 +599,8 @@ private fun WeekRow(
     weekTotalsCache: MutableMap<LocalDate, List<DayTotal>>,
     today: LocalDate,
     target: Int,
+    activeCaloriesMap: Map<LocalDate, Double>,
+    readExercise: Boolean,
     dayPagerState: PagerState,
     dayPageOf: (LocalDate) -> Int,
     onPickDay: (LocalDate) -> Unit,
@@ -605,7 +626,8 @@ private fun WeekRow(
             DayColumn(
                 day = day,
                 kcal = byDate[day.toString()]?.kcal ?: 0.0,
-                target = target,
+                // 週長條每一格用那一天自己加上運動後的目標，和今日頁、月曆同一個判斷
+                target = effectiveCalorieTarget(target, activeCaloriesMap[day] ?: 0.0, readExercise),
                 isFuture = day.isAfter(today),
                 overColor = over,
                 pillAlpha = (1f - abs(pillPosition - index)).coerceIn(0f, 1f),
@@ -730,6 +752,10 @@ private fun DayPage(
     entriesFlow: (LocalDate) -> Flow<List<FoodEntry>>,
     entriesCache: MutableMap<LocalDate, List<FoodEntry>>,
     settings: NutriSettings,
+    activeCalories: Double,
+    activity: DailyActivity?,
+    healthWriteOn: Boolean,
+    onRefreshActiveCalories: (LocalDate) -> Unit,
     onOpenEntry: (FoodEntry) -> Unit,
     onDeleteEntry: (FoodEntry) -> Unit,
     onAddForMeal: (Meal) -> Unit,
@@ -765,7 +791,9 @@ private fun DayPage(
         contentPadding = PaddingValues(horizontal = 22.dp),
     ) {
         item { Hairline() }
-        item { Budget(entries, totals, settings) }
+        item {
+            Budget(date, entries, totals, settings, activeCalories, activity, healthWriteOn, onRefreshActiveCalories)
+        }
         item { Hairline() }
         item { Macros(totals, settings) }
         item { Hairline() }
@@ -824,15 +852,43 @@ private fun DayPage(
  * 「午餐一次吃掉一大半」和「三餐平均」是完全不同的一天，看形狀就分得出來。
  */
 @Composable
-private fun Budget(entries: List<FoodEntry>, totals: Totals, settings: NutriSettings) {
+private fun Budget(
+    date: LocalDate,
+    entries: List<FoodEntry>,
+    totals: Totals,
+    settings: NutriSettings,
+    activeCalories: Double,
+    activity: DailyActivity?,
+    healthWriteOn: Boolean,
+    onRefreshActiveCalories: (LocalDate) -> Unit,
+) {
     val scheme = MaterialTheme.colorScheme
     val target = settings.calorieTarget
     val consumed = totals.calories
-    val remaining = target - consumed
+    // 運動消耗加進目標之後才是今天真正的額度：「還有／超出」、超標顏色、額度條都照它算。
+    // 「目標」那一格仍然顯示原本設的數字，加了多少另外一行講 —— 直接把目標改成 2350
+    // 的話，使用者會以為自己的設定被動過。
+    val exercise = if (settings.readExerciseCalories) activeCalories else 0.0
+    val goal = effectiveCalorieTarget(target, activeCalories, settings.readExerciseCalories)
+    val remaining = goal - consumed
     val over = remaining < 0
+
+    var showExerciseDetail by remember { mutableStateOf(false) }
+    if (showExerciseDetail) {
+        ExerciseDetailSheet(
+            date = date,
+            consumed = consumed,
+            baseTarget = target,
+            activeCalories = exercise,
+            activity = activity,
+            mealsWritten = if (healthWriteOn) entries.count { it.calories > 0 } else null,
+            onRefresh = { onRefreshActiveCalories(date) },
+            onDismiss = { showExerciseDetail = false },
+        )
+    }
     // 超標 10% 以內是橘色警示、超過 10% 才轉紅；severityColor 是 null 代表沒超標，
     // 沿用原本的中性色。
-    val severityColor = when (overSeverity(consumed, target)) {
+    val severityColor = when (overSeverity(consumed, goal)) {
         OverSeverity.OVER -> NutrientColors.Over
         OverSeverity.WARNING -> NutrientColors.Warning
         OverSeverity.NORMAL -> null
@@ -878,6 +934,24 @@ private fun Budget(entries: List<FoodEntry>, totals: Totals, settings: NutriSett
                         numberColor = scheme.onSurfaceVariant,
                         numberSize = 14.sp,
                     )
+                    // 沒讀到運動就整行不出現，版面和沒有健康連線時一模一樣。
+                    // 不上色：運動消耗不是「看這裡」的警示，朱紅留給超標與刪除。
+                    if (exercise > 0) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clickable { showExerciseDetail = true },
+                        ) {
+                            LabelledNumber(
+                                label = stringResource(R.string.budget_exercise),
+                                number = "+" + exercise.fmtInt(),
+                                labelColor = scheme.onSurfaceVariant,
+                                numberColor = scheme.onSurfaceVariant,
+                                numberSize = 14.sp,
+                            )
+                            Spacer(Modifier.width(2.dp))
+                            ChevronMark(scheme.outline, pointsLeft = false, size = 12.dp)
+                        }
+                    }
                     LabelledNumber(
                         label = stringResource(
                             if (over) R.string.budget_over else R.string.budget_left
@@ -891,7 +965,7 @@ private fun Budget(entries: List<FoodEntry>, totals: Totals, settings: NutriSett
             }
         }
 
-        MealSegmentBar(entries = entries, target = target)
+        MealSegmentBar(entries = entries, target = goal)
 
         // 額度條下面補一行小計。條子講的是形狀（哪一餐吃掉一大半），
         // 這一行才回答「所以早餐到底幾大卡」——兩個問題不必各佔一塊版面。

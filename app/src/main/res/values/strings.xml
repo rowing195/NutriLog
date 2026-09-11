@@ -202,4 +202,71 @@
     <string name="go_to_settings">去設定</string>
     <string name="retry">重試</string>
     <string name="network_error">連線失敗，請檢查網路</string>
+    <!-- 健康連線（Health Connect／Samsung Health） -->
+    <string name="settings_health">健康連線</string>
+    <string name="health_summary_read">讀取運動</string>
+    <string name="health_summary_read_write">讀取＋寫入</string>
+    <string name="health_summary_write">寫入飲食</string>
+    <string name="health_summary_off">未連結</string>
+    <string name="health_summary_unsupported">不支援</string>
+    <string name="health_read_title">讀取運動消耗</string>
+    <string name="health_read_help">從 Samsung Health 讀活動消耗、步數與運動紀錄，加進當天的熱量目標。</string>
+    <string name="health_write_title">寫入飲食紀錄</string>
+    <string name="health_write_help">把記的每一餐寫進 Samsung Health。</string>
+    <string name="health_sync_now">立即同步</string>
+    <string name="health_last_sync">上次同步 %1$s</string>
+    <string name="health_sync_done">已同步 %1$d 筆紀錄</string>
+    <string name="health_sync_failed">同步失敗：%1$s</string>
+    <string name="health_permission_denied">沒有取得權限，可以到系統設定的健康連線裡開啟。</string>
+    <string name="health_not_supported">這台手機沒有健康連線（Health Connect）</string>
+
+    <!-- 今日頁的運動消耗與明細 -->
+    <string name="budget_exercise">運動</string>
+    <string name="exercise_detail_title">運動消耗明細</string>
+    <string name="exercise_detail_date">%1$d 月 %2$d 日</string>
+    <string name="exercise_detail_today">%1$s（今天）</string>
+    <string name="exercise_source">來源</string>
+    <string name="exercise_source_active">手錶記錄的活動消耗</string>
+    <string name="exercise_source_workouts">手錶記錄的運動場次</string>
+    <string name="exercise_source_total">由總消耗扣掉基礎代謝推算</string>
+    <string name="exercise_source_steps">由 %1$s 步換算</string>
+    <string name="exercise_source_none">讀不到：%1$s</string>
+    <string name="exercise_workouts">運動</string>
+    <string name="exercise_minutes">%1$d 分鐘</string>
+    <string name="exercise_eaten">吃了</string>
+    <string name="exercise_burned">運動</string>
+    <string name="exercise_net">淨攝取</string>
+    <string name="exercise_target_today">今天的目標</string>
+    <string name="exercise_written">今天 %1$d 筆餐點已寫入健康連線</string>
+    <string name="exercise_refresh">重新讀取</string>
+
+    <!-- 依身型計算 -->
+    <string name="bmr_open">依身型計算</string>
+    <string name="bmr_title">依身型計算</string>
+    <string name="bmr_gender">性別</string>
+    <string name="bmr_gender_male">男</string>
+    <string name="bmr_gender_female">女</string>
+    <string name="bmr_age">年齡</string>
+    <string name="bmr_age_unit">歲</string>
+    <string name="bmr_height">身高</string>
+    <string name="bmr_weight">體重</string>
+    <string name="bmr_activity">活動量</string>
+    <string name="bmr_act_sedentary">久坐（幾乎不運動）</string>
+    <string name="bmr_act_light">輕度（每週運動 1–3 天）</string>
+    <string name="bmr_act_moderate">中度（每週運動 3–5 天）</string>
+    <string name="bmr_act_heavy">高度（每週運動 6–7 天）</string>
+    <string name="bmr_act_very_heavy">極高（重勞動／高強度雙練）</string>
+    <string name="bmr_goal">目標</string>
+    <string name="bmr_goal_lose">減脂 −300</string>
+    <string name="bmr_goal_maintain">維持</string>
+    <string name="bmr_goal_gain">增肌 +300</string>
+    <string name="bmr_stat_bmr">基礎代謝</string>
+    <string name="bmr_stat_tdee">每日消耗</string>
+    <string name="bmr_suggested">建議</string>
+    <string name="bmr_meal_breakdown">各餐建議配比</string>
+    <string name="bmr_apply">套用為每日目標</string>
+
+    <!-- Drive 還原時一併帶回的身型與目標 -->
+    <string name="import_summary_profile">也會還原身型與每日目標（每日 %1$d kcal）。</string>
+    <string name="import_profile_restored">已還原身型與每日目標</string>
 </resources>

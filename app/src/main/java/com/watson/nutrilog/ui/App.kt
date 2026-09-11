@@ -47,6 +47,11 @@ import com.watson.nutrilog.data.CsvExport
 import com.watson.nutrilog.data.SearchMode
 import java.io.File
 import java.time.LocalDate
+import androidx.health.connect.client.PermissionController
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 
 /**
  * 根 composable：把 ViewModel 的狀態分派到各畫面，並持有所有跨 App 的啟動器。
@@ -116,6 +121,29 @@ fun NutriLogApp(viewModel: NutriViewModel) {
             driveConsent.launch(IntentSenderRequest.Builder(pending.intentSender).build())
             viewModel.consentLaunched()
         }
+    }
+
+    // 健康連線的權限畫面。那是 Activity 層的東西，ViewModel 叫不出來，只留一個
+    // 「要哪幾個權限」的請求；這裡看到就送出去，結果回來再請 ViewModel 重新向系統查。
+    val healthPermissions = rememberLauncherForActivityResult(
+        PermissionController.createRequestPermissionResultContract()
+    ) { viewModel.onHealthPermissionsResult() }
+    viewModel.pendingHealthPermissions?.let { wanted ->
+        LaunchedEffect(wanted) {
+            viewModel.onHealthPermissionRequestLaunched()
+            healthPermissions.launch(wanted)
+        }
+    }
+
+    // 回到 app 時重讀今天的運動消耗：剛跑完步回來，數字應該已經在了。
+    // 只重讀運動，不整批重寫飲食（寫入只在新增、編輯、刪除時做）。
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.onAppResume()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     val startScanner = {
@@ -270,6 +298,10 @@ fun NutriLogApp(viewModel: NutriViewModel) {
             onOpenSearch = viewModel::openSearch,
             onOpenSettings = { viewModel.goTo(Screen.Settings) },
             isCurrent = viewModel.screen == Screen.Today,
+            activeCaloriesMap = viewModel.activeCaloriesMap,
+            dailyActivityMap = viewModel.dailyActivityMap,
+            healthWriteOn = viewModel.settings.healthConnectSyncEnabled && viewModel.healthWriteAuthorized,
+            onRefreshActiveCalories = viewModel::refreshActiveCalories,
         )
 
         Screen.EditEntry -> {
@@ -350,6 +382,7 @@ fun NutriLogApp(viewModel: NutriViewModel) {
                 totals = viewModel.monthTotals,
                 settings = viewModel.settings,
                 selectedDate = viewModel.selectedDate,
+                activeCaloriesMap = viewModel.activeCaloriesMap,
                 onShiftMonth = viewModel::shiftMonth,
                 onOpenDay = viewModel::showDate,
                 onClose = viewModel::backToToday,
@@ -361,6 +394,9 @@ fun NutriLogApp(viewModel: NutriViewModel) {
         Screen.Settings -> {
             SettingsMenuScreen(
                 settings = viewModel.settings,
+                healthSupported = viewModel.isHealthConnectSupported,
+                healthReadOn = viewModel.settings.readExerciseCalories && viewModel.healthReadAuthorized,
+                healthWriteOn = viewModel.settings.healthConnectSyncEnabled && viewModel.healthWriteAuthorized,
                 onOpen = viewModel::openSettingsPage,
                 onClose = viewModel::backToToday,
             )
@@ -389,6 +425,18 @@ fun NutriLogApp(viewModel: NutriViewModel) {
                 onBackupNow = viewModel::backupNow,
                 onDisconnectDrive = viewModel::disconnectDrive,
                 onOpenService = viewModel::openApiKey,
+                healthSupported = viewModel.isHealthConnectSupported,
+                healthReadAuthorized = viewModel.healthReadAuthorized,
+                healthWriteAuthorized = viewModel.healthWriteAuthorized,
+                healthBusy = viewModel.healthSyncBusy,
+                healthResult = viewModel.healthSyncResult,
+                onSetReadExercise = viewModel::setReadExerciseCalories,
+                onSetHealthWrite = viewModel::setHealthConnectSync,
+                onSyncHealthNow = viewModel::syncAllToHealthConnect,
+                showBmrCalculator = viewModel.showBmrCalculator,
+                onOpenBmr = viewModel::openBmrCalculator,
+                onApplyBmr = viewModel::applyBmrPlan,
+                onCloseBmr = viewModel::closeBmrCalculator,
                 onBack = { viewModel.goTo(Screen.Settings) },
             )
         }
