@@ -873,7 +873,7 @@ UI 部分使用 [`tools/ui.ps1`](tools/ui.ps1) 依元件文字進行模擬器自
 
 ### App 圖示
 
-- **設定 → 外觀 → APP 圖示**：七款可選 —— 預設、貓、帽子、鍵盤、暖黑、朱紅、墨碗。
+- **設定 → 外觀 → APP 圖示**：七款可選 —— 諾諾（預設）、肥貓、菲比啾比、快樂牛馬、黑諾諾、宏諾諾、碗。
   點一下就換，桌面上的圖示會先消失一下再出現，有些桌面要重新整理才看得到。
 - **只能從內建的款式挑，不能用自己的照片。** Android 不讓 app 在執行時把自己的桌面
   圖示換成任意圖片，理由見[設計決策](#換-app-圖示為什麼只能選內建的)。
@@ -1198,7 +1198,7 @@ NutriLog 採用 [MIT License](LICENSE) 授權。
 - [Google Code Scanner](https://developers.google.com/ml-kit/vision/barcode-scanning/code-scanner) —— 免相機權限之系統級條碼掃描模組。
 - [Neucha](https://fonts.google.com/specimen/Neucha) —— 手寫風格數字字型（OFL，Jovanny Lemonad）。
 - [jf open 粉圓](https://github.com/justfont/open-huninn-font) —— 台灣在地化圓體中文字型（OFL，justfont）。
-- [@waltwait](https://github.com/waltwait) —— 健康連線、身型計算與 AI 週報／月報的初版實作，以及「貓」這款圖示。
+- [@waltwait](https://github.com/waltwait) —— 健康連線、身型計算與 AI 週報／月報的初版實作，以及「肥貓」這款圖示。
 
 <div align="left"><a href="#top">回到頂端</a></div>
 

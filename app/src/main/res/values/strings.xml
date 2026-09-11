@@ -265,13 +265,13 @@
     <string name="bmr_suggested">建議</string>
     <!-- App 圖示 -->
     <string name="settings_app_icon">APP 圖示</string>
-    <string name="app_icon_default">預設</string>
-    <string name="app_icon_ink">暖黑</string>
-    <string name="app_icon_vermilion">朱紅</string>
-    <string name="app_icon_bowl">墨碗</string>
-    <string name="app_icon_cat">貓</string>
-    <string name="app_icon_hat">帽子</string>
-    <string name="app_icon_keyboard">鍵盤</string>
+    <string name="app_icon_default">諾諾（預設）</string>
+    <string name="app_icon_ink">黑諾諾</string>
+    <string name="app_icon_vermilion">宏諾諾</string>
+    <string name="app_icon_bowl">碗</string>
+    <string name="app_icon_cat">肥貓</string>
+    <string name="app_icon_hat">菲比啾比</string>
+    <string name="app_icon_keyboard">快樂牛馬</string>
     <string name="app_icon_note">換了之後桌面上的圖示會先消失一下再出現，有些桌面要重新整理才看得到。</string>
     <string name="bmr_protein_per_kg">蛋白質每公斤 %1$s g</string>
     <string name="bmr_meal_breakdown">各餐建議配比</string>
