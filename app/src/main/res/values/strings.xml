@@ -263,6 +263,7 @@
     <string name="bmr_stat_bmr">基礎代謝</string>
     <string name="bmr_stat_tdee">每日消耗</string>
     <string name="bmr_suggested">建議</string>
+    <string name="bmr_protein_per_kg">蛋白質每公斤 %1$s g</string>
     <string name="bmr_meal_breakdown">各餐建議配比</string>
     <string name="bmr_apply">套用為每日目標</string>
 

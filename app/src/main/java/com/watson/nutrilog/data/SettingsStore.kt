@@ -155,19 +155,20 @@ enum class DarkModePreference { SYSTEM, LIGHT, DARK }
 enum class Gender { MALE, FEMALE }
 
 /** 日常活動量，對應 TDEE 的活動係數。 */
-enum class ActivityLevel(val multiplier: Float) {
-    SEDENTARY(1.2f),
-    LIGHT(1.375f),
-    MODERATE(1.55f),
-    HEAVY(1.725f),
-    VERY_HEAVY(1.9f),
+enum class ActivityLevel(val multiplier: Float, val proteinPerKg: Float) {
+    SEDENTARY(1.2f, 1.0f),
+    LIGHT(1.375f, 1.2f),
+    MODERATE(1.55f, 1.4f),
+    HEAVY(1.725f, 1.6f),
+    VERY_HEAVY(1.9f, 1.8f),
 }
 
-/** 體態目標：在 TDEE 上加減多少熱量。 */
-enum class DietGoal(val calorieDelta: Int) {
-    LOSE_FAT(-300),
-    MAINTAIN(0),
-    GAIN_MUSCLE(300),
+/** 體態目標：在 TDEE 上加減多少熱量，以及蛋白質要不要再往上加一點。 */
+enum class DietGoal(val calorieDelta: Int, val proteinBonusPerKg: Float) {
+    // 赤字期間多留一點蛋白質保住肌肉；增肌則是給合成用的材料
+    LOSE_FAT(-300, 0.2f),
+    MAINTAIN(0, 0f),
+    GAIN_MUSCLE(300, 0.2f),
 }
 
 /**

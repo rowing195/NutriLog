@@ -229,6 +229,13 @@ private fun PlanSummary(plan: DietPlanResult) {
         }
     }
 
+    // 標出每公斤幾克：這個數字高不高，看總克數看不出來，要對著體重才有意義
+    Text(
+        withNumerals(stringResource(R.string.bmr_protein_per_kg, "%.1f".format(plan.proteinPerKg))),
+        style = MaterialTheme.typography.bodySmall,
+        color = scheme.onSurfaceVariant,
+    )
+
     Hairline()
     SectionLabel(stringResource(R.string.bmr_meal_breakdown))
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

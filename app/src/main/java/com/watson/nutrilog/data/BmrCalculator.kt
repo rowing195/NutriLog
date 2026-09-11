@@ -1,5 +1,7 @@
 package com.watson.nutrilog.data
 
+import kotlin.math.roundToInt
+
 /**
  * 各餐建議攝取目標。
  */
@@ -19,6 +21,8 @@ data class DietPlanResult(
     val tdee: Int,
     val targetCalories: Int,
     val proteinG: Int,
+    /** 蛋白質是照每公斤幾克算的，畫面要講出來 —— 只給一個總克數看不出高不高。 */
+    val proteinPerKg: Float,
     val fatG: Int,
     val carbsG: Int,
     val meals: List<MealTarget>,
@@ -59,22 +63,30 @@ object BmrCalculator {
             else -> rawTarget
         }.coerceIn(800, 6000)
 
-        // 蛋白質配置：減脂期給 2.0g/kg 保留瘦肉，維持 1.7g/kg，增肌 1.9g/kg
-        val proteinMultiplier = when (goal) {
-            DietGoal.LOSE_FAT -> 2.0f
-            DietGoal.MAINTAIN -> 1.7f
-            DietGoal.GAIN_MUSCLE -> 1.9f
-        }
-        val proteinG = (safeWeight * proteinMultiplier).toInt().coerceIn(30, 400)
+        // 蛋白質**跟著活動量走**（見 [ActivityLevel.proteinPerKg]），目標再加一點。
+        //
+        // 原本是只看目標的固定倍率（維持 1.7 g/kg）—— 那是 ISSN 給「有在訓練的人」
+        // 1.4–2.0 那一區的上緣，套在久坐、只想維持體重的人身上等於逼他每天喝高蛋白。
+        // 而且久坐與非常高活動量會算出一模一樣的數字，活動量那一欄形同白填。
+        val proteinPerKg = (activityLevel.proteinPerKg + goal.proteinBonusPerKg)
+            .coerceAtMost(PROTEIN_MAX_PER_KG)
+        val proteinG = (safeWeight * proteinPerKg).roundToInt().coerceIn(30, 400)
         val proteinKcal = proteinG * 4
 
-        // 脂肪配置：佔總熱量 25%（每克 9 kcal）
-        val fatKcal = (targetCalories * 0.25f).toInt()
-        val fatG = (fatKcal / 9).coerceIn(20, 200)
+        // **碳水固定佔 [CARBS_SHARE]，脂肪吃剩下的差額。**
+        //
+        // 反過來（脂肪固定 25%、碳水吃差額）的問題是：蛋白質一降，省下來的熱量
+        // 一克不剩全部跑到碳水，比例被推到建議範圍 50–65% 的上緣。碳水是這三者裡
+        // 份量最大的一項，讓它當定值、由脂肪吸收變動，三者的比例才穩得住。
+        val idealCarbsKcal = (targetCalories * CARBS_SHARE).toInt()
+        // 但蛋白質高的時候（減脂＋高活動量）固定比例會把脂肪擠到過低，
+        // 而脂肪太少會影響荷爾蒙與脂溶性維生素的吸收 —— 那時候換碳水讓位。
+        val maxCarbsKcal = (targetCalories - proteinKcal - (targetCalories * FAT_MIN_SHARE).toInt())
+            .coerceAtLeast(0)
+        val carbsG = (idealCarbsKcal.coerceAtMost(maxCarbsKcal) / 4).coerceIn(20, 800)
 
-        // 碳水化合物配置：剩餘熱量全部補足（每克 4 kcal）
-        val carbsKcal = (targetCalories - proteinKcal - (fatG * 9)).coerceAtLeast(0)
-        val carbsG = (carbsKcal / 4).coerceIn(20, 800)
+        val fatKcal = (targetCalories - proteinKcal - (carbsG * 4)).coerceAtLeast(0)
+        val fatG = (fatKcal / 9).coerceIn(20, 200)
 
         // 四餐建議比例：早餐 25%、午餐 35%、晚餐 30%、點心 10%
         val meals = listOf(
@@ -89,11 +101,24 @@ object BmrCalculator {
             tdee = tdee,
             targetCalories = targetCalories,
             proteinG = proteinG,
+            proteinPerKg = proteinPerKg,
             fatG = fatG,
             carbsG = carbsG,
             meals = meals,
         )
     }
+
+    /**
+     * 蛋白質的上限。運動營養的建議區間到 2.0 g/kg 為止，再往上沒有證據支持更好，
+     * 對一般人也只是更難吃到。
+     */
+    private const val PROTEIN_MAX_PER_KG = 2.0f
+
+    /** 碳水佔總熱量的比例，落在一般建議的 50–65% 中間。 */
+    private const val CARBS_SHARE = 0.55f
+
+    /** 脂肪的下限，低於這裡就讓碳水退一步。 */
+    private const val FAT_MIN_SHARE = 0.20f
 
     private fun createMealTarget(
         name: String,
