@@ -1297,6 +1297,45 @@ DataStore 裡），底下卻沒有東西在跑，要到想還原時才發現。�
 `adb shell "run-as com.watson.nutrilog sh -c 'cat > files/weekly_reports/<週日>.json'" < seed.json`
 塞進去再開畫面，驗完 `rm` 掉。
 
+## App 圖示：切換 activity-alias，不是換資源
+
+**Android 不讓 app 在執行時換掉自己的桌面圖示** —— 圖示是編譯進 APK 的資源，系統只認
+資源 ID。所以「換圖示」其實是切換哪一個 activity-alias 是桌面入口：`AndroidManifest.xml`
+裡每一款各一個 alias（`.IconDefault`、`.IconCat`…），`AppIconSwitcher` 開一個關其他，
+選了哪一款記在 `NutriSettings.appIcon`。使用者最初想要「用相簿的照片當圖示」，做不到；
+能用到照片的只有釘一個自訂捷徑（`requestPinShortcut`），但那是多一顆圖示，沒有採用。
+
+五件會咬人的事：
+
+- **`MainActivity` 不能帶 MAIN/LAUNCHER。** 兩邊都有的話桌面會出現兩顆。代價是從舊版
+  升上來時，之前釘在桌面的捷徑會失效（它記的是 `MainActivity` 這個元件）—— 這條路沒有
+  別的走法，發版說明要寫出來。
+- **先開新的、再關舊的**，而且一律帶 `DONT_KILL_APP`。反過來的話中間會有一瞬間整個 app
+  沒有桌面入口，有些桌面會趁那一下把圖示從桌面上拿掉、不會加回來；不帶 `DONT_KILL_APP`
+  則是使用者一按就閃退。
+- **`AppIcon.aliasSuffix` 要和 manifest 的 alias 名稱一字不差。** 對不上就是「按了沒反應」，
+  沒有任何錯誤訊息。新增一款要動五個地方：manifest 的 alias、`AppIcon` enum（**宣告順序
+  就是外觀頁的排列順序**）、`SettingsScreen` 的 `iconArt()` 與 `labelRes()`，以及字串。
+- **每次啟動都要對一次元件狀態**（`NutriViewModel` 收設定的那一段）。元件狀態存在系統那一側，
+  重裝或清資料之後會跟設定對不上。狀態已經對了就不要再寫 —— 每寫一次桌面都會重整、圖示閃一下。
+- **外觀頁預覽的放大要用 `graphicsLayer`，不要寫 `fillMaxSize(1.5f)`。** adaptive icon 的前景
+  只佔中央 72/108，預覽要放大 1.5 倍才和桌面上看到的一樣；但 `fillMaxSize` 的比例會被夾回
+  父層大小，寫 1.5 等於沒放大，預覽會比桌面圖示小一圈（踩過）。
+
+**素材的規矩**：前景圖要先縮進 108dp 圖層**中央 72dp 的可見區**，再存成各密度的 PNG
+（mdpi 108 px 到 xxxhdpi 432 px）。就算縮進 72dp，圓形遮罩還是會切掉四個角，重要的東西要
+留在中間。底色用 `ic_launcher_background_*`（紙色、暖黑、朱紅），跟 app 的色票同一套；原圖
+裡實心白色的部分會在紙色上露出來，換之前先套遮罩比對給使用者看。原圖越小越糊，
+128 px 放到 432 px 的圖層就明顯軟掉，拿到小圖要先講。
+
+驗有沒有真的換掉，不要看桌面猜（桌面有快取），直接問系統：
+
+```bash
+adb shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.LAUNCHER com.watson.nutrilog
+```
+
+最後一行就是目前的桌面入口，例如 `com.watson.nutrilog/.IconHat`。
+
 ## 改動慣例
 
 - 註解寫**繁體中文**，解釋「為什麼」而不是「做了什麼」。

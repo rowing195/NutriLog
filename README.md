@@ -81,6 +81,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 - ⌚ **手錶動得多就能多吃一點** — 連上健康連線之後，運動消耗會加進**當天的目標**（不是從吃掉的裡面扣），今日頁、週長條、月曆判斷超標時全部改用加上運動後的額度。
 - 🧮 **依身型算目標** — 填身高體重與活動量，用 Mifflin-St Jeor 算出基礎代謝、每日消耗與建議的三大營養素。**蛋白質跟著活動量走**，久坐的人不會拿到運動員的數字。
 - 🗒️ **AI 週報／月報** — 每週每月的統計是本機算的、隨時看得到；要不要花一次 AI 呼叫請它寫成報告，由你按下去決定，不會自動送出。
+- 🎨 **換 app 圖示** — 設定 → 外觀可以從七款內建圖示裡挑一款，桌面上的圖示跟著換。
 - 📅 **看得出空白** — 月曆式歷史讓「哪幾天忘了記」一眼就有形狀，清單做不到這件事。
 - 📤 **CSV 匯出** — 唯一能把資料帶出手機的路徑，定位是完整備份，預設全部匯出。
 - 🔑 **權限只有一個** — Manifest 裡只有 `INTERNET`，相機在系統相機與 Play 服務中執行，連相機權限都不需要。
@@ -121,6 +122,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
     │       │   │   ├── MainActivity.kt
     │       │   │   ├── data/
     │       │   │   │   ├── ActivityEstimate.kt
+    │       │   │   │   ├── AppIconSwitcher.kt
     │       │   │   │   ├── BackedUpProfile.kt
     │       │   │   │   ├── BmrCalculator.kt
     │       │   │   │   ├── CsvExport.kt
@@ -275,6 +277,10 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/ActivityEstimate.kt'>ActivityEstimate.kt</a></b></td>
 					<td style='padding: 8px;'>把健康連線回報的東西換算成「今天動掉多少大卡」。<br>- 三段退路：活動消耗 → 總消耗扣基礎代謝 → 步數換算，來源一併回傳給畫面說明。<br>- 運動時段與全日活動量去重疊加，不重複計算。<br>- 純計算，有測試涵蓋。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/AppIconSwitcher.kt'>AppIconSwitcher.kt</a></b></td>
+					<td style='padding: 8px;'>換桌面圖示：把選到的 activity-alias 打開、其餘關掉。<br>- Android 不讓 app 在執行時把圖示換成任意圖片，只能切換事先放在 APK 裡的 alias。<br>- 先開新的再關舊的，中間不會有「完全沒有桌面入口」的空窗。<br>- 每次啟動對一次，系統那側被重設時會跟設定對回來。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/BackedUpProfile.kt'>BackedUpProfile.kt</a></b></td>
@@ -865,6 +871,15 @@ UI 部分使用 [`tools/ui.ps1`](tools/ui.ps1) 依元件文字進行模擬器自
 - 報告交給哪一家 AI 在 **設定 → API 管理 → AI 報告** 選，沿用那一家的金鑰與模型，不另外要金鑰。
 - 報告存在 app 私有目錄，隨時可以重新產生，因此**不進 Drive 備份**（備份的是紀錄與設定）。
 
+### App 圖示
+
+- **設定 → 外觀 → APP 圖示**：七款可選 —— 預設、貓、帽子、鍵盤、暖黑、朱紅、墨碗。
+  點一下就換，桌面上的圖示會先消失一下再出現，有些桌面要重新整理才看得到。
+- **只能從內建的款式挑，不能用自己的照片。** Android 不讓 app 在執行時把自己的桌面
+  圖示換成任意圖片，理由見[設計決策](#換-app-圖示為什麼只能選內建的)。
+- **從 v1.18.1 以前的版本更新上來時，桌面上原本那顆圖示可能會失效**，要從 app 抽屜
+  重新拉一次到桌面。app 抽屜裡的入口、飲食紀錄與設定都不受影響。
+
 ### 匯出／匯入 CSV
 
 - 經由 Android 儲存存取框架（Storage Access Framework, SAF）將全量飲食紀錄匯出為標準 CSV，或把匯出過的 CSV 讀回來。
@@ -1014,6 +1029,22 @@ Tavily 免費層回的就是清洗過的頁面正文。
 所以運動消耗只動目標那一側，而且全 app 只有一個 `effectiveCalorieTarget()`：
 新增任何拿熱量去比目標的地方都得走它，否則就會出現今日頁與月曆對同一天有兩種說法。
 
+### 換 App 圖示為什麼只能選內建的
+
+最初的需求是「從相簿挑一張照片當圖示」，但 **Android 沒有任何 API 讓 app 在執行時
+換掉自己的桌面圖示**：圖示是編譯進 APK 的資源，系統只認資源 ID。
+
+唯一的官方作法是 `activity-alias`：manifest 裡事先放好幾個 alias、各自指定 icon，
+執行時用 `PackageManager.setComponentEnabledSetting` 開一個、關其他。所以能選的就是
+APK 裡事先放好的那幾款。
+
+真正能用到相簿照片的另一條路是「釘一個帶自訂圖片的捷徑到桌面」（`requestPinShortcut`），
+但那是**多一顆**圖示、原本那顆還在，所以沒有採用。（有些手機可以換任何 app 的圖示 ——
+那是 Samsung One UI、Nova 這類桌面自己的功能，不是 app 給的。）
+
+這個做法有一個代價：`MainActivity` 不能再帶 MAIN/LAUNCHER（兩邊都有，桌面就會出現兩顆），
+所以**從舊版更新上來時，之前釘在桌面的捷徑會失效** —— 它記的是 `MainActivity` 這個元件。
+
 ### 動畫要問系統，不要自己數毫秒
 
 常吃頁離開搜尋框時同時有兩件事想發生：`imePadding()` 跟著鍵盤退場縮回去（整區往下沉），
@@ -1139,7 +1170,7 @@ git push origin v1.10.0
 | 健康連線 | androidx.health.connect `connect-client` 1.1.0-beta01 |
 | 測試框架 | JUnit 4 + Kotlin Test |
 | 內嵌字型 | jf open 粉圓 2.1（中文）+ Neucha（數字，已正規化側邊留白） |
-| 發佈 APK 大小 | 約 13.5 MB（其中內嵌字型約 2.9 MB） |
+| 發佈 APK 大小 | 約 14.1 MB（其中內嵌字型約 2.9 MB） |
 | 應用權限 | `android.permission.INTERNET` |
 
 ---
@@ -1167,7 +1198,7 @@ NutriLog 採用 [MIT License](LICENSE) 授權。
 - [Google Code Scanner](https://developers.google.com/ml-kit/vision/barcode-scanning/code-scanner) —— 免相機權限之系統級條碼掃描模組。
 - [Neucha](https://fonts.google.com/specimen/Neucha) —— 手寫風格數字字型（OFL，Jovanny Lemonad）。
 - [jf open 粉圓](https://github.com/justfont/open-huninn-font) —— 台灣在地化圓體中文字型（OFL，justfont）。
-- [@waltwait](https://github.com/waltwait) —— 健康連線、身型計算與 AI 週報／月報的初版實作。
+- [@waltwait](https://github.com/waltwait) —— 健康連線、身型計算與 AI 週報／月報的初版實作，以及「貓」這款圖示。
 
 <div align="left"><a href="#top">回到頂端</a></div>
 
