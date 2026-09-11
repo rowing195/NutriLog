@@ -404,11 +404,6 @@ private fun AppearanceSection(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(top = 12.dp),
     )
-    Text(
-        withNumerals(stringResource(R.string.app_icon_size_help)),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.outline,
-    )
 }
 
 /**
@@ -432,38 +427,32 @@ private fun IconChoice(
                 .aspectRatio(1f)
                 .border(
                     width = if (selected) 2.dp else 1.dp,
-                    color = when {
-                        selected -> scheme.onSurface
-                        icon.ready -> NutrientColors.FieldBorder
-                        else -> scheme.outlineVariant
-                    },
+                    color = if (selected) scheme.onSurface else NutrientColors.FieldBorder,
                 )
-                .then(if (icon.ready) Modifier.clickable(onClick = onClick) else Modifier)
+                .clickable(onClick = onClick)
                 .padding(3.dp)
                 .clipToBounds(),
             contentAlignment = Alignment.Center,
         ) {
-            val art = iconArt(icon)
-            if (art == null) {
-                // 空位：不畫假圖示，畫一個明顯還沒放東西的框
-                Text(
-                    stringResource(R.string.app_icon_slot),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = scheme.outline,
-                )
-            } else {
-                Box(
-                    Modifier
+            val (foreground, background) = iconArt(icon)
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(colorResource(background)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    painterResource(foreground),
+                    contentDescription = null,
+                    // 放大要用 graphicsLayer：fillMaxSize(1.5f) 會被夾回父層的大小，
+                    // 畫出來等於沒放大，預覽就比桌面上的圖示小一圈
+                    modifier = Modifier
                         .fillMaxSize()
-                        .background(colorResource(art.second)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Image(
-                        painterResource(art.first),
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(1.5f),
-                    )
-                }
+                        .graphicsLayer {
+                            scaleX = 1.5f
+                            scaleY = 1.5f
+                        },
+                )
             }
         }
         Text(
@@ -475,23 +464,25 @@ private fun IconChoice(
     }
 }
 
-/** 這一款的前景與底色。空位還沒有圖，回 null。 */
-private fun iconArt(icon: AppIcon): Pair<Int, Int>? = when (icon) {
+/** 這一款的前景與底色，要和 mipmap-anydpi-v26 裡同名的 adaptive icon 一致。 */
+private fun iconArt(icon: AppIcon): Pair<Int, Int> = when (icon) {
     AppIcon.DEFAULT -> R.mipmap.ic_launcher_foreground to R.color.ic_launcher_background
+    AppIcon.CAT -> R.mipmap.ic_launcher_cat_foreground to R.color.ic_launcher_background_paper
+    AppIcon.HAT -> R.mipmap.ic_launcher_hat_foreground to R.color.ic_launcher_background_paper
+    AppIcon.KEYBOARD -> R.mipmap.ic_launcher_keyboard_foreground to R.color.ic_launcher_background_white
     AppIcon.INK -> R.mipmap.ic_launcher_foreground to R.color.ic_launcher_background_ink
     AppIcon.VERMILION -> R.mipmap.ic_launcher_foreground to R.color.ic_launcher_background_vermilion
     AppIcon.BOWL -> R.drawable.ic_launcher_bowl_foreground to R.color.ic_launcher_background_paper
-    AppIcon.CAT -> R.mipmap.ic_launcher_cat_foreground to R.color.ic_launcher_background_paper
-    AppIcon.SLOT1, AppIcon.SLOT2 -> null
 }
 
 private fun AppIcon.labelRes(): Int = when (this) {
     AppIcon.DEFAULT -> R.string.app_icon_default
+    AppIcon.CAT -> R.string.app_icon_cat
+    AppIcon.HAT -> R.string.app_icon_hat
+    AppIcon.KEYBOARD -> R.string.app_icon_keyboard
     AppIcon.INK -> R.string.app_icon_ink
     AppIcon.VERMILION -> R.string.app_icon_vermilion
     AppIcon.BOWL -> R.string.app_icon_bowl
-    AppIcon.CAT -> R.string.app_icon_cat
-    AppIcon.SLOT1, AppIcon.SLOT2 -> R.string.app_icon_slot
 }
 
 @Composable

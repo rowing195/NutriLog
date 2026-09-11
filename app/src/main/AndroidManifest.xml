@@ -59,8 +59,7 @@
           可切換的圖示。**永遠只有一個是 enabled**，預設是 .IconDefault。
           新增一款要同時動三個地方：這裡、AppIcon enum、以及外觀頁的清單。
 
-          IconSlot1／IconSlot2 是留給之後要放的圖，還沒有自己的 icon（先沿用預設），
-          畫面上是不能點的「待放圖」。放圖時把 android:icon 指到新資源就好。
+          外觀頁上的排列順序看的是 AppIcon enum 的宣告順序，不是這裡的順序。
         -->
         <activity-alias
             android:name=".IconDefault"
@@ -133,11 +132,11 @@
         </activity-alias>
 
         <activity-alias
-            android:name=".IconSlot1"
+            android:name=".IconHat"
             android:enabled="false"
             android:exported="true"
-            android:icon="@mipmap/ic_launcher"
-            android:roundIcon="@mipmap/ic_launcher_round"
+            android:icon="@mipmap/ic_launcher_hat"
+            android:roundIcon="@mipmap/ic_launcher_hat"
             android:label="@string/app_name"
             android:targetActivity=".MainActivity">
             <intent-filter>
@@ -147,11 +146,11 @@
         </activity-alias>
 
         <activity-alias
-            android:name=".IconSlot2"
+            android:name=".IconKeyboard"
             android:enabled="false"
             android:exported="true"
-            android:icon="@mipmap/ic_launcher"
-            android:roundIcon="@mipmap/ic_launcher_round"
+            android:icon="@mipmap/ic_launcher_keyboard"
+            android:roundIcon="@mipmap/ic_launcher_keyboard"
             android:label="@string/app_name"
             android:targetActivity=".MainActivity">
             <intent-filter>

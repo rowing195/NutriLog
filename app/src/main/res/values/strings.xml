@@ -270,9 +270,9 @@
     <string name="app_icon_vermilion">朱紅</string>
     <string name="app_icon_bowl">墨碗</string>
     <string name="app_icon_cat">貓</string>
-    <string name="app_icon_slot">待放圖</string>
+    <string name="app_icon_hat">帽子</string>
+    <string name="app_icon_keyboard">鍵盤</string>
     <string name="app_icon_note">換了之後桌面上的圖示會先消失一下再出現，有些桌面要重新整理才看得到。</string>
-    <string name="app_icon_size_help">要放進空位的圖片：正方形，建議 432 × 432 px 以上，重要的東西留在中央約三分之二的範圍內 —— 系統會依桌面的形狀把四周裁掉。</string>
     <string name="bmr_protein_per_kg">蛋白質每公斤 %1$s g</string>
     <string name="bmr_meal_breakdown">各餐建議配比</string>
     <string name="bmr_apply">套用為每日目標</string>

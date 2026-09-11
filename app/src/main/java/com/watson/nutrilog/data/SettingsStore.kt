@@ -158,22 +158,19 @@ enum class Gender { MALE, FEMALE }
 
 /** 日常活動量，對應 TDEE 的活動係數。 */
 /**
- * 可以切換的桌面圖示。
+ * 可以切換的桌面圖示。**宣告順序就是外觀頁上的排列順序。**
  *
  * [aliasSuffix] 要和 `AndroidManifest.xml` 裡的 activity-alias 名稱完全一致 ——
  * 對不上的話那一款就是「按了沒反應」，而且不會有任何錯誤訊息。
- *
- * [ready] 是給還沒放圖的空位用的：enum 與 alias 先留著，畫面上顯示成不能點的
- * 「待放圖」，之後把圖放進 manifest 的 android:icon 再把這裡改成 true。
  */
-enum class AppIcon(val aliasSuffix: String, val ready: Boolean = true) {
+enum class AppIcon(val aliasSuffix: String) {
     DEFAULT(".IconDefault"),
+    CAT(".IconCat"),
+    HAT(".IconHat"),
+    KEYBOARD(".IconKeyboard"),
     INK(".IconInk"),
     VERMILION(".IconVermilion"),
     BOWL(".IconBowl"),
-    CAT(".IconCat"),
-    SLOT1(".IconSlot1", ready = false),
-    SLOT2(".IconSlot2", ready = false),
 }
 
 enum class ActivityLevel(val multiplier: Float, val proteinPerKg: Float) {

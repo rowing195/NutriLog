@@ -1383,7 +1383,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
 
     /** 換桌面圖示。設定與系統的元件狀態要一起改，只改一邊下次啟動就會被對回去。 */
     fun setAppIcon(icon: AppIcon) {
-        if (!icon.ready || icon == settings.appIcon) return
+        if (icon == settings.appIcon) return
         AppIconSwitcher.apply(getApplication(), icon)
         updateSettings(settings.copy(appIcon = icon))
     }

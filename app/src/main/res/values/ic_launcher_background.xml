@@ -7,4 +7,6 @@
     <color name="ic_launcher_background_ink">#17150F</color>
     <color name="ic_launcher_background_vermilion">#D8462A</color>
     <color name="ic_launcher_background_paper">#F7F3E9</color>
+    <!-- 「鍵盤」那張圖下半部是實心的白色桌面，配紙色底會切出一塊白框，所以用純白 -->
+    <color name="ic_launcher_background_white">#FFFFFF</color>
 </resources>
