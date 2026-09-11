@@ -129,9 +129,16 @@ fun TodayScreen(
     onOpenHistory: () -> Unit,
     onOpenSearch: () -> Unit,
     onOpenSettings: () -> Unit,
+    /** 今日頁是不是目前的畫面。換頁那 320ms 裡它還在（正被紙蓋住），但已經不是了。 */
+    isCurrent: Boolean,
 ) {
     val today = LocalDate.now()
     var showAddSheet by remember { mutableStateOf(false) }
+    // **重新變回目前畫面時，選單一律收起來。** 點會換頁的選項時選單刻意不收（見 onPick），
+    // 讓紙蓋住還開著的它；但換頁到一半就按返回的話，轉場會倒轉回同一個今日頁實例，
+    // 選單還是開著 —— 而慢一點返回時今日頁已經被丟掉重建，選單是收的。
+    // 同一個動作依快慢出現兩種結果，所以回來時統一收掉。
+    LaunchedEffect(isCurrent) { if (isCurrent) showAddSheet = false }
     // 只拿來在選單抬頭顯示「記一筆 · 晚餐」。真正決定記到哪一餐的是 ViewModel 那份
     // pendingMeal —— 這裡再存一份是為了讓使用者看得到「我點的那一餐有被記住」，
     // 不然從某一餐的「還沒記」點進來，跳出的選單跟從角落點進來一模一樣。
@@ -344,7 +351,16 @@ fun TodayScreen(
             mealLabel = addMenuMeal?.label(),
             // 從角落那顆章開的沒有指定餐別，要把上一次記住的那一餐清掉
             onToggle = { if (showAddSheet) showAddSheet = false else openAddMenu(null) },
-            onPick = { action -> showAddSheet = false; action() },
+            onPick = { action, staysOnToday ->
+                // **會換到另一頁的不收選單，讓紙直接蓋住還開著、還模糊的它。**
+                // 先收的話，遮罩（170ms）和模糊（220ms）都比紙（320ms）先退光，而紙由上
+                // 往下蓋、最下面最後才蓋到 —— 面板和那顆章正好在最下面，於是會露出一條
+                // 清楚的主頁，章還在那條裡從 ✕ 轉回 +。換頁結束後今日頁整個被丟掉，
+                // 下次回來時 showAddSheet 本來就是 false，不用自己重設。
+                // 拍照／相簿是先開外部 App、畫面還停在今日頁（沒 key 時也是），那兩個照舊收。
+                if (staysOnToday) showAddSheet = false
+                action()
+            },
             onAddManual = onAddManual,
             onAddPhoto = onAddPhoto,
             onAddFromGallery = onAddFromGallery,
@@ -1216,6 +1232,8 @@ private class AddOption(
     val label: String,
     val icon: @Composable () -> Unit,
     val action: () -> Unit,
+    /** 按下去之後還停在今日頁（先開外部相機／相簿），這種才需要自己收起選單。 */
+    val staysOnToday: Boolean = false,
 )
 
 /**
@@ -1239,7 +1257,7 @@ private fun AddMenu(
     /** 從某一餐的「還沒記」開進來時，把那一餐寫在抬頭上讓使用者知道有被記住。 */
     mealLabel: String?,
     onToggle: () -> Unit,
-    onPick: (() -> Unit) -> Unit,
+    onPick: (action: () -> Unit, staysOnToday: Boolean) -> Unit,
     onAddManual: () -> Unit,
     onAddPhoto: () -> Unit,
     onAddFromGallery: () -> Unit,
@@ -1254,8 +1272,8 @@ private fun AddMenu(
     val options = listOf(
         AddOption(stringResource(R.string.add_text), { ListMark(scheme.onSurface) }, onAddText),
         AddOption(stringResource(R.string.add_manual), { GridMark(scheme.onSurface) }, onAddManual),
-        AddOption(stringResource(R.string.add_photo), { CameraMark(scheme.onSurface) }, onAddPhoto),
-        AddOption(stringResource(R.string.add_photo_gallery), { ImageMark(scheme.onSurface) }, onAddFromGallery),
+        AddOption(stringResource(R.string.add_photo), { CameraMark(scheme.onSurface) }, onAddPhoto, staysOnToday = true),
+        AddOption(stringResource(R.string.add_photo_gallery), { ImageMark(scheme.onSurface) }, onAddFromGallery, staysOnToday = true),
         AddOption(stringResource(R.string.add_barcode), { BarcodeMark(scheme.onSurface) }, onAddBarcode),
     )
 
@@ -1339,7 +1357,7 @@ private fun AddMenu(
                                 alpha = slide
                                 translationX = (1f - slide) * 64.dp.toPx()
                             }
-                            .clickable { onPick(option.action) }
+                            .clickable { onPick(option.action, option.staysOnToday) }
                             .padding(horizontal = 22.dp, vertical = 15.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(14.dp),

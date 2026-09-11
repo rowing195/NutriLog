@@ -269,6 +269,7 @@ fun NutriLogApp(viewModel: NutriViewModel) {
             onOpenHistory = viewModel::openHistory,
             onOpenSearch = viewModel::openSearch,
             onOpenSettings = { viewModel.goTo(Screen.Settings) },
+            isCurrent = viewModel.screen == Screen.Today,
         )
 
         Screen.EditEntry -> {
