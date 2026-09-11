@@ -44,11 +44,25 @@ APK，正式版一律走推 tag 讓 CI 產生，不要在本機做。
 
 ## 建置與部署
 
+**用 repo 內附的 wrapper，不要用機器上另外裝的 Gradle。** 這台機器上曾經有一份獨立安裝在
+`%LOCALAPPDATA%\Android\tools\gradle-8.11.1`，後來不見了 —— wrapper 在版控裡，換機器也不會缺。
+
+```bash
+cd "C:/code/android app/NutriLog"
+JAVA_HOME="C:/Program Files/Eclipse Adoptium/jdk-17.0.7.7-hotspot" ./gradlew assembleDebug
+JAVA_HOME="C:/Program Files/Eclipse Adoptium/jdk-17.0.7.7-hotspot" ./gradlew testDebugUnitTest
+```
+
 ```powershell
-& "$env:LOCALAPPDATA\Android\tools\gradle-8.11.1\bin\gradle.bat" -p "C:\code\android app\NutriLog" assembleDebug
 & "C:\code\android app\NutriLog\tools\emu.ps1" start    # 開模擬器並等 boot_completed
 & "C:\code\android app\NutriLog\tools\emu.ps1" deploy   # build + 安裝
 ```
+
+**在 Bash 裡不要用 `$LOCALAPPDATA` 拼路徑**：它展開出來是反斜線的 Windows 路徑，
+接在 `/` 後面會變成找不到檔案的怪路徑，而且把 gradle 的輸出丟給 grep 過濾時，
+錯誤訊息會一起被濾掉、看起來像「安靜地成功了」——實際上什麼都沒跑，而上一次的
+`test-results` XML 還留在原地，去讀它就會得到一份假的「測試通過」。真的跑過沒有，
+看 `app/build/test-results/testDebugUnitTest/` 裡的檔案時間與條數。
 
 APK 在 `app/build/outputs/apk/debug/app-debug.apk`。**驗證完就把路徑交給使用者，不要自己裝到實機。**
 
