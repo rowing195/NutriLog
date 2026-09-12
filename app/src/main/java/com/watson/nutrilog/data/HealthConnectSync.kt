@@ -8,6 +8,7 @@ import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.MealType
 import androidx.health.connect.client.records.NutritionRecord
+import androidx.health.connect.client.records.Record
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
 import androidx.health.connect.client.records.metadata.Metadata
@@ -358,6 +359,9 @@ class HealthConnectSync(private val context: Context) {
             var activeKcal: Double? = null
             var totalKcal: Double? = null
             var steps: Long? = null
+            var activeOrigins: RecordOrigins? = null
+            var totalOrigins: RecordOrigins? = null
+            var stepsOrigins: RecordOrigins? = null
             if (c != null) {
                 val zoneId = ZoneId.systemDefault()
                 val startInstant = date.atStartOfDay(zoneId).toInstant()
@@ -387,6 +391,19 @@ class HealthConnectSync(private val context: Context) {
                     totalKcal = response?.get(TotalCaloriesBurnedRecord.ENERGY_TOTAL)?.inKilocalories
                     steps = response?.get(StepsRecord.COUNT_TOTAL)
                 }
+
+                // **合計值看不出「這個數字是誰寫的」**，而那正是對不上時要問的第一個問題。
+                // 讀一次原始紀錄就同時答完兩件事：合計有值卻 0 筆（不是 app 寫的）、
+                // 以及同一型別有兩個來源（合計把兩份疊起來了）。見 [RecordOrigins]。
+                if (READ_ACTIVE_CALORIES_PERMISSION in granted) {
+                    activeOrigins = c.originsOf(ActiveCaloriesBurnedRecord::class, startInstant, endInstant)
+                }
+                if (READ_TOTAL_CALORIES_PERMISSION in granted) {
+                    totalOrigins = c.originsOf(TotalCaloriesBurnedRecord::class, startInstant, endInstant)
+                }
+                if (READ_STEPS_PERMISSION in granted) {
+                    stepsOrigins = c.originsOf(StepsRecord::class, startInstant, endInstant)
+                }
             }
 
             val diagnostics = HealthDiagnostics(
@@ -400,12 +417,40 @@ class HealthConnectSync(private val context: Context) {
                 totalKcal = totalKcal,
                 steps = steps,
                 chosen = chosen,
+                activeOrigins = activeOrigins,
+                totalOrigins = totalOrigins,
+                stepsOrigins = stepsOrigins,
             )
             // 一併寫進 logcat：接手的人可以 `adb logcat -s HealthDiagnostics` 直接撈，
             // 不必請使用者一行一行念畫面上的數字。
             Log.i("HealthDiagnostics", diagnostics.toString())
             diagnostics
         }
+
+    /**
+     * 某一天某一個型別的原始紀錄：幾筆、由誰寫的。讀失敗回 `null`（和「0 筆」不同）。
+     *
+     * 只給診斷用，正式路徑一律走 aggregate —— 逐筆自己加總等於重做一次健康連線的
+     * 去重，而那份去重的規則（應用程式優先順序）在系統那一側，我們抄不來。
+     */
+    private suspend fun <T : Record> HealthConnectClient.originsOf(
+        type: kotlin.reflect.KClass<T>,
+        start: Instant,
+        end: Instant,
+    ): RecordOrigins? = runCatching {
+        val records = readRecords(
+            ReadRecordsRequest(
+                recordType = type,
+                timeRangeFilter = TimeRangeFilter.between(start, end),
+            )
+        ).records
+        RecordOrigins(
+            count = records.size,
+            packages = records.map { it.metadata.dataOrigin.packageName }.distinct().sorted(),
+        )
+    }.onFailure { e ->
+        Log.w("HealthConnectSync", "originsOf ${type.simpleName} 讀取失敗：${e.message}")
+    }.getOrNull()
 
     private fun toNutritionRecord(entry: FoodEntry): NutritionRecord {
         val zoneId = ZoneId.systemDefault()

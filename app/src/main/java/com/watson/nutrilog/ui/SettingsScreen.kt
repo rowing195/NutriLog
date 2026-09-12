@@ -60,6 +60,7 @@ import com.watson.nutrilog.data.DarkModePreference
 import kotlin.math.roundToInt
 import com.watson.nutrilog.data.ActivitySource
 import com.watson.nutrilog.data.HealthDiagnostics
+import com.watson.nutrilog.data.RecordOrigins
 import com.watson.nutrilog.data.NutriSettings
 import com.watson.nutrilog.data.WatchWearMode
 import androidx.compose.foundation.layout.size
@@ -702,15 +703,29 @@ private fun DiagnosticsReport(d: HealthDiagnostics) {
     val none = stringResource(R.string.health_diag_none)
     val yes = stringResource(R.string.health_diag_yes)
     val no = stringResource(R.string.health_diag_no)
+    val writersNone = stringResource(R.string.health_diag_writers_none)
+    // 不帶引數取回含 %1$s 的原字串：底下是普通函式，不能再呼叫 stringResource
+    val withCountFmt = stringResource(R.string.health_diag_with_count)
     fun kcal(v: Double?) = v?.let { "%,d".format(it.roundToInt()) } ?: none
+    // 合計值後面掛紀錄筆數。**合計有數字卻是 0 筆**，代表那個值不是任何 app 寫進來的
+    fun counted(value: String, o: RecordOrigins?) =
+        if (o == null) value else String.format(withCountFmt, value, o.count)
 
     val rows = listOf(
         stringResource(R.string.health_diag_date) to d.date.toString(),
-        stringResource(R.string.health_diag_active) to kcal(d.activeKcal),
-        stringResource(R.string.health_diag_total) to kcal(d.totalKcal),
-        stringResource(R.string.health_diag_steps) to (d.steps?.let { "%,d".format(it) } ?: none),
+        stringResource(R.string.health_diag_active) to counted(kcal(d.activeKcal), d.activeOrigins),
+        stringResource(R.string.health_diag_total) to counted(kcal(d.totalKcal), d.totalOrigins),
+        stringResource(R.string.health_diag_steps) to
+            counted(d.steps?.let { "%,d".format(it) } ?: none, d.stepsOrigins),
         stringResource(R.string.health_diag_sessions) to
             stringResource(R.string.health_diag_sessions_count, d.chosen.workoutSessions.size),
+        // 同一個型別出現兩個來源，就是合計把兩份疊起來了（手機自己那份步數預設不去重）
+        stringResource(R.string.health_diag_writers) to
+            listOfNotNull(d.activeOrigins, d.totalOrigins, d.stepsOrigins)
+                .flatMap { it.packages }
+                .distinct()
+                .ifEmpty { listOf(writersNone) }
+                .joinToString("、"),
         stringResource(R.string.health_diag_chosen) to
             // 讀不到時只寫「無資料」，後面再掛一個 0 會讓人以為那是量到的值
             if (d.chosen.source == ActivitySource.NONE) {

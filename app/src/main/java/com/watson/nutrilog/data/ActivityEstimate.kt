@@ -43,6 +43,19 @@ data class DailyActivity(
 )
 
 /**
+ * 某一個型別在健康連線裡**實際有幾筆紀錄、由哪些 app 寫的**。
+ *
+ * 合計值看不出這兩件事，而它們各自對應一種真的發生過的狀況：
+ *
+ * - **合計有數字、紀錄卻是 0 筆** —— 那個值不是任何 app 寫進來的。實測三星完全不寫
+ *   熱量，健康連線的合計卻讀得到 1,426，光看合計只會以為是三星寫的。
+ * - **同一個型別有兩個以上的來源** —— 合計是把兩份疊起來的。健康連線只對
+ *   「應用程式優先順序」清單裡的來源去重，而手機自己那份步數預設不在清單裡，
+ *   於是同一批步伐被算兩次（實測 1,998 ＋ 1,790 = 3,788）。
+ */
+data class RecordOrigins(val count: Int, val packages: List<String>)
+
+/**
  * 健康連線裡原始有什麼，給設定頁的診斷區用。
  *
  * 熱量與步數是 `null` 代表**沒有這種資料**，0 代表**有資料但那天沒動** —— 這兩件事
@@ -60,6 +73,13 @@ data class HealthDiagnostics(
     val steps: Long?,
     /** 正式路徑（[chooseActivity]）挑出來的結果，不是另外算的一份。 */
     val chosen: DailyActivity,
+    /**
+     * 三個型別各自的原始紀錄狀況，見 [RecordOrigins]。
+     * `null` 是「沒授權或讀取失敗」，和「0 筆」不是同一件事。
+     */
+    val activeOrigins: RecordOrigins? = null,
+    val totalOrigins: RecordOrigins? = null,
+    val stepsOrigins: RecordOrigins? = null,
 )
 
 /** 兩種來源都沒有東西時給使用者看的說明。 */

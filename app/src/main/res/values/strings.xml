@@ -224,6 +224,9 @@
     <string name="health_diag_none">無資料</string>
     <string name="health_diag_yes">有</string>
     <string name="health_diag_no">無</string>
+    <string name="health_diag_with_count">%1$s（%2$d 筆）</string>
+    <string name="health_diag_writers">寫入來源</string>
+    <string name="health_diag_writers_none">沒有任何 app 寫入</string>
     <string name="health_read_title">讀取運動消耗</string>
     <string name="health_read_help">從 Samsung Health 讀活動消耗與運動紀錄，加進當天的熱量目標。</string>
     <string name="health_write_title">寫入飲食紀錄</string>
