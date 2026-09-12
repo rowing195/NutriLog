@@ -290,6 +290,7 @@ fun TodayScreen(
                 WeekStrip(
                     pagerState = weekPagerState,
                     dayPagerState = dayPagerState,
+                    selectedWeekStart = weekStart,
                     weekOfPage = ::weekOfPage,
                     dayPageOf = ::dayPageOf,
                     weekTotalsFlow = weekTotalsFlow,
@@ -456,6 +457,8 @@ private fun HeaderIcon(onClick: () -> Unit, content: @Composable () -> Unit) {
 private fun WeekStrip(
     pagerState: PagerState,
     dayPagerState: PagerState,
+    /** 目前選到的那一週。只有這一頁需要借位，見 [WeekPageContent]。 */
+    selectedWeekStart: LocalDate,
     weekOfPage: (Int) -> LocalDate,
     dayPageOf: (LocalDate) -> Int,
     weekTotalsFlow: (LocalDate) -> Flow<List<DayTotal>>,
@@ -492,6 +495,7 @@ private fun WeekStrip(
         ) { page ->
             WeekPageContent(
                 weekStart = weekOfPage(page),
+                isSelectedWeek = weekOfPage(page) == selectedWeekStart,
                 weekTotalsFlow = weekTotalsFlow,
                 weekTotalsCache = weekTotalsCache,
                 today = today,
@@ -527,6 +531,8 @@ private fun WeekStrip(
 @Composable
 private fun WeekPageContent(
     weekStart: LocalDate,
+    /** 這一頁是不是目前選到的那一週。不是的話完全不借位，理由見函式文件。 */
+    isSelectedWeek: Boolean,
     weekTotalsFlow: (LocalDate) -> Flow<List<DayTotal>>,
     weekTotalsCache: MutableMap<LocalDate, List<DayTotal>>,
     today: LocalDate,
@@ -538,8 +544,15 @@ private fun WeekPageContent(
 ) {
     val weekStartPage = dayPageOf(weekStart)
     val pillPosition = (dayPagerState.currentPage + dayPagerState.currentPageOffsetFraction) - weekStartPage
-    val overflowAfter = (pillPosition - 6f).coerceIn(0f, 1f)
-    val overflowBefore = (-pillPosition).coerceIn(0f, 1f)
+    // **借位只有目前選到的那一頁需要。** 它的用途是「日分頁器拖過週界」，而那件事
+    // 只會發生在選到的日子所在的那一週；其他頁的 pillPosition 本來就差了整整一週
+    // 以上，`coerceIn` 會直接飽和成 1 —— 那一頁於是把自己整個推出畫面，改畫鄰週。
+    // 症狀是**拖動換週時看到的還是同一週，放開手指才跳一次**：往後拖時，右邊滑進來
+    // 的下一週那一頁 pillPosition 正好是 -1，於是它畫的是「自己的前一週」，也就是
+    // 使用者眼前這一週。等 settle 之後 weekStart 才變、日分頁器才跟上，這時借位歸零，
+    // 正確的那一週才「補跳」一次。
+    val overflowAfter = if (isSelectedWeek) (pillPosition - 6f).coerceIn(0f, 1f) else 0f
+    val overflowBefore = if (isSelectedWeek) (-pillPosition).coerceIn(0f, 1f) else 0f
 
     BoxWithConstraints(Modifier.fillMaxWidth().clipToBounds()) {
         val rowWidthPx = with(LocalDensity.current) { maxWidth.toPx() }
