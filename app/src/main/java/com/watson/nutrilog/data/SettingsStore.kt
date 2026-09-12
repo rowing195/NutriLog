@@ -73,6 +73,18 @@ data class NutriSettings(
     val lastHealthSyncAt: Long = 0,
     /** 讀運動消耗並加進當天的熱量總量。實際能不能讀還要看權限，這裡只是使用者的意願。 */
     val readExerciseCalories: Boolean = true,
+    /**
+     * 手錶是整天戴著，還是只有運動時才戴。見 [WatchWearMode]。
+     */
+    val watchWearMode: WatchWearMode = WatchWearMode.WORKOUT_ONLY,
+    /**
+     * 量到的運動消耗**回補幾成**進當天的目標。
+     *
+     * 預設 50：穿戴裝置估熱量本來就不準（系統性回顧給的誤差從 9% 到 40% 以上都有，
+     * 有些裝置的 MAPE 甚至破百），全額回補等於把高估的部分一起吃回去。
+     * 營養師的普遍建議是活動量設低一點、運動熱量只回補 25–50%。
+     */
+    val exerciseEatBackPercent: Int = 50,
 ) {
     companion object {
         // 模型會改朝換代，所以設定頁可以改。注意 gemini-2.0-flash 已經下架，別填。
@@ -172,6 +184,17 @@ enum class AppIcon(val aliasSuffix: String) {
     VERMILION(".IconVermilion"),
     BOWL(".IconBowl"),
 }
+
+/**
+ * 手錶的配戴方式。這是「日常走動算誰的」那個決定，不是偏好。
+ *
+ * - [ALL_DAY]：手錶的活動消耗本來就含日常走動，所以熱量目標的底退到久坐係數，
+ *   走動多少由手錶說了算。
+ * - [WORKOUT_ONLY]：日常走動手錶記不到，只能靠活動係數，手錶只補運動場次那幾筆。
+ *
+ * **兩種都不影響蛋白質** —— 蛋白質看的是這個人活動量多大，不是手錶戴多久。
+ */
+enum class WatchWearMode { WORKOUT_ONLY, ALL_DAY }
 
 enum class ActivityLevel(val multiplier: Float, val proteinPerKg: Float) {
     SEDENTARY(1.2f, 1.0f),

@@ -46,6 +46,11 @@ object BmrCalculator {
         weightKg: Float,
         activityLevel: ActivityLevel,
         goal: DietGoal,
+        /**
+         * 運動消耗是不是改由手錶量（＝設定裡的「讀取運動消耗」開著）。
+         * 開著時熱量的底退到久坐基準，運動另外回補。
+         */
+        watchSuppliesActivity: Boolean = false,
     ): DietPlanResult {
         val safeAge = age.coerceIn(10, 120)
         val safeHeight = heightCm.coerceIn(50f, 250f)
@@ -54,7 +59,21 @@ object BmrCalculator {
         // Mifflin-St Jeor
         val base = 10f * safeWeight + 6.25f * safeHeight - 5f * safeAge
         val bmr = (if (gender == Gender.MALE) base + 5f else base - 161f).toInt().coerceAtLeast(500)
-        val tdee = (bmr * activityLevel.multiplier).toInt()
+
+        // **交給手錶量的時候，熱量的底退到久坐係數。**
+        //
+        // 活動係數的定義本身就含運動 —— UI 上「輕度」寫的是「每週運動 1–3 天」——
+        // 所以「係數目標 ＋ 當天的運動消耗」是把同一批熱量算兩次。實測：64 kg、159 cm
+        // 的人輕度係數是 2087，再加一趟 45 分鐘的跑步（約 408）就變成 2495，
+        // 而合理的估算是久坐 1821 ＋ 運動，回補一半約 2025。
+        //
+        // 沒在讀手錶的人相反：係數是他唯一的活動量來源，要照他填的算。
+        //
+        // **蛋白質兩種情況都照 [ActivityLevel.proteinPerKg] 走**：它看的是這個人活動量
+        // 多大，不是熱量從哪裡來。
+        val calorieMultiplier =
+            if (watchSuppliesActivity) ActivityLevel.SEDENTARY.multiplier else activityLevel.multiplier
+        val tdee = (bmr * calorieMultiplier).toInt()
 
         // 目標熱量：減脂時採用安全赤字（-300 kcal），並防呆不低於 BMR
         val rawTarget = tdee + goal.calorieDelta

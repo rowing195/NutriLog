@@ -74,6 +74,7 @@ fun BmrCalculatorDialog(
             weightKg = weight,
             activityLevel = activity,
             goal = goal,
+            watchSuppliesActivity = initialSettings.readExerciseCalories,
         )
     }
 
@@ -159,6 +160,15 @@ fun BmrCalculatorDialog(
 
                 Hairline()
                 PlanSummary(plan)
+                // 交給手錶量的時候「活動量」那一欄不再影響熱量，只影響蛋白質 ——
+                // 不講的話使用者會一直換活動量卻看不懂為什麼每日消耗不動。
+                if (initialSettings.readExerciseCalories) {
+                    Text(
+                        stringResource(R.string.bmr_watch_base_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.onSurfaceVariant,
+                    )
+                }
             }
 
             Rule()

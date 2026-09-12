@@ -57,6 +57,7 @@ import com.watson.nutrilog.data.ApiService
 import com.watson.nutrilog.data.SearchMode
 import com.watson.nutrilog.data.DarkModePreference
 import com.watson.nutrilog.data.NutriSettings
+import com.watson.nutrilog.data.WatchWearMode
 import androidx.compose.foundation.layout.size
 import com.watson.nutrilog.ui.theme.NutrientColors
 import com.watson.nutrilog.ui.theme.numeric
@@ -297,6 +298,8 @@ fun SettingsDetailScreen(
     showBmrCalculator: Boolean,
     onOpenBmr: () -> Unit,
     onApplyBmr: (NutriSettings) -> Unit,
+    onSetWearMode: (WatchWearMode) -> Unit,
+    onSetEatBack: (Int) -> Unit,
     onCloseBmr: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -331,7 +334,8 @@ fun SettingsDetailScreen(
             ) {
             when (page) {
                 SettingsPage.APPEARANCE -> AppearanceSection(settings, onChange, onSelectIcon)
-                SettingsPage.TARGETS -> TargetsSection(settings, onChange, onOpenBmr)
+                SettingsPage.TARGETS ->
+                    TargetsSection(settings, onChange, onOpenBmr, onSetWearMode, onSetEatBack)
                 SettingsPage.HEALTH -> HealthSection(
                     settings, healthSupported, healthReadAuthorized, healthWriteAuthorized,
                     healthBusy, healthResult, onSetReadExercise, onSetHealthWrite, onSyncHealthNow,
@@ -485,15 +489,63 @@ private fun AppIcon.labelRes(): Int = when (this) {
     AppIcon.BOWL -> R.string.app_icon_bowl
 }
 
+/** 回補比例的選項。數字本身就是百分比，100 在畫面上寫「全額」。 */
+private val EAT_BACK_CHOICES = listOf(25, 50, 75, 100)
+
 @Composable
 private fun TargetsSection(
     settings: NutriSettings,
     onChange: (NutriSettings) -> Unit,
     onOpenBmr: () -> Unit,
+    onSetWearMode: (WatchWearMode) -> Unit,
+    onSetEatBack: (Int) -> Unit,
 ) {
     // 放在欄位上面：算完按套用會直接改下面這四格，入口擺在它們前面讀起來是因果順序。
     MenuRow(title = stringResource(R.string.bmr_open), summary = "", onClick = onOpenBmr)
     Hairline()
+
+    // **只有在「讀取運動消耗」開著時才出現**：關掉的話沒有手錶資料可以填日常活動那一段，
+    // 選「整天配戴」只會得到一個沒人補的低目標。
+    // 擺在四格目標上面，因為切換它會當場改掉底下的熱量。
+    if (settings.readExerciseCalories) {
+        val allDay = settings.watchWearMode == WatchWearMode.ALL_DAY
+        SectionLabel(stringResource(R.string.watch_wear_title))
+        BallotRow(
+            labels = listOf(
+                stringResource(R.string.watch_wear_all_day),
+                stringResource(R.string.watch_wear_workout),
+            ),
+            selectedIndex = if (allDay) 0 else 1,
+            onSelect = {
+                onSetWearMode(if (it == 0) WatchWearMode.ALL_DAY else WatchWearMode.WORKOUT_ONLY)
+            },
+        )
+        Text(
+            stringResource(
+                if (allDay) R.string.watch_wear_help_all_day else R.string.watch_wear_help_workout
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Hairline(Modifier.padding(vertical = 10.dp))
+
+        // 全額回補會把手錶高估的那一段一起吃回去，所以預設只補一半。
+        SectionLabel(stringResource(R.string.exercise_eatback_title))
+        BallotRow(
+            labels = EAT_BACK_CHOICES.map {
+                if (it == 100) stringResource(R.string.exercise_eatback_full) else "$it%"
+            },
+            selectedIndex = EAT_BACK_CHOICES.indexOf(settings.exerciseEatBackPercent)
+                .coerceAtLeast(0),
+            onSelect = { onSetEatBack(EAT_BACK_CHOICES[it]) },
+        )
+        Text(
+            stringResource(R.string.exercise_eatback_help),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Hairline(Modifier.padding(vertical = 10.dp))
+    }
     TargetField(
         label = stringResource(R.string.nutrient_calories) + "（" + stringResource(R.string.unit_kcal) + "）",
         value = settings.calorieTarget,

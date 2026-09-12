@@ -461,6 +461,8 @@ fun NutriLogApp(viewModel: NutriViewModel) {
                 showBmrCalculator = viewModel.showBmrCalculator,
                 onOpenBmr = viewModel::openBmrCalculator,
                 onApplyBmr = viewModel::applyBmrPlan,
+                onSetWearMode = viewModel::setWatchWearMode,
+                onSetEatBack = viewModel::setExerciseEatBack,
                 onCloseBmr = viewModel::closeBmrCalculator,
                 onBack = { viewModel.goTo(Screen.Settings) },
             )

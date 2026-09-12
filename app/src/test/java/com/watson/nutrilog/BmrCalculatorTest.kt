@@ -21,6 +21,7 @@ class BmrCalculatorTest {
         activity: ActivityLevel,
         goal: DietGoal,
         weightKg: Float = 64f,
+        watchSuppliesActivity: Boolean = false,
     ) = BmrCalculator.calculate(
         gender = Gender.FEMALE,
         age = 24,
@@ -28,7 +29,35 @@ class BmrCalculatorTest {
         weightKg = weightKg,
         activityLevel = activity,
         goal = goal,
+        watchSuppliesActivity = watchSuppliesActivity,
     )
+
+    /**
+     * 運動交給手錶量的時候，熱量的底退到久坐係數：活動係數的定義本身就含運動
+     * （UI 上「輕度」寫的是「每週運動 1–3 天」），不退的話同一批熱量會算兩次。
+     * **蛋白質不跟著退**。
+     */
+    @Test
+    fun `運動交給手錶量時熱量用久坐係數，蛋白質不受影響`() {
+        val workoutOnly = plan(ActivityLevel.LIGHT, DietGoal.MAINTAIN)
+        val allDay = plan(ActivityLevel.LIGHT, DietGoal.MAINTAIN, watchSuppliesActivity = true)
+
+        val bmr = workoutOnly.bmr
+        assertEquals((bmr * ActivityLevel.LIGHT.multiplier).toInt(), workoutOnly.targetCalories)
+        assertEquals((bmr * ActivityLevel.SEDENTARY.multiplier).toInt(), allDay.targetCalories)
+        assertTrue(allDay.targetCalories < workoutOnly.targetCalories)
+        assertEquals(workoutOnly.proteinG, allDay.proteinG)
+        assertEquals(workoutOnly.proteinPerKg, allDay.proteinPerKg, 0.001f)
+    }
+
+    /** 久坐的人兩種算法一樣 —— 係數本來就已經是久坐了。 */
+    @Test
+    fun `久坐的人不管誰量運動都是同一個熱量`() {
+        assertEquals(
+            plan(ActivityLevel.SEDENTARY, DietGoal.MAINTAIN).targetCalories,
+            plan(ActivityLevel.SEDENTARY, DietGoal.MAINTAIN, watchSuppliesActivity = true).targetCalories,
+        )
+    }
 
     @Test
     fun `維持的蛋白質跟著活動量走`() {

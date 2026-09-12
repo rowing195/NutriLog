@@ -210,7 +210,7 @@
     <string name="health_summary_off">未連結</string>
     <string name="health_summary_unsupported">不支援</string>
     <string name="health_read_title">讀取運動消耗</string>
-    <string name="health_read_help">從 Samsung Health 讀活動消耗、步數與運動紀錄，加進當天的熱量目標。</string>
+    <string name="health_read_help">從 Samsung Health 讀活動消耗與運動紀錄，加進當天的熱量目標。</string>
     <string name="health_write_title">寫入飲食紀錄</string>
     <string name="health_write_help">把記的每一餐寫進 Samsung Health。</string>
     <string name="health_sync_now">立即同步</string>
@@ -228,10 +228,9 @@
     <string name="exercise_source">來源</string>
     <string name="exercise_source_active">手錶記錄的活動消耗</string>
     <string name="exercise_source_workouts">手錶記錄的運動場次</string>
-    <string name="exercise_source_total">由總消耗扣掉基礎代謝推算</string>
-    <string name="exercise_source_steps">由 %1$s 步換算</string>
     <string name="exercise_source_none">讀不到：%1$s</string>
     <string name="exercise_workouts">運動</string>
+    <string name="exercise_eatback_row">運動回補 %1$d%%</string>
     <string name="exercise_minutes">%1$d 分鐘</string>
     <string name="exercise_eaten">吃了</string>
     <string name="exercise_burned">運動</string>
@@ -276,6 +275,15 @@
     <string name="bmr_protein_per_kg">蛋白質每公斤 %1$s g</string>
     <string name="bmr_meal_breakdown">各餐建議配比</string>
     <string name="bmr_apply">套用為每日目標</string>
+    <string name="bmr_watch_base_note">讀取運動消耗開著：熱量用久坐基準算、運動另外回補，活動量只影響蛋白質</string>
+    <string name="watch_wear_title">手錶配戴方式</string>
+    <string name="watch_wear_all_day">整天配戴</string>
+    <string name="watch_wear_workout">只有運動時戴</string>
+    <string name="watch_wear_help_all_day">手錶整天戴著，全日的活動消耗都算數。</string>
+    <string name="watch_wear_help_workout">只算你按下「開始運動」的場次，全日活動消耗不算（它只涵蓋戴著的那幾小時）。</string>
+    <string name="exercise_eatback_title">運動熱量回補</string>
+    <string name="exercise_eatback_full">全額</string>
+    <string name="exercise_eatback_help">手錶估的運動熱量普遍偏高，只回補一部分比較保險。</string>
 
     <!-- Drive 還原時一併帶回的身型與目標 -->
     <string name="import_summary_profile">也會還原身型與每日目標（每日 %1$d kcal）。</string>

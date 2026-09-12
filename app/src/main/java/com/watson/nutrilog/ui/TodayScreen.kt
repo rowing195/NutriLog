@@ -294,9 +294,8 @@ fun TodayScreen(
                     dayPageOf = ::dayPageOf,
                     weekTotalsFlow = weekTotalsFlow,
                     today = today,
-                    target = settings.calorieTarget,
+                    settings = settings,
                     activeCaloriesMap = activeCaloriesMap,
-                    readExercise = settings.readExerciseCalories,
                     onPickDay = onPickDay,
                     onShiftWeek = onShiftWeek,
                 )
@@ -461,9 +460,10 @@ private fun WeekStrip(
     dayPageOf: (LocalDate) -> Int,
     weekTotalsFlow: (LocalDate) -> Flow<List<DayTotal>>,
     today: LocalDate,
-    target: Int,
+    // 每一格的目標要算「那一天加上運動之後」的額度，牽涉到目標、回補比例與日常活動
+    // 那一段 —— 四個值一路往下傳不如直接收 settings。
+    settings: NutriSettings,
     activeCaloriesMap: Map<LocalDate, Double>,
-    readExercise: Boolean,
     onPickDay: (LocalDate) -> Unit,
     onShiftWeek: (Long) -> Unit,
 ) {
@@ -495,9 +495,8 @@ private fun WeekStrip(
                 weekTotalsFlow = weekTotalsFlow,
                 weekTotalsCache = weekTotalsCache,
                 today = today,
-                target = target,
+                settings = settings,
                 activeCaloriesMap = activeCaloriesMap,
-                readExercise = readExercise,
                 dayPagerState = dayPagerState,
                 dayPageOf = dayPageOf,
                 onPickDay = onPickDay,
@@ -531,9 +530,8 @@ private fun WeekPageContent(
     weekTotalsFlow: (LocalDate) -> Flow<List<DayTotal>>,
     weekTotalsCache: MutableMap<LocalDate, List<DayTotal>>,
     today: LocalDate,
-    target: Int,
+    settings: NutriSettings,
     activeCaloriesMap: Map<LocalDate, Double>,
-    readExercise: Boolean,
     dayPagerState: PagerState,
     dayPageOf: (LocalDate) -> Int,
     onPickDay: (LocalDate) -> Unit,
@@ -547,16 +545,16 @@ private fun WeekPageContent(
         val rowWidthPx = with(LocalDensity.current) { maxWidth.toPx() }
 
         Box(Modifier.graphicsLayer { translationX = (overflowBefore - overflowAfter) * rowWidthPx }) {
-            WeekRow(weekStart, weekTotalsFlow, weekTotalsCache, today, target, activeCaloriesMap, readExercise, dayPagerState, dayPageOf, onPickDay)
+            WeekRow(weekStart, weekTotalsFlow, weekTotalsCache, today, settings, activeCaloriesMap, dayPagerState, dayPageOf, onPickDay)
         }
         if (overflowAfter > 0f) {
             Box(Modifier.graphicsLayer { translationX = (1f - overflowAfter) * rowWidthPx }) {
-                WeekRow(weekStart.plusWeeks(1), weekTotalsFlow, weekTotalsCache, today, target, activeCaloriesMap, readExercise, dayPagerState, dayPageOf, onPickDay)
+                WeekRow(weekStart.plusWeeks(1), weekTotalsFlow, weekTotalsCache, today, settings, activeCaloriesMap, dayPagerState, dayPageOf, onPickDay)
             }
         }
         if (overflowBefore > 0f) {
             Box(Modifier.graphicsLayer { translationX = (overflowBefore - 1f) * rowWidthPx }) {
-                WeekRow(weekStart.minusWeeks(1), weekTotalsFlow, weekTotalsCache, today, target, activeCaloriesMap, readExercise, dayPagerState, dayPageOf, onPickDay)
+                WeekRow(weekStart.minusWeeks(1), weekTotalsFlow, weekTotalsCache, today, settings, activeCaloriesMap, dayPagerState, dayPageOf, onPickDay)
             }
         }
     }
@@ -598,9 +596,8 @@ private fun WeekRow(
     weekTotalsFlow: (LocalDate) -> Flow<List<DayTotal>>,
     weekTotalsCache: MutableMap<LocalDate, List<DayTotal>>,
     today: LocalDate,
-    target: Int,
+    settings: NutriSettings,
     activeCaloriesMap: Map<LocalDate, Double>,
-    readExercise: Boolean,
     dayPagerState: PagerState,
     dayPageOf: (LocalDate) -> Int,
     onPickDay: (LocalDate) -> Unit,
@@ -627,7 +624,12 @@ private fun WeekRow(
                 day = day,
                 kcal = byDate[day.toString()]?.kcal ?: 0.0,
                 // 週長條每一格用那一天自己加上運動後的目標，和今日頁、月曆同一個判斷
-                target = effectiveCalorieTarget(target, activeCaloriesMap[day] ?: 0.0, readExercise),
+                target = effectiveCalorieTarget(
+                    settings.calorieTarget,
+                    activeCaloriesMap[day] ?: 0.0,
+                    settings.readExerciseCalories,
+                    settings.exerciseEatBackPercent,
+                ),
                 isFuture = day.isAfter(today),
                 overColor = over,
                 pillAlpha = (1f - abs(pillPosition - index)).coerceIn(0f, 1f),
@@ -869,7 +871,12 @@ private fun Budget(
     // 「目標」那一格仍然顯示原本設的數字，加了多少另外一行講 —— 直接把目標改成 2350
     // 的話，使用者會以為自己的設定被動過。
     val exercise = if (settings.readExerciseCalories) activeCalories else 0.0
-    val goal = effectiveCalorieTarget(target, activeCalories, settings.readExerciseCalories)
+    val goal = effectiveCalorieTarget(
+        target,
+        activeCalories,
+        settings.readExerciseCalories,
+        settings.exerciseEatBackPercent,
+    )
     val remaining = goal - consumed
     val over = remaining < 0
 
@@ -880,6 +887,7 @@ private fun Budget(
             consumed = consumed,
             baseTarget = target,
             activeCalories = exercise,
+            eatBackPercent = settings.exerciseEatBackPercent,
             activity = activity,
             mealsWritten = if (healthWriteOn) entries.count { it.calories > 0 } else null,
             onRefresh = { onRefreshActiveCalories(date) },
@@ -943,7 +951,10 @@ private fun Budget(
                         ) {
                             LabelledNumber(
                                 label = stringResource(R.string.budget_exercise),
-                                number = "+" + exercise.fmtInt(),
+                                // 顯示**實際加進目標的量**，不是手錶量到的 —— 回補比例不是
+                                // 100% 時兩者不一樣，照量到的畫會變成「目標 + 運動 ≠ 還有」。
+                                // 動掉多少、回補幾成，點進明細看得到。
+                                number = "+" + (goal - target).toDouble().fmtInt(),
                                 labelColor = scheme.onSurfaceVariant,
                                 numberColor = scheme.onSurfaceVariant,
                                 numberSize = 14.sp,

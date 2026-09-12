@@ -32,8 +32,8 @@ import kotlin.math.roundToInt
  * 版面照紙與墨：粗規線框住頭尾、細線分段、數字靠右。**不上顏色** —— 運動消耗不是
  * 「看這裡」的警示，拿綠色去畫它會變成畫面上最搶眼的東西（對方原本的版本就是這樣）。
  *
- * 「來源」要講清楚，因為健康連線有三段退路（活動大卡 → 總消耗扣基礎代謝 → 步數換算），
- * 同樣是「+350」，可信度差很多；讀不到時也要講原因，不然看起來像壞了。
+ * 「來源」要講清楚：同樣是「+350」，全日活動大卡與單場運動的涵蓋範圍不一樣；
+ * 讀不到時也要講原因，不然看起來像壞了。
  */
 @Composable
 fun ExerciseDetailSheet(
@@ -41,6 +41,8 @@ fun ExerciseDetailSheet(
     consumed: Double,
     baseTarget: Int,
     activeCalories: Double,
+    /** 量到的運動消耗回補幾成。 */
+    eatBackPercent: Int,
     activity: DailyActivity?,
     /** 這一天有幾筆已寫入健康連線；null＝沒開寫入，那一行整個不出現。 */
     mealsWritten: Int?,
@@ -49,9 +51,11 @@ fun ExerciseDetailSheet(
 ) {
     val scheme = MaterialTheme.colorScheme
     val isToday = date == LocalDate.now()
-    val goal = effectiveCalorieTarget(baseTarget, activeCalories, readExercise = true)
+    val goal = effectiveCalorieTarget(baseTarget, activeCalories, readExercise = true, eatBackPercent)
     val remaining = goal - consumed
     val burned = activeCalories.roundToInt()
+    // 實際加進目標的量。回補比例不是 100% 時它比 burned 小，算式要用這個而不是 burned。
+    val added = goal - baseTarget
     val dateLabel = stringResource(R.string.exercise_detail_date, date.monthValue, date.dayOfMonth)
 
     Dialog(onDismissRequest = onDismiss) {
@@ -113,6 +117,13 @@ fun ExerciseDetailSheet(
 
             DetailRow(stringResource(R.string.exercise_eaten), consumed.roundToInt().toString())
             DetailRow(stringResource(R.string.exercise_burned), "−$burned")
+            // 講清楚為什麼加的比動掉的少 —— 不寫的話「動了 400 只多 200」看起來像算錯了
+            if (burned > 0 && eatBackPercent < 100) {
+                DetailRow(
+                    stringResource(R.string.exercise_eatback_row, eatBackPercent),
+                    "+$added",
+                )
+            }
             DetailRow(
                 stringResource(R.string.exercise_net),
                 // 淨攝取不顯示負數：「吃了 300、動了 500」講成淨攝取 −200 讀起來像吃了負的東西
@@ -121,7 +132,7 @@ fun ExerciseDetailSheet(
             Hairline(Modifier.padding(vertical = 6.dp))
             DetailRow(
                 stringResource(if (isToday) R.string.exercise_target_today else R.string.budget_target),
-                "$baseTarget + $burned = $goal",
+                "$baseTarget + $added = $goal",
             )
             DetailRow(
                 stringResource(if (remaining < 0) R.string.budget_over else R.string.budget_left),
@@ -161,8 +172,6 @@ fun ExerciseDetailSheet(
 private fun sourceLabel(activity: DailyActivity): String = when (activity.source) {
     ActivitySource.ACTIVE_CALORIES -> stringResource(R.string.exercise_source_active)
     ActivitySource.WORKOUT_SESSIONS -> stringResource(R.string.exercise_source_workouts)
-    ActivitySource.TOTAL_MINUS_BMR -> stringResource(R.string.exercise_source_total)
-    ActivitySource.STEPS -> stringResource(R.string.exercise_source_steps, "%,d".format(activity.steps))
     ActivitySource.NONE -> stringResource(
         R.string.exercise_source_none,
         activity.unavailableReason ?: NO_ACTIVITY_DATA_REASON,

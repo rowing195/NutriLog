@@ -67,6 +67,8 @@ import com.watson.nutrilog.data.WeeklyReportStore
 import com.watson.nutrilog.data.WeeklyStats
 import com.watson.nutrilog.data.db.DailyHealthMetric
 import com.watson.nutrilog.data.BackedUpProfile
+import com.watson.nutrilog.data.BmrCalculator
+import com.watson.nutrilog.data.WatchWearMode
 
 /**
  * 畫面。沿用 LocalReader 的做法：sealed interface + when 分派，不引入導航函式庫。
@@ -1074,10 +1076,16 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** 「讀取運動消耗」開關。打開時缺讀取權限就去要，拿到權限才真的打開。 */
+    /**
+     * 「讀取運動消耗」開關。打開時缺讀取權限就去要，拿到權限才真的打開。
+     *
+     * **四格目標會跟著重算**（`withRecalculatedTargets`）：這個開關決定運動熱量是手錶
+     * 量的（底退到久坐、另外回補）還是活動係數估的（係數已含運動），兩者不能並存，
+     * 不重算就會把同一批熱量算兩次。
+     */
     fun setReadExerciseCalories(enabled: Boolean) {
         if (!enabled) {
-            updateSettings(settings.copy(readExerciseCalories = false))
+            updateSettings(settings.copy(readExerciseCalories = false).withRecalculatedTargets())
             return
         }
         viewModelScope.launch {
@@ -1087,7 +1095,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
             }
             if (healthConnectSync.hasReadExercisePermission()) {
                 healthReadAuthorized = true
-                updateSettings(settings.copy(readExerciseCalories = true))
+                updateSettings(settings.copy(readExerciseCalories = true).withRecalculatedTargets())
                 readActivity(selectedDate)
             } else {
                 pendingHealthPermissions = HealthConnectSync.READ_EXERCISE_PERMISSIONS
@@ -1200,6 +1208,47 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     fun applyBmrPlan(updated: NutriSettings) {
         showBmrCalculator = false
         updateSettings(updated.copy(profileConfigured = true))
+    }
+
+    /**
+     * 手錶配戴方式。**不動目標** —— 它決定的是健康連線裡哪一種資料算數
+     * （全日活動消耗 vs 只有運動場次），不是目標怎麼算。改完要重讀一次今天的活動量。
+     */
+    fun setWatchWearMode(mode: WatchWearMode) {
+        if (mode == settings.watchWearMode) return
+        updateSettings(settings.copy(watchWearMode = mode))
+        fetchActiveCalories()
+    }
+
+    /** 運動消耗回補幾成。只影響每天加多少，不動使用者填的目標。 */
+    fun setExerciseEatBack(percent: Int) {
+        if (percent == settings.exerciseEatBackPercent) return
+        updateSettings(settings.copy(exerciseEatBackPercent = percent))
+    }
+
+    /**
+     * 依目前身型重算四格目標。**熱量的底看「讀取運動消耗」開著沒有**：開著時退到久坐
+     * 基準、運動另外回補，關掉時用使用者自己填的活動係數（那個係數本來就含運動）。
+     *
+     * 沒填過身型的人原樣返回 —— 不知道他手填的數字是怎麼來的，不要去動它。
+     */
+    private fun NutriSettings.withRecalculatedTargets(): NutriSettings {
+        if (!profileConfigured) return this
+        val plan = BmrCalculator.calculate(
+            gender = profileGender,
+            age = profileAge,
+            heightCm = profileHeightCm,
+            weightKg = profileWeightKg,
+            activityLevel = profileActivity,
+            goal = profileGoal,
+            watchSuppliesActivity = readExerciseCalories,
+        )
+        return copy(
+            calorieTarget = plan.targetCalories,
+            proteinTargetG = plan.proteinG,
+            fatTargetG = plan.fatG,
+            carbsTargetG = plan.carbsG,
+        )
     }
 
     // --- AI 週報／月報 ---

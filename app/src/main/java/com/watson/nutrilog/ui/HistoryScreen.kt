@@ -434,7 +434,12 @@ private fun DayCell(
 ) {
     val kcal = total?.kcal ?: 0.0
     // 和今日頁同一個判斷：那天有運動，額度就跟著變多
-    val goal = effectiveCalorieTarget(settings.calorieTarget, activeCalories, settings.readExerciseCalories)
+    val goal = effectiveCalorieTarget(
+        settings.calorieTarget,
+        activeCalories,
+        settings.readExerciseCalories,
+        settings.exerciseEatBackPercent,
+    )
     val severity = overSeverity(kcal, goal)
     val severityColor = when (severity) {
         OverSeverity.OVER -> NutrientColors.Over
@@ -542,7 +547,12 @@ private fun MonthSummary(
     val average = mine.values.sumOf { it.kcal } / loggedDays
     val overDays = mine.values.count { day ->
         val active = runCatching { LocalDate.parse(day.date) }.getOrNull()?.let { activeCaloriesMap[it] } ?: 0.0
-        val goal = effectiveCalorieTarget(settings.calorieTarget, active, settings.readExerciseCalories)
+        val goal = effectiveCalorieTarget(
+            settings.calorieTarget,
+            active,
+            settings.readExerciseCalories,
+            settings.exerciseEatBackPercent,
+        )
         goal > 0 && day.kcal > goal
     }
     Column(Modifier.fillMaxWidth().padding(top = 14.dp)) {

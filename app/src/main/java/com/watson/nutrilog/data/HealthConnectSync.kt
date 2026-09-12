@@ -30,8 +30,7 @@ import java.time.ZoneId
  * 1. 負責將 NutriLog 的飲食紀錄（[FoodEntry]）轉換並寫入 Health Connect 的 [NutritionRecord]，
  *    藉此與 Samsung Health 及系統健康中樞無縫同步。
  * 2. 負責從 Health Connect 讀取運動與日常活動燃燒的卡路里，讓使用者在 NutriLog
- *    能一目了然看見運動消耗與淨熱量。三星不見得會寫 [ActiveCaloriesBurnedRecord]
- *    （很多機種只同步步數），所以讀取有三段退路，見 [readDailyActivity]。
+ *    能一目了然看見運動消耗與淨熱量。要讀哪一種看手錶的配戴方式，見 [readDailyActivity]。
  */
 class HealthConnectSync(private val context: Context) {
 
@@ -146,19 +145,14 @@ class HealthConnectSync(private val context: Context) {
     }
 
     /**
-     * 讀取指定日期（00:00 至隔日 00:00）的活動量，三段退路依序嘗試。
+     * 讀取指定日期（00:00 至隔日 00:00）的活動量。
      *
-     * **為什麼要退路**：三星不保證會把「活動大卡」寫進健康連線 —— 很多機種只同步步數
-     * 與運動場次。只讀 [ActiveCaloriesBurnedRecord] 的話，那些使用者不管走幾步
-     * 畫面上永遠是 0，而且看不出是沒授權、沒資料還是真的沒動。
+     * 只讀兩種資料：全日的**活動大卡**與**運動場次**。要用哪一種看
+     * [NutriSettings.watchWearMode] —— 整天戴的話活動大卡就是一整天的活動量；
+     * 只有運動時戴的話它只涵蓋戴著的那幾小時，拿來當一整天用會低估，所以只取場次。
      *
-     * 順序是「越接近實測的越優先」：
-     * 1. 活動大卡 —— 手錶自己算的，最準
-     * 2. 總消耗扣掉基礎代謝 —— 只有總量時把靜態消耗扣掉推回活動量
-     * 3. 步數換算 —— 最後的退路，見 [stepsToCalories]
-     *
-     * 步數不管有沒有被拿去換算都會一併回傳，因為它要存進
-     * [com.watson.nutrilog.data.db.DailyHealthMetric] 給週報／月報用。
+     * 步數照樣讀、照樣回傳（要存進 [com.watson.nutrilog.data.db.DailyHealthMetric]
+     * 給週報／月報用），但**不再換算成大卡**。
      *
      * 挑選邏輯本身在 [chooseActivity]（純函式、有單元測試），這裡只負責取數字。
      */
@@ -177,23 +171,19 @@ class HealthConnectSync(private val context: Context) {
 
             try {
                 val zoneId = ZoneId.systemDefault()
-                val today = LocalDate.now(zoneId)
                 val now = Instant.now()
                 val startInstant = date.atStartOfDay(zoneId).toInstant()
                 val endInstant = date.plusDays(1).atStartOfDay(zoneId).toInstant()
-                // 關鍵修復：如果是今天，查詢的時間上限只到現在（now），絕不查到未來的 24 小時！
-                // 否則健康連線會抓到 Samsung Health 預先填入的一整天 BMR 總消耗，
-                // 在剛過午夜時被減去微小的經過 BMR，錯誤推算出高達 +1576 kcal 的幽靈活動大卡。
-                val queryEndInstant = if (date == today && now.isBefore(endInstant)) now else endInstant
 
                 // 只問拿得到權限的那幾種：問到沒授權的指標整個 aggregate 會丟例外，
-                // 等於一種沒給就三種都讀不到。
+                // 等於一種沒給就兩種都讀不到。
+                //
+                // **不再問全日的總消耗。** 它含靜態消耗，要還原活動量就得扣掉基礎代謝，
+                // 而那是兩個一千五百多的大數字相減去換一個一百多的小數字，誤差和答案
+                // 同一個量級（實測手錶記 153、這條路算出 39），見 [chooseActivity]。
                 val metrics = buildSet {
                     if (READ_ACTIVE_CALORIES_PERMISSION in granted) {
                         add(ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL)
-                    }
-                    if (READ_TOTAL_CALORIES_PERMISSION in granted) {
-                        add(TotalCaloriesBurnedRecord.ENERGY_TOTAL)
                     }
                     if (READ_STEPS_PERMISSION in granted) {
                         add(StepsRecord.COUNT_TOTAL)
@@ -204,50 +194,24 @@ class HealthConnectSync(private val context: Context) {
                     c.aggregate(
                         AggregateRequest(
                             metrics = metrics,
-                            timeRangeFilter = TimeRangeFilter.between(startInstant, queryEndInstant),
+                            timeRangeFilter = TimeRangeFilter.between(startInstant, endInstant),
                         )
                     )
                 } else null
 
                 // 讀取專項體能訓練場次（重訓、跑步、跑步機、健走等）
                 var workoutCaloriesTotal = 0.0
-                var workoutStepsTotal = 0L
                 var workoutCount = 0
                 val sessionSummaries = mutableListOf<String>()
                 val workoutSessionItems = mutableListOf<WorkoutSessionItem>()
                 val timeFormat = java.time.format.DateTimeFormatter.ofPattern("HH:mm").withZone(zoneId)
-
-                // 研究日誌：深入分析 Health Connect 內的消耗卡路里紀錄型態
-                val totalCalRecords = runCatching {
-                    c.readRecords(
-                        ReadRecordsRequest(
-                            recordType = TotalCaloriesBurnedRecord::class,
-                            timeRangeFilter = TimeRangeFilter.between(startInstant, endInstant),
-                        )
-                    ).records
-                }.getOrDefault(emptyList())
-                val totalEnergySum = totalCalRecords.sumOf { it.energy.inKilocalories }
-                Log.i("HealthResearch", "[$date] TotalCaloriesBurnedRecord: count=${totalCalRecords.size}, sum=$totalEnergySum kcal")
-                for ((idx, r) in totalCalRecords.take(8).withIndex()) {
-                    Log.i("HealthResearch", "  TotalCal #$idx: ${timeFormat.format(r.startTime)}~${timeFormat.format(r.endTime)} = ${r.energy.inKilocalories} kcal")
-                }
-
-                val activeCalRecords = runCatching {
-                    c.readRecords(
-                        ReadRecordsRequest(
-                            recordType = ActiveCaloriesBurnedRecord::class,
-                            timeRangeFilter = TimeRangeFilter.between(startInstant, endInstant),
-                        )
-                    ).records
-                }.getOrDefault(emptyList())
-                Log.i("HealthResearch", "[$date] ActiveCaloriesBurnedRecord: count=${activeCalRecords.size}")
 
                 if (READ_EXERCISE_PERMISSION in granted) {
                     val sessions = runCatching {
                         c.readRecords(
                             ReadRecordsRequest(
                                 recordType = ExerciseSessionRecord::class,
-                                timeRangeFilter = TimeRangeFilter.between(startInstant, queryEndInstant),
+                                timeRangeFilter = TimeRangeFilter.between(startInstant, endInstant),
                             )
                         ).records
                     }.onFailure { e ->
@@ -330,7 +294,6 @@ class HealthConnectSync(private val context: Context) {
                             }.getOrNull()
                             stepsAgg?.get(StepsRecord.COUNT_TOTAL) ?: 0L
                         } else 0L
-                        workoutStepsTotal += sessionSteps
 
                         workoutCaloriesTotal += sessionKcal
                         val typeName = formatExerciseName(session)
@@ -356,21 +319,12 @@ class HealthConnectSync(private val context: Context) {
 
                 chooseActivity(
                     activeKcal = response?.get(ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL)?.inKilocalories,
-                    totalKcal = response?.get(TotalCaloriesBurnedRecord.ENERGY_TOTAL)?.inKilocalories,
                     steps = response?.get(StepsRecord.COUNT_TOTAL) ?: 0L,
-                    bmrForElapsed = bmrForElapsedPortion(
-                        bmrPerDay = settings.estimatedBmrPerDay(),
-                        date = date,
-                        now = now,
-                        zone = zoneId,
-                    ),
-                    weightKg = settings.profileWeightKg.toDouble(),
+                    wearMode = settings.watchWearMode,
                     workoutKcal = workoutCaloriesTotal.takeIf { it > 0.0 },
-                    hasWorkoutSessions = workoutCount > 0,
                     workoutCount = workoutCount,
                     workoutSummary = workoutSummaryText,
                     workoutSessions = workoutSessionItems,
-                    workoutSteps = workoutStepsTotal,
                 )
             } catch (e: Exception) {
                 Log.e("HealthConnectSync", "readDailyActivity error: ${e.message}", e)

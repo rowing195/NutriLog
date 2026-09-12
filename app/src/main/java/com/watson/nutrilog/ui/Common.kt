@@ -1448,10 +1448,21 @@ private const val ENTER_BUDGET_MS = 180
  *
  * **今日頁、週長條、月曆格子、月摘要一律用這一個。** 各算各的話，同一天在今日頁
  * 沒超標、到了月曆上卻是紅的。目標為 0（關掉額度）時不加：加了等於憑空長出一個目標。
+ *
+ * [eatBackPercent] 是**量到的運動消耗要回補幾成**。不是全額回補：穿戴裝置估熱量
+ * 的誤差動輒兩三成，全額吃回去等於把高估的部分一起吃掉。
+ *
+ * **沒動的日子就是 [target] 本身，不補任何東西。** 讀取運動消耗打開時 [target] 已經
+ * 是久坐基準（見 [com.watson.nutrilog.data.BmrCalculator]），那正是「今天沒運動」
+ * 該有的額度；關掉時 [target] 是使用者自己填的活動係數算出來的，同樣直接用。
  */
-fun effectiveCalorieTarget(target: Int, activeCalories: Double, readExercise: Boolean): Int =
-    if (target > 0 && readExercise && activeCalories > 0) {
-        target + kotlin.math.round(activeCalories).toInt()
-    } else {
-        target
-    }
+fun effectiveCalorieTarget(
+    target: Int,
+    activeCalories: Double,
+    readExercise: Boolean,
+    eatBackPercent: Int = 100,
+): Int = if (target > 0 && readExercise && activeCalories > 0) {
+    target + kotlin.math.round(activeCalories * eatBackPercent / 100.0).toInt()
+} else {
+    target
+}
