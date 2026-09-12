@@ -216,13 +216,30 @@ fun TodayScreen(
     val currentDate = rememberUpdatedState(date)
     val currentWeekStart = rememberUpdatedState(weekStart)
 
-    // 外部改變日期（開別的畫面回來、月曆跳頁、「回到今天」…）就把分頁器滑過去；
+    // 外部改變日期（換週、週橫條箭頭、月曆跳頁、「回到今天」…）就把分頁器移過去；
     // 使用者自己滑出來的頁碼在呼叫 onPickDay 之前就已經跟 date 一致，這裡是 no-op。
-    // Compose 的 Pager 對距離很遠的目標會先跳近再補一段動畫，所以「回到今天」
-    // 這種一次跳一年的情況也不會真的把中間每一頁都劃過去。
+    //
+    // **距離超過一天就直接到位，不演。** 這一行修掉三個看起來不相干的症狀，
+    // 它們其實都是同一段不該播的動畫：拖週長條換週時 date 一次跳七天，
+    // 舊版就讓日分頁器 `animateScrollToPage` 把那七頁演一遍 ——
+    //
+    // - 選取框會沿路掃過去，「週六跳週六」看起來像先閃到週四週五再到週六。
+    // - 週分頁器早就 settle 了，這段還在跑，所以「換完之後還在抖」。
+    // - 更隱微的一個：`weekStart` 已經更新、日分頁器還沒跟上那幾幀，
+    //   新那一頁的 `pillPosition` 是 −1，`overflowBefore` 直接飽和成 1，
+    //   於是借位 overlay 把「自己的前一週」畫上去 —— 那就是「閃過上週的顏色」。
+    //
+    // 相鄰的一天才值得演（點週長條旁邊那一格）；跨過一天以上的移動，
+    // 中間那幾天不是使用者要看的東西，掃過去只是噪訊。
+    // 方向感由週長條自己的吸附動畫講完了，這一層不必再講一次。
     LaunchedEffect(date) {
         val target = dayPageOf(date)
-        if (dayPagerState.currentPage != target) dayPagerState.animateScrollToPage(target)
+        val delta = abs(target - dayPagerState.currentPage)
+        when {
+            delta == 0 -> Unit
+            delta == 1 -> dayPagerState.animateScrollToPage(target)
+            else -> dayPagerState.scrollToPage(target)
+        }
     }
     // 這裡曾經試過改用 currentPage（過半頁就動的即時值）取代 settledPage，
     // 想讓上方週長條更早跟著動、看起來更即時。單純一頁一頁滑沒事，
