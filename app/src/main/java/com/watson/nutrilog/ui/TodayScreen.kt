@@ -166,10 +166,14 @@ fun TodayScreen(
         showAddSheet = true
     }
 
+    // 運動明細開在哪一天。狀態提到這一層而不是留在 Budget 裡，是因為模糊要掛在
+    // Scaffold 上 —— 只有這一層抓得到「後面那一整頁」。
+    var exerciseDetailDate by remember { mutableStateOf<LocalDate?>(null) }
+
     // 選單展開時把後面整片模糊掉。Modifier.blur 只在 API 31+ 有效，minSdk 是 26 ——
     // 舊機器上這行等於沒作用，所以遮罩那層一定要留著，那才是共通的退路。
     val backdropBlur by animateDpAsState(
-        targetValue = if (showAddSheet) 16.dp else 0.dp,
+        targetValue = if (showAddSheet || exerciseDetailDate != null) 16.dp else 0.dp,
         animationSpec = tween(220),
         label = "backdropBlur",
     )
@@ -334,7 +338,7 @@ fun TodayScreen(
                 activity = dailyActivityMap[dayOfPage(page)],
                 healthReadOn = healthReadOn,
                 healthWriteOn = healthWriteOn,
-                onRefreshActiveCalories = onRefreshActiveCalories,
+                onOpenExerciseDetail = { exerciseDetailDate = dayOfPage(page) },
                 onOpenEntry = onOpenEntry,
                 onDeleteEntry = onDeleteEntry,
                 // 「還沒記」開的是同一個新增選單，不是直接跳空白表單 ——
@@ -390,6 +394,59 @@ fun TodayScreen(
             onAddText = onAddText,
             onAddBarcode = onAddBarcode,
         )
+
+        // 運動明細的覆蓋層。和「記一筆」同一層、同一片 0.32 遮罩、同一個模糊 ——
+        // 以前它是 Dialog，那是另一個 window，Compose 主題管不到它的視窗底色，
+        // 開的瞬間會閃一下白（同 `windowBackground` 那條），而且另一個 window
+        // 也模糊不了後面那一頁。
+        //
+        // 退場時 exerciseDetailDate 已經變回 null，內容還要再畫幾幀，
+        // 所以要記住最後看的那一天 —— 同上面 UndoStamp 的 lastUndoId。
+        var lastDetailDate by remember { mutableStateOf(LocalDate.now()) }
+        LaunchedEffect(exerciseDetailDate) { exerciseDetailDate?.let { lastDetailDate = it } }
+        BackHandler(enabled = exerciseDetailDate != null) { exerciseDetailDate = null }
+        AnimatedVisibility(
+            visible = exerciseDetailDate != null,
+            // 不做方向性的位移：這張面板沒有從哪個角落開出來，淡入就是它的全部。
+            enter = fadeIn(tween(180)),
+            exit = fadeOut(tween(170)),
+        ) {
+            val scheme = MaterialTheme.colorScheme
+            val dayEntries = entriesCache[lastDetailDate].orEmpty()
+            Box(Modifier.fillMaxSize()) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(scheme.scrim.copy(alpha = 0.32f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { exerciseDetailDate = null },
+                        )
+                )
+                Box(
+                    Modifier
+                        .align(Alignment.Center)
+                        .statusBarsPadding()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 24.dp),
+                ) {
+                    ExerciseDetailSheet(
+                        date = lastDetailDate,
+                        consumed = dayEntries.sumOf { it.calories },
+                        baseTarget = settings.calorieTarget,
+                        activeCalories = if (settings.readExerciseCalories) {
+                            activeCaloriesMap[lastDetailDate] ?: 0.0
+                        } else 0.0,
+                        eatBackPercent = settings.exerciseEatBackPercent,
+                        activity = dailyActivityMap[lastDetailDate],
+                        mealsWritten = if (healthWriteOn) dayEntries.count { it.calories > 0 } else null,
+                        onRefresh = { onRefreshActiveCalories(lastDetailDate) },
+                        onDismiss = { exerciseDetailDate = null },
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -781,7 +838,7 @@ private fun DayPage(
     activity: DailyActivity?,
     healthReadOn: Boolean,
     healthWriteOn: Boolean,
-    onRefreshActiveCalories: (LocalDate) -> Unit,
+    onOpenExerciseDetail: () -> Unit,
     onOpenEntry: (FoodEntry) -> Unit,
     onDeleteEntry: (FoodEntry) -> Unit,
     onAddForMeal: (Meal) -> Unit,
@@ -818,7 +875,7 @@ private fun DayPage(
     ) {
         item { Hairline() }
         item {
-            Budget(date, entries, totals, settings, activeCalories, activity, healthReadOn, healthWriteOn, onRefreshActiveCalories)
+            Budget(date, entries, totals, settings, activeCalories, activity, healthReadOn, healthWriteOn, onOpenExerciseDetail)
         }
         item { Hairline() }
         item { Macros(totals, settings) }
@@ -887,7 +944,7 @@ private fun Budget(
     activity: DailyActivity?,
     healthReadOn: Boolean,
     healthWriteOn: Boolean,
-    onRefreshActiveCalories: (LocalDate) -> Unit,
+    onOpenExerciseDetail: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
     val target = settings.calorieTarget
@@ -905,20 +962,6 @@ private fun Budget(
     val remaining = goal - consumed
     val over = remaining < 0
 
-    var showExerciseDetail by remember { mutableStateOf(false) }
-    if (showExerciseDetail) {
-        ExerciseDetailSheet(
-            date = date,
-            consumed = consumed,
-            baseTarget = target,
-            activeCalories = exercise,
-            eatBackPercent = settings.exerciseEatBackPercent,
-            activity = activity,
-            mealsWritten = if (healthWriteOn) entries.count { it.calories > 0 } else null,
-            onRefresh = { onRefreshActiveCalories(date) },
-            onDismiss = { showExerciseDetail = false },
-        )
-    }
     // 超標 10% 以內是橘色警示、超過 10% 才轉紅；severityColor 是 null 代表沒超標，
     // 沿用原本的中性色。
     val severityColor = when (overSeverity(consumed, goal)) {
@@ -975,7 +1018,7 @@ private fun Budget(
                     if (healthReadOn || exercise > 0) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.clickable { showExerciseDetail = true },
+                            modifier = Modifier.clickable(onClick = onOpenExerciseDetail),
                         ) {
                             LabelledNumber(
                                 label = stringResource(R.string.budget_exercise),

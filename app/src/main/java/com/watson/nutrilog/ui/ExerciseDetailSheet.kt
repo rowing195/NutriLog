@@ -17,7 +17,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.ActivitySource
 import com.watson.nutrilog.data.DailyActivity
@@ -58,8 +57,11 @@ fun ExerciseDetailSheet(
     val added = goal - baseTarget
     val dateLabel = stringResource(R.string.exercise_detail_date, date.monthValue, date.dayOfMonth)
 
-    Dialog(onDismissRequest = onDismiss) {
-        Column(
+    // **這裡沒有 Dialog。** 以前是，但 Dialog 是另一個 window：Compose 的主題管不到
+    // 它的視窗底色，開的瞬間會閃一下白（同 CLAUDE.md 那條 `windowBackground`），
+    // 而且另一個 window 也沒辦法把後面那一頁模糊掉。遮罩與模糊改由呼叫端
+    // （`TodayScreen` 的覆蓋層）負責，和「記一筆」完全共用同一套。
+    Column(
             Modifier
                 .fillMaxWidth()
                 // 浮在遮罩上的面板用 surfaceContainerLow：深色模式下 background 會和壓暗後的背景同色
@@ -165,7 +167,6 @@ fun ExerciseDetailSheet(
                 )
             }
         }
-    }
 }
 
 @Composable
