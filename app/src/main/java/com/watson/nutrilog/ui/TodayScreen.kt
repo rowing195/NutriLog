@@ -135,6 +135,15 @@ fun TodayScreen(
     /** 每一天從健康連線讀到的活動消耗，見 NutriViewModel.activeCaloriesMap。 */
     activeCaloriesMap: Map<LocalDate, Double>,
     dailyActivityMap: Map<LocalDate, DailyActivity>,
+    /**
+     * 健康連線的運動消耗**接上了沒有**（開關開著＋權限真的拿到）。
+     *
+     * 它決定「運動」那一行出不出現，而**不是**看今天有沒有量到運動 —— 沒接的人
+     * 版面完全不變，接了的人不管動沒動都看得到那一行，點進去才有運動明細。
+     * 綁「量到 > 0」的話，讀不到的那些日子（三星不寫活動大卡、那天沒開運動紀錄）
+     * 整個 app 就沒有任何入口可以查為什麼是 0。
+     */
+    healthReadOn: Boolean,
     /** 飲食有沒有同步寫進健康連線；運動明細最後那一行只在開著時出現。 */
     healthWriteOn: Boolean,
     onRefreshActiveCalories: (LocalDate) -> Unit,
@@ -323,6 +332,7 @@ fun TodayScreen(
                 settings = settings,
                 activeCalories = activeCaloriesMap[dayOfPage(page)] ?: 0.0,
                 activity = dailyActivityMap[dayOfPage(page)],
+                healthReadOn = healthReadOn,
                 healthWriteOn = healthWriteOn,
                 onRefreshActiveCalories = onRefreshActiveCalories,
                 onOpenEntry = onOpenEntry,
@@ -769,6 +779,7 @@ private fun DayPage(
     settings: NutriSettings,
     activeCalories: Double,
     activity: DailyActivity?,
+    healthReadOn: Boolean,
     healthWriteOn: Boolean,
     onRefreshActiveCalories: (LocalDate) -> Unit,
     onOpenEntry: (FoodEntry) -> Unit,
@@ -807,7 +818,7 @@ private fun DayPage(
     ) {
         item { Hairline() }
         item {
-            Budget(date, entries, totals, settings, activeCalories, activity, healthWriteOn, onRefreshActiveCalories)
+            Budget(date, entries, totals, settings, activeCalories, activity, healthReadOn, healthWriteOn, onRefreshActiveCalories)
         }
         item { Hairline() }
         item { Macros(totals, settings) }
@@ -874,6 +885,7 @@ private fun Budget(
     settings: NutriSettings,
     activeCalories: Double,
     activity: DailyActivity?,
+    healthReadOn: Boolean,
     healthWriteOn: Boolean,
     onRefreshActiveCalories: (LocalDate) -> Unit,
 ) {
@@ -955,9 +967,12 @@ private fun Budget(
                         numberColor = scheme.onSurfaceVariant,
                         numberSize = 14.sp,
                     )
-                    // 沒讀到運動就整行不出現，版面和沒有健康連線時一模一樣。
+                    // **接上健康連線就一直在，不是「量到才出現」。** 沒接的人整行不出現、
+                    // 版面和沒有健康連線時一模一樣；接了的人就算今天是 +0 也看得到它，
+                    // 因為那一行是運動明細唯一的入口 —— 綁「量到 > 0」的話，三星不寫
+                    // 活動大卡、或那天沒開運動紀錄的日子，使用者連「為什麼是 0」都查不到。
                     // 不上色：運動消耗不是「看這裡」的警示，朱紅留給超標與刪除。
-                    if (exercise > 0) {
+                    if (healthReadOn || exercise > 0) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.clickable { showExerciseDetail = true },

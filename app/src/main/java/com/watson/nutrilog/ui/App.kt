@@ -300,6 +300,7 @@ fun NutriLogApp(viewModel: NutriViewModel) {
             isCurrent = viewModel.screen == Screen.Today,
             activeCaloriesMap = viewModel.activeCaloriesMap,
             dailyActivityMap = viewModel.dailyActivityMap,
+            healthReadOn = viewModel.settings.readExerciseCalories && viewModel.healthReadAuthorized,
             healthWriteOn = viewModel.settings.healthConnectSyncEnabled && viewModel.healthWriteAuthorized,
             onRefreshActiveCalories = viewModel::refreshActiveCalories,
         )
