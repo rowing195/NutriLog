@@ -93,6 +93,7 @@ import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import kotlin.math.abs
+import kotlin.math.sign
 import com.watson.nutrilog.data.DailyActivity
 
 /**
@@ -312,6 +313,12 @@ fun TodayScreen(
                 HeaderRow(
                     date = date,
                     isToday = date == today,
+                    // 傳 lambda 而不是值：它在拖曳的每一幀都會變，
+                    // 在組合階段讀等於整個報頭每幀重組一次。
+                    awayFromToday = {
+                        (dayPagerState.currentPage + dayPagerState.currentPageOffsetFraction) -
+                            dayPageOf(today)
+                    },
                     onBackToToday = onBackToToday,
                     onOpenSearch = onOpenSearch,
                     onOpenHistory = onOpenHistory,
@@ -471,6 +478,12 @@ fun TodayScreen(
 private fun HeaderRow(
     date: LocalDate,
     isToday: Boolean,
+    /**
+     * 日分頁器目前離今天幾天（帶小數的即時值，負的是過去）。
+     *
+     * **要在 `graphicsLayer` 的 lambda 裡讀，不要在組合階段讀。**
+     */
+    awayFromToday: () -> Float,
     onBackToToday: () -> Unit,
     onOpenSearch: () -> Unit,
     onOpenHistory: () -> Unit,
@@ -489,23 +502,59 @@ private fun HeaderRow(
                 fontWeight = FontWeight.Bold,
             )
             Spacer(Modifier.weight(1f))
-            // 只有離開今天才出現：在今天的時候它是一顆永遠沒作用的按鈕
-            if (!isToday) {
-                Text(
-                    stringResource(R.string.back_to_today),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = scheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .clickable(onClick = onBackToToday)
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                )
-            } else {
+            // **「回到今天」是被拖出來的，不是跳出來的。**
+            //
+            // 與月曆那顆「回到本月」同一個手法（見本檔月曆那一節）：濃淡與位移直接讀
+            // 分頁器的即時位移，拖多少動多少，放手後跟著分頁器自己的吸附動畫走完。
+            // 補一段 tween 的進出場會有兩個問題：拖的時候它不動（要等 settle），
+            // 以及它自己那條曲線和分頁器的曲線各走各的。
+            //
+            // 綁的是**前後一天的中心點**：今天正中間是 0（完全收起來）、鄰日正中間是 1
+            // （完全長出來），再往前往後就固定在 1 —— 「離今天很遠」和「更遠」對這顆
+            // 按鈕來說是同一件事。方向跟著手指：往過去拖就從左邊進來，往未來拖就從右邊。
+            //
+            // 兩個標籤疊在同一個 Box 裡互換，所以這一格的寬度永遠是兩者的最大值，
+            // 旁邊那排圖示不會因為換字而左右跳。舊版是 `if/else` 直接換掉，
+            // 連帶的副作用是離開今天就看不到年月了；現在兩個都在。
+            Box(
+                Modifier
+                    .clipToBounds()
+                    .padding(end = 4.dp),
+                contentAlignment = Alignment.CenterEnd,
+            ) {
                 // 純數字加斜線，套襯線不會碰到中文
                 Text(
                     date.year.toString() + " / " + "%02d".format(date.monthValue),
                     style = MaterialTheme.typography.bodyMedium.numeric(),
                     color = scheme.onSurfaceVariant,
-                    modifier = Modifier.padding(end = 4.dp),
+                    maxLines = 1,
+                    modifier = Modifier.graphicsLayer {
+                        val away = awayFromToday()
+                        val out = abs(away).coerceIn(0f, 1f)
+                        alpha = 1f - out
+                        // 往手指來的反方向讓位
+                        translationX = -sign(away) * out * size.width
+                    },
+                )
+                Text(
+                    stringResource(R.string.back_to_today),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = scheme.onSurfaceVariant,
+                    maxLines = 1,
+                    modifier = Modifier
+                        // 點擊只給 settle 後真的不在今天的時候，不然拖到一半點下去
+                        // 會按到一顆還在路上、而且本來就要回今天的按鈕。
+                        .then(
+                            if (isToday) Modifier
+                            else Modifier.clickable(onClick = onBackToToday)
+                        )
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                        .graphicsLayer {
+                            val away = awayFromToday()
+                            val out = abs(away).coerceIn(0f, 1f)
+                            alpha = out
+                            translationX = sign(away) * (1f - out) * size.width
+                        },
                 )
             }
             HeaderIcon(onClick = onOpenSearch) { SearchMark(scheme.onSurface) }
