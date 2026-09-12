@@ -3,7 +3,9 @@ package com.watson.nutrilog
 import com.watson.nutrilog.data.ActivitySource
 import com.watson.nutrilog.data.WatchWearMode
 import com.watson.nutrilog.data.WorkoutSessionItem
+import com.watson.nutrilog.data.NO_SURPLUS_REASON
 import com.watson.nutrilog.data.chooseActivity
+import com.watson.nutrilog.data.dailyMovementAllowance
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -12,9 +14,13 @@ import org.junit.Test
 /**
  * 活動消耗要拿哪一種資料的守門測試。
  *
- * 這裡守的是兩件事：**只有運動時戴的人不能把全日活動大卡當一整天用**
- * （那個數字只涵蓋戴著的那幾小時），以及**讀不到就是讀不到**，
- * 不准再用「總消耗扣基礎代謝」或步數換算生一個猜的數字出來。
+ * 三件事：**只有運動時戴的人不能把全日活動大卡當一整天用**（那個數字
+ * 只涵蓋戴著的那幾小時）；**總消耗扣基礎代謝那條退路不准回來**；
+ * 以及**步數只能算超出久坐額度的那一段**。
+ *
+ * 最後那件是最容易被「簡化」掉的：把整天步數直接換成大卡加進目標看起來很合理，
+ * 但熱量目標的底是基礎代謝 × 久坐 1.2，而「久坐」本來就含日常走動 ——
+ * 不扣就是把同一批熱量算兩次。
  */
 class ActivityEstimateTest {
 
@@ -109,7 +115,7 @@ class ActivityEstimateTest {
     }
 
     @Test
-    fun `活動大卡是 0 不算有資料`() {
+    fun `活動大卡是 0、又沒填體重，就什麼都算不出來`() {
         val result = chooseActivity(
             activeKcal = 0.0,
             steps = 10_000L,
@@ -119,15 +125,88 @@ class ActivityEstimateTest {
         assertEquals(0.0, result.calories, 0.001)
     }
 
-    /** 步數不再換算成大卡，但還是要一路帶回去存進每日健康快取。 */
+    // --- 步數：只算超出久坐額度的那一段 ---
+
+    /**
+     * 額度是「久坐係數多給的那一段」再扣掉食物熱效應。
+     * 扣熱效應不能省 —— 那一段跟走路無關，不扣會把門檻抬得太高、走再多也都是 0。
+     */
     @Test
-    fun `步數不換算成大卡，只是照原樣帶回來`() {
+    fun `久坐額度要扣掉食物熱效應`() {
+        // 基礎代謝 1620、目標 1944：1620 × 0.2 − 1944 × 0.1 = 324 − 194.4
+        assertEquals(129.6, dailyMovementAllowance(1620.0, 1944), 0.1)
+    }
+
+    @Test
+    fun `步數只算超出久坐額度的那一段`() {
         val result = chooseActivity(
             activeKcal = null,
             steps = 10_000L,
             wearMode = WatchWearMode.ALL_DAY,
+            weightKg = 64.0,
+            movementAllowance = 129.6,
         )
+        // 10,000 × 64 × 0.0005 = 320，扣掉額度剩 190.4
+        assertEquals(ActivitySource.STEPS, result.source)
+        assertEquals(190.4, result.calories, 0.001)
+        assertEquals(190.4, result.stepCalories, 0.001)
+        assertEquals(10_000L, result.dailySteps)
+    }
+
+    /**
+     * 走得不多的日子就是 0，**而且原因要說是「沒超出」不是「讀不到」**。
+     * 兩者往完全不同的方向修：一個是去調權限，一個是多走兩步。
+     */
+    @Test
+    fun `步數沒超出額度時是 0，原因要說沒超出`() {
+        val result = chooseActivity(
+            activeKcal = null,
+            steps = 3_000L,
+            wearMode = WatchWearMode.ALL_DAY,
+            weightKg = 64.0,
+            movementAllowance = 129.6,
+        )
+        assertEquals(ActivitySource.NONE, result.source)
         assertEquals(0.0, result.calories, 0.001)
-        assertEquals(10_000L, result.steps)
+        assertEquals(NO_SURPLUS_REASON, result.unavailableReason)
+        assertEquals(3_000L, result.dailySteps)
+    }
+
+    /** 跑步那三十分鐘的步已經算在場次熱量裡了，不扣掉就是重複算。 */
+    @Test
+    fun `運動場次裡的步數要扣掉`() {
+        val result = chooseActivity(
+            activeKcal = null,
+            steps = 10_000L,
+            wearMode = WatchWearMode.ALL_DAY,
+            workoutKcal = 250.0,
+            workoutSessions = listOf(run30min),
+            weightKg = 64.0,
+            movementAllowance = 129.6,
+        )
+        // 10,000 − 4,000 = 6,000 步 -> 192，扣掉額度剩 62.4，再加上場次的 250
+        assertEquals(6_000L, result.dailySteps)
+        assertEquals(62.4, result.stepCalories, 0.001)
+        assertEquals(312.4, result.calories, 0.001)
+        assertEquals(ActivitySource.WORKOUT_SESSIONS, result.source)
+    }
+
+    /**
+     * **有活動大卡時步數完全不參與。** 兩者估的是同一件事（一整天的走動），
+     * 相加就是重複。三星不寫活動大卡，所以這條在那些手機上不會進去 ——
+     * 但別的手機寫了的話它就是擋在中間的那道門。
+     */
+    @Test
+    fun `有活動大卡時步數不參與`() {
+        val result = chooseActivity(
+            activeKcal = 420.0,
+            steps = 20_000L,
+            wearMode = WatchWearMode.ALL_DAY,
+            weightKg = 64.0,
+            movementAllowance = 129.6,
+        )
+        assertEquals(ActivitySource.ACTIVE_CALORIES, result.source)
+        assertEquals(420.0, result.calories, 0.001)
+        assertEquals(0.0, result.stepCalories, 0.001)
     }
 }

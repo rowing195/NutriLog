@@ -330,6 +330,11 @@ class HealthConnectSync(private val context: Context) {
                     workoutCount = workoutCount,
                     workoutSummary = workoutSummaryText,
                     workoutSessions = workoutSessionItems,
+                    weightKg = settings.profileWeightKg.toDouble(),
+                    movementAllowance = dailyMovementAllowance(
+                        settings.estimatedBmrPerDay(),
+                        settings.calorieTarget,
+                    ),
                 )
             } catch (e: Exception) {
                 Log.e("HealthConnectSync", "readDailyActivity error: ${e.message}", e)

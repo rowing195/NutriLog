@@ -21,6 +21,7 @@ import com.watson.nutrilog.R
 import com.watson.nutrilog.data.ActivitySource
 import com.watson.nutrilog.data.DailyActivity
 import com.watson.nutrilog.data.NO_ACTIVITY_DATA_REASON
+import com.watson.nutrilog.data.NO_SURPLUS_REASON
 import java.time.LocalDate
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -114,6 +115,18 @@ fun ExerciseDetailSheet(
                         )
                     }
                 }
+                // 走路那一列只要有步數就畫，**就算加進目標的是 0 也要畫** ——
+                // 那正好回答「我今天明明有走，為什麼是 +0」：還沒超出久坐基準已經含的那一段。
+                if (activity.dailySteps > 0L) {
+                    DetailRow(
+                        stringResource(R.string.exercise_walk),
+                        stringResource(
+                            R.string.exercise_walk_value,
+                            activity.dailySteps,
+                            activity.stepCalories.roundToInt(),
+                        ),
+                    )
+                }
                 Hairline(Modifier.padding(vertical = 6.dp))
             }
 
@@ -173,10 +186,13 @@ fun ExerciseDetailSheet(
 private fun sourceLabel(activity: DailyActivity): String = when (activity.source) {
     ActivitySource.ACTIVE_CALORIES -> stringResource(R.string.exercise_source_active)
     ActivitySource.WORKOUT_SESSIONS -> stringResource(R.string.exercise_source_workouts)
-    ActivitySource.NONE -> stringResource(
-        R.string.exercise_source_none,
-        activity.unavailableReason ?: NO_ACTIVITY_DATA_REASON,
-    )
+    ActivitySource.STEPS -> stringResource(R.string.exercise_source_steps)
+    // **「讀不到」的前綴只給真的讀不到的那種。** 步數讀到了、只是沒超出額度時
+    // 再講一次「讀不到」是說謊，而使用者會跑去改權限 —— 那裡沒有問題可以修。
+    ActivitySource.NONE -> activity.unavailableReason.let { reason ->
+        if (reason == NO_SURPLUS_REASON) reason
+        else stringResource(R.string.exercise_source_none, reason ?: NO_ACTIVITY_DATA_REASON)
+    }
 }
 
 @Composable

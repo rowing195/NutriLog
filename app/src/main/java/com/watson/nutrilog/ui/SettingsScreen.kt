@@ -786,6 +786,7 @@ private fun sourceName(source: ActivitySource): String = stringResource(
     when (source) {
         ActivitySource.ACTIVE_CALORIES -> R.string.exercise_source_active
         ActivitySource.WORKOUT_SESSIONS -> R.string.exercise_source_workouts
+        ActivitySource.STEPS -> R.string.exercise_source_steps
         ActivitySource.NONE -> R.string.health_diag_none
     }
 )

@@ -250,6 +250,9 @@
     <string name="exercise_source_active">手錶記錄的活動消耗</string>
     <string name="exercise_source_workouts">手錶記錄的運動場次</string>
     <string name="exercise_source_none">讀不到：%1$s</string>
+    <string name="exercise_source_steps">手機計步估算</string>
+    <string name="exercise_walk">走路</string>
+    <string name="exercise_walk_value">%1$,d 步 · +%2$d</string>
     <string name="exercise_workouts">運動</string>
     <string name="exercise_eatback_row">運動回補 %1$d%%</string>
     <string name="exercise_minutes">%1$d 分鐘</string>
