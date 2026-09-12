@@ -547,7 +547,7 @@ true / false；數字鍵盤看「正在填：<欄位>」那行在不在，並且
   新增／編輯／刪除，改這段之後要跟著測「加一筆／刪一筆之後數字有沒有立刻更新」，
   不能只測「換頁不閃了」就算過。
 - **`WeekPageContent` 的借位 overlay 只在「日分頁器真的在跨週界」那段時間成立**
-  （`borrowing = dayPagerState.isScrollInProgress || dayHandoff`）。這條來回改了三版，
+  （`borrowing = dayPagerState.isScrollInProgress || dayHandoff`，完整經過見 [#13](https://github.com/rowing195/NutriLog/issues/13)）。這條來回改了三版，
   錯都錯在同一件事：`coerceIn(0f, 1f)` 會把「差了整整一週」飽和成 1，
   而飽和成 1 的意思就是「把自己整頁推出去、改畫鄰週」。
 
