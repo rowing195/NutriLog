@@ -1,5 +1,7 @@
 package com.watson.nutrilog.data
 
+import java.time.LocalDate
+
 /**
  * 一天的活動量是從哪裡來的。
  *
@@ -38,6 +40,26 @@ data class DailyActivity(
     val workoutCount: Int = 0,
     val workoutSummary: String = "",
     val workoutSessions: List<WorkoutSessionItem> = emptyList(),
+)
+
+/**
+ * 健康連線裡原始有什麼，給設定頁的診斷區用。
+ *
+ * 熱量與步數是 `null` 代表**沒有這種資料**，0 代表**有資料但那天沒動** —— 這兩件事
+ * 在畫面上長得一樣，卻要往完全不同的方向修，所以型別上就要分開。
+ */
+data class HealthDiagnostics(
+    val date: LocalDate,
+    val supported: Boolean,
+    val grantedActiveCalories: Boolean,
+    val grantedTotalCalories: Boolean,
+    val grantedSteps: Boolean,
+    val grantedExercise: Boolean,
+    val activeKcal: Double?,
+    val totalKcal: Double?,
+    val steps: Long?,
+    /** 正式路徑（[chooseActivity]）挑出來的結果，不是另外算的一份。 */
+    val chosen: DailyActivity,
 )
 
 /** 兩種來源都沒有東西時給使用者看的說明。 */

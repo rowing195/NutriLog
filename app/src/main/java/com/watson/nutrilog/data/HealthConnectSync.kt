@@ -332,6 +332,81 @@ class HealthConnectSync(private val context: Context) {
             }
         }
 
+    /**
+     * 把健康連線裡「原始有什麼」倒出來，給診斷畫面用。
+     *
+     * **存在的理由**：讀到的數字不如預期時，光看畫面分不出是沒授權、三星沒寫、
+     * 還是我們挑錯了。實際遇過的例子是三星的 app 裡活動消耗有 155，健康連線裡卻一筆
+     * 活動大卡都沒有（權限四個全開）—— 沒有這張表就只能猜。
+     *
+     * **採用的那個結果直接呼叫 [readDailyActivity]**，不另外算一份：診斷和實際行為
+     * 各寫一套的話，畫面上說的和目標用的遲早會漂掉，而那正是最難查的一種 bug。
+     *
+     * 這裡會多讀一個全日總消耗 —— 正式的路徑已經不用它了（見 [chooseActivity]），
+     * 但要判斷「三星到底寫了什麼進來」還是得看得到它。
+     */
+    suspend fun diagnose(date: LocalDate, settings: NutriSettings): HealthDiagnostics =
+        withContext(Dispatchers.IO) {
+            val c = client
+            val granted = if (c == null) {
+                emptySet()
+            } else {
+                runCatching { c.permissionController.getGrantedPermissions() }.getOrDefault(emptySet())
+            }
+            val chosen = readDailyActivity(date, settings)
+
+            var activeKcal: Double? = null
+            var totalKcal: Double? = null
+            var steps: Long? = null
+            if (c != null) {
+                val zoneId = ZoneId.systemDefault()
+                val startInstant = date.atStartOfDay(zoneId).toInstant()
+                val endInstant = date.plusDays(1).atStartOfDay(zoneId).toInstant()
+                val metrics = buildSet {
+                    if (READ_ACTIVE_CALORIES_PERMISSION in granted) {
+                        add(ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL)
+                    }
+                    if (READ_TOTAL_CALORIES_PERMISSION in granted) {
+                        add(TotalCaloriesBurnedRecord.ENERGY_TOTAL)
+                    }
+                    if (READ_STEPS_PERMISSION in granted) {
+                        add(StepsRecord.COUNT_TOTAL)
+                    }
+                }
+                if (metrics.isNotEmpty()) {
+                    val response = runCatching {
+                        c.aggregate(
+                            AggregateRequest(
+                                metrics = metrics,
+                                timeRangeFilter = TimeRangeFilter.between(startInstant, endInstant),
+                            )
+                        )
+                    }.getOrNull()
+                    // null 和 0 要分得開：一個是「沒有這種資料」，一個是「有資料但那天沒動」
+                    activeKcal = response?.get(ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL)?.inKilocalories
+                    totalKcal = response?.get(TotalCaloriesBurnedRecord.ENERGY_TOTAL)?.inKilocalories
+                    steps = response?.get(StepsRecord.COUNT_TOTAL)
+                }
+            }
+
+            val diagnostics = HealthDiagnostics(
+                date = date,
+                supported = isSupported(),
+                grantedActiveCalories = READ_ACTIVE_CALORIES_PERMISSION in granted,
+                grantedTotalCalories = READ_TOTAL_CALORIES_PERMISSION in granted,
+                grantedSteps = READ_STEPS_PERMISSION in granted,
+                grantedExercise = READ_EXERCISE_PERMISSION in granted,
+                activeKcal = activeKcal,
+                totalKcal = totalKcal,
+                steps = steps,
+                chosen = chosen,
+            )
+            // 一併寫進 logcat：接手的人可以 `adb logcat -s HealthDiagnostics` 直接撈，
+            // 不必請使用者一行一行念畫面上的數字。
+            Log.i("HealthDiagnostics", diagnostics.toString())
+            diagnostics
+        }
+
     private fun toNutritionRecord(entry: FoodEntry): NutritionRecord {
         val zoneId = ZoneId.systemDefault()
         val instant = runCatching {

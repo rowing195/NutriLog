@@ -59,6 +59,7 @@ import com.watson.nutrilog.data.MonthlyAggregator
 import com.watson.nutrilog.data.MonthlyReport
 import com.watson.nutrilog.data.MonthlyReportStore
 import com.watson.nutrilog.data.MonthlyStats
+import com.watson.nutrilog.data.HealthDiagnostics
 import com.watson.nutrilog.data.NO_ACTIVITY_DATA_REASON
 import com.watson.nutrilog.data.TargetRecommendation
 import com.watson.nutrilog.data.WeeklyAggregator
@@ -948,6 +949,10 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     var healthSyncBusy by mutableStateOf(false)
         private set
 
+    /** 設定頁「診斷」按下去讀到的原始值。null＝還沒按過。 */
+    var healthDiagnostics by mutableStateOf<HealthDiagnostics?>(null)
+        private set
+
     /** 最近一次整批寫入或權限要求的結果，設定頁顯示用。 */
     var healthSyncResult by mutableStateOf<HealthSyncResult?>(null)
         private set
@@ -1100,6 +1105,17 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 pendingHealthPermissions = HealthConnectSync.READ_EXERCISE_PERMISSIONS
             }
+        }
+    }
+
+    /**
+     * 設定頁的「讀取診斷資訊」。讀的是**今天**，因為要查的問題幾乎都是「現在對不上」。
+     *
+     * 不要求權限也不改任何設定 —— 它就是把健康連線裡原始有什麼倒出來給人看。
+     */
+    fun runHealthDiagnostics() {
+        viewModelScope.launch {
+            healthDiagnostics = healthConnectSync.diagnose(LocalDate.now(), settings)
         }
     }
 

@@ -309,7 +309,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/HealthConnectSync.kt'>HealthConnectSync.kt</a></b></td>
-					<td style='padding: 8px;'>健康連線的讀與寫。<br>- 讀每日運動消耗；寫入為選配，只在新增／編輯／刪除當下寫。<br>- 以 <code>nutrilog_&lt;紀錄 id&gt;</code> 當 clientRecordId，改同一筆就是覆寫。<br>- 相依釘在 1.1.0-beta01（1.1.0 正式版要 compileSdk 36）。</td>
+					<td style='padding: 8px;'>健康連線的讀與寫。<br>- 讀每日運動消耗；寫入為選配，只在新增／編輯／刪除當下寫。<br>- <code>diagnose()</code> 倒出原始讀值給設定頁的診斷區與 logcat。<br>- 以 <code>nutrilog_&lt;紀錄 id&gt;</code> 當 clientRecordId，改同一筆就是覆寫。<br>- 相依釘在 1.1.0-beta01（1.1.0 正式版要 compileSdk 36）。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/MonthlyAggregator.kt'>MonthlyAggregator.kt</a></b></td>
@@ -859,6 +859,10 @@ UI 部分使用 [`tools/ui.ps1`](tools/ui.ps1) 依元件文字進行模擬器自
 - **寫入飲食是選配、預設關閉**，而且只在新增、編輯、刪除當下寫，不在背景整批同步。
   每一筆用 `nutrilog_<紀錄 id>` 當 clientRecordId，改同一筆就是覆寫，不會長出重複的紀錄。
 - 每天的值快取在 Room 的 `daily_health_metrics`，週長條與月曆一打開就要用，不能等健康連線慢慢回。
+- **數字和手錶的 app 對不上時，設定 → 健康連線最底下有「讀取診斷資訊」**：列出今天從
+  健康連線讀到的原始值（活動大卡、總消耗、步數、運動場次、四個權限各有沒有）以及
+  App 採用了哪一個。同一份會寫進 logcat（`adb logcat -s HealthDiagnostics`）。
+  「無資料」和「0」是分開的 —— 前者是對方沒寫進來，後者是那天真的沒動。
 
 ### 依身型計算每日目標
 

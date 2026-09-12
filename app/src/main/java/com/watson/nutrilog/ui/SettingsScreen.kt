@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -56,6 +57,9 @@ import com.watson.nutrilog.data.AppIcon
 import com.watson.nutrilog.data.ApiService
 import com.watson.nutrilog.data.SearchMode
 import com.watson.nutrilog.data.DarkModePreference
+import kotlin.math.roundToInt
+import com.watson.nutrilog.data.ActivitySource
+import com.watson.nutrilog.data.HealthDiagnostics
 import com.watson.nutrilog.data.NutriSettings
 import com.watson.nutrilog.data.WatchWearMode
 import androidx.compose.foundation.layout.size
@@ -294,6 +298,8 @@ fun SettingsDetailScreen(
     onSetReadExercise: (Boolean) -> Unit,
     onSetHealthWrite: (Boolean) -> Unit,
     onSyncHealthNow: () -> Unit,
+    healthDiagnostics: HealthDiagnostics?,
+    onRunHealthDiagnostics: () -> Unit,
     onSelectIcon: (AppIcon) -> Unit,
     showBmrCalculator: Boolean,
     onOpenBmr: () -> Unit,
@@ -339,6 +345,7 @@ fun SettingsDetailScreen(
                 SettingsPage.HEALTH -> HealthSection(
                     settings, healthSupported, healthReadAuthorized, healthWriteAuthorized,
                     healthBusy, healthResult, onSetReadExercise, onSetHealthWrite, onSyncHealthNow,
+                    healthDiagnostics, onRunHealthDiagnostics,
                 )
                 SettingsPage.AI -> AiSection(settings, onChange, onOpenService)
                 SettingsPage.DRIVE -> DriveSection(
@@ -606,6 +613,8 @@ private fun HealthSection(
     onSetRead: (Boolean) -> Unit,
     onSetWrite: (Boolean) -> Unit,
     onSyncNow: () -> Unit,
+    diagnostics: HealthDiagnostics?,
+    onRunDiagnostics: () -> Unit,
 ) {
     if (!supported) {
         Text(
@@ -667,7 +676,98 @@ private fun HealthSection(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
+
+    Rule(Modifier.padding(top = 14.dp, bottom = 10.dp))
+    SectionLabel(stringResource(R.string.health_diag_title))
+    Text(
+        stringResource(R.string.health_diag_help),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    StampButton(
+        label = stringResource(R.string.health_diag_run),
+        onClick = onRunDiagnostics,
+        color = Color.Transparent,
+        modifier = Modifier.padding(top = 10.dp),
+    )
+    diagnostics?.let { DiagnosticsReport(it) }
 }
+
+/**
+ * 健康連線裡原始有什麼。**「無資料」和「0」要看得出差別** —— 前者是三星沒寫進來
+ * （或沒授權），後者是有資料但那天沒動，兩件事往完全不同的方向修。
+ */
+@Composable
+private fun DiagnosticsReport(d: HealthDiagnostics) {
+    val none = stringResource(R.string.health_diag_none)
+    val yes = stringResource(R.string.health_diag_yes)
+    val no = stringResource(R.string.health_diag_no)
+    fun kcal(v: Double?) = v?.let { "%,d".format(it.roundToInt()) } ?: none
+
+    val rows = listOf(
+        stringResource(R.string.health_diag_date) to d.date.toString(),
+        stringResource(R.string.health_diag_active) to kcal(d.activeKcal),
+        stringResource(R.string.health_diag_total) to kcal(d.totalKcal),
+        stringResource(R.string.health_diag_steps) to (d.steps?.let { "%,d".format(it) } ?: none),
+        stringResource(R.string.health_diag_sessions) to
+            stringResource(R.string.health_diag_sessions_count, d.chosen.workoutSessions.size),
+        stringResource(R.string.health_diag_chosen) to
+            // 讀不到時只寫「無資料」，後面再掛一個 0 會讓人以為那是量到的值
+            if (d.chosen.source == ActivitySource.NONE) {
+                sourceName(d.chosen.source)
+            } else {
+                "${sourceName(d.chosen.source)} ${d.chosen.calories.roundToInt()}"
+            },
+        stringResource(R.string.health_diag_permissions) to listOf(
+            stringResource(R.string.health_diag_active) to d.grantedActiveCalories,
+            stringResource(R.string.health_diag_total) to d.grantedTotalCalories,
+            stringResource(R.string.health_diag_steps) to d.grantedSteps,
+            stringResource(R.string.health_diag_exercise) to d.grantedExercise,
+        ).joinToString(" · ") { (label, ok) -> "$label " + (if (ok) yes else no) },
+    )
+
+    Column(Modifier.padding(top = 12.dp)) {
+        rows.forEach { (label, value) ->
+            Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                Text(
+                    label,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.width(96.dp),
+                )
+                Text(withNumerals(value), style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        // 每一場都列出來：自動偵測的健走常常切成好幾段，只給總數看不出這件事
+        d.chosen.workoutSessions.forEach { session ->
+            Text(
+                withNumerals(
+                    "  ${session.title} ${session.timeRangeText} " +
+                        "${session.durationMinutes} 分 ${session.calories.roundToInt()} kcal"
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        d.chosen.unavailableReason?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun sourceName(source: ActivitySource): String = stringResource(
+    when (source) {
+        ActivitySource.ACTIVE_CALORIES -> R.string.exercise_source_active
+        ActivitySource.WORKOUT_SESSIONS -> R.string.exercise_source_workouts
+        ActivitySource.NONE -> R.string.health_diag_none
+    }
+)
 
 @Composable
 private fun SwitchRow(title: String, help: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {

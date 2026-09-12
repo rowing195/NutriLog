@@ -457,6 +457,8 @@ fun NutriLogApp(viewModel: NutriViewModel) {
                 onSetReadExercise = viewModel::setReadExerciseCalories,
                 onSetHealthWrite = viewModel::setHealthConnectSync,
                 onSyncHealthNow = viewModel::syncAllToHealthConnect,
+                healthDiagnostics = viewModel.healthDiagnostics,
+                onRunHealthDiagnostics = viewModel::runHealthDiagnostics,
                 onSelectIcon = viewModel::setAppIcon,
                 showBmrCalculator = viewModel.showBmrCalculator,
                 onOpenBmr = viewModel::openBmrCalculator,
