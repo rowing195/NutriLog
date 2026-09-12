@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
+import androidx.health.connect.client.records.BasalMetabolicRateRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.MealType
 import androidx.health.connect.client.records.NutritionRecord
@@ -64,7 +65,7 @@ class HealthConnectSync(private val context: Context) {
     suspend fun hasReadExercisePermission(): Boolean {
         val c = client ?: return false
         val granted = c.permissionController.getGrantedPermissions()
-        return READ_EXERCISE_PERMISSIONS.any { it in granted }
+        return READ_ACTIVITY_PERMISSIONS.any { it in granted }
     }
 
     /** 檢查是否擁有所有權限（寫入飲食 + 至少一種讀取運動） */
@@ -188,6 +189,9 @@ class HealthConnectSync(private val context: Context) {
                     }
                     if (READ_STEPS_PERMISSION in granted) {
                         add(StepsRecord.COUNT_TOTAL)
+                    }
+                    if (READ_BASAL_PERMISSION in granted) {
+                        add(BasalMetabolicRateRecord.BASAL_CALORIES_TOTAL)
                     }
                 }
 
@@ -359,9 +363,12 @@ class HealthConnectSync(private val context: Context) {
             var activeKcal: Double? = null
             var totalKcal: Double? = null
             var steps: Long? = null
+            var totalKcalSoFar: Double? = null
+            var basalKcal: Double? = null
             var activeOrigins: RecordOrigins? = null
             var totalOrigins: RecordOrigins? = null
             var stepsOrigins: RecordOrigins? = null
+            var basalOrigins: RecordOrigins? = null
             if (c != null) {
                 val zoneId = ZoneId.systemDefault()
                 val startInstant = date.atStartOfDay(zoneId).toInstant()
@@ -390,6 +397,22 @@ class HealthConnectSync(private val context: Context) {
                     activeKcal = response?.get(ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL)?.inKilocalories
                     totalKcal = response?.get(TotalCaloriesBurnedRecord.ENERGY_TOTAL)?.inKilocalories
                     steps = response?.get(StepsRecord.COUNT_TOTAL)
+                    basalKcal = response?.get(BasalMetabolicRateRecord.BASAL_CALORIES_TOTAL)?.inKilocalories
+                }
+
+                // 同一個總消耗再查一次，但只查到「現在」為止。兩個值一樣就代表它是
+                // 一個整日估計值、不管問哪一段都回同一個數 —— 那就不能拿來當
+                // 「今天到現在動了多少」。過去的日子兩者本來就會一樣，不用意外。
+                if (READ_TOTAL_CALORIES_PERMISSION in granted) {
+                    val soFarEnd = Instant.now().let { if (it.isBefore(endInstant)) it else endInstant }
+                    totalKcalSoFar = runCatching {
+                        c.aggregate(
+                            AggregateRequest(
+                                metrics = setOf(TotalCaloriesBurnedRecord.ENERGY_TOTAL),
+                                timeRangeFilter = TimeRangeFilter.between(startInstant, soFarEnd),
+                            )
+                        )
+                    }.getOrNull()?.get(TotalCaloriesBurnedRecord.ENERGY_TOTAL)?.inKilocalories
                 }
 
                 // **合計值看不出「這個數字是誰寫的」**，而那正是對不上時要問的第一個問題。
@@ -404,6 +427,9 @@ class HealthConnectSync(private val context: Context) {
                 if (READ_STEPS_PERMISSION in granted) {
                     stepsOrigins = c.originsOf(StepsRecord::class, startInstant, endInstant)
                 }
+                if (READ_BASAL_PERMISSION in granted) {
+                    basalOrigins = c.originsOf(BasalMetabolicRateRecord::class, startInstant, endInstant)
+                }
             }
 
             val diagnostics = HealthDiagnostics(
@@ -413,13 +439,17 @@ class HealthConnectSync(private val context: Context) {
                 grantedTotalCalories = READ_TOTAL_CALORIES_PERMISSION in granted,
                 grantedSteps = READ_STEPS_PERMISSION in granted,
                 grantedExercise = READ_EXERCISE_PERMISSION in granted,
+                grantedBasal = READ_BASAL_PERMISSION in granted,
                 activeKcal = activeKcal,
                 totalKcal = totalKcal,
+                totalKcalSoFar = totalKcalSoFar,
+                basalKcal = basalKcal,
                 steps = steps,
                 chosen = chosen,
                 activeOrigins = activeOrigins,
                 totalOrigins = totalOrigins,
                 stepsOrigins = stepsOrigins,
+                basalOrigins = basalOrigins,
             )
             // 一併寫進 logcat：接手的人可以 `adb logcat -s HealthDiagnostics` 直接撈，
             // 不必請使用者一行一行念畫面上的數字。
@@ -553,14 +583,30 @@ class HealthConnectSync(private val context: Context) {
             HealthPermission.getReadPermission(StepsRecord::class)
         val READ_EXERCISE_PERMISSION =
             HealthPermission.getReadPermission(ExerciseSessionRecord::class)
+        /**
+         * 基礎代謝。它**不在**「活動」那一類，是身體測量，所以是獨立的一把權限。
+         *
+         * 要它只為了一件事：「總消耗 − 基礎代謝」那條路的減數必須和被減數同源。
+         * 我們自己算的那份和三星算的差幾個百分點，而答案只有一百多大卡 —— 誤差和
+         * 答案同一個量級。診斷也要看得到它到底存不存在。
+         */
+        val READ_BASAL_PERMISSION =
+            HealthPermission.getReadPermission(BasalMetabolicRateRecord::class)
 
-        // 四種是彼此的退路與專項補充，判斷授權時一律用 any 不要用 containsAll。
-        val READ_EXERCISE_PERMISSIONS = setOf(
+        /**
+         * 真正能算出活動量的四種。它們是彼此的退路與專項補充，
+         * 判斷「連上了沒」一律用 any 不要用 containsAll。
+         * **基礎代謝不在這裡** —— 只有它被授權不代表活動量讀得到。
+         */
+        val READ_ACTIVITY_PERMISSIONS = setOf(
             READ_ACTIVE_CALORIES_PERMISSION,
             READ_TOTAL_CALORIES_PERMISSION,
             READ_STEPS_PERMISSION,
             READ_EXERCISE_PERMISSION,
         )
+
+        /** 要跟使用者請求的整組讀取權限（比上面多一把基礎代謝）。 */
+        val READ_EXERCISE_PERMISSIONS = READ_ACTIVITY_PERMISSIONS + READ_BASAL_PERMISSION
 
         val REQUIRED_PERMISSIONS = WRITE_PERMISSIONS + READ_EXERCISE_PERMISSIONS
 

@@ -715,13 +715,18 @@ private fun DiagnosticsReport(d: HealthDiagnostics) {
         stringResource(R.string.health_diag_date) to d.date.toString(),
         stringResource(R.string.health_diag_active) to counted(kcal(d.activeKcal), d.activeOrigins),
         stringResource(R.string.health_diag_total) to counted(kcal(d.totalKcal), d.totalOrigins),
+        // 和上一列一樣的總消耗，只查到現在為止。**兩個一樣就代表它不會跟著時間累加**，
+        // 那就不能拿來當「今天到現在動了多少」。
+        stringResource(R.string.health_diag_total_so_far) to kcal(d.totalKcalSoFar),
+        stringResource(R.string.health_diag_basal) to counted(kcal(d.basalKcal), d.basalOrigins),
         stringResource(R.string.health_diag_steps) to
             counted(d.steps?.let { "%,d".format(it) } ?: none, d.stepsOrigins),
         stringResource(R.string.health_diag_sessions) to
             stringResource(R.string.health_diag_sessions_count, d.chosen.workoutSessions.size),
         // 同一個型別出現兩個來源，就是合計把兩份疊起來了（手機自己那份步數預設不去重）
+        stringResource(R.string.health_diag_read_at) to "%02d:%02d".format(d.readAt.hour, d.readAt.minute),
         stringResource(R.string.health_diag_writers) to
-            listOfNotNull(d.activeOrigins, d.totalOrigins, d.stepsOrigins)
+            listOfNotNull(d.activeOrigins, d.totalOrigins, d.stepsOrigins, d.basalOrigins)
                 .flatMap { it.packages }
                 .distinct()
                 .ifEmpty { listOf(writersNone) }
@@ -738,6 +743,7 @@ private fun DiagnosticsReport(d: HealthDiagnostics) {
             stringResource(R.string.health_diag_total) to d.grantedTotalCalories,
             stringResource(R.string.health_diag_steps) to d.grantedSteps,
             stringResource(R.string.health_diag_exercise) to d.grantedExercise,
+            stringResource(R.string.health_diag_basal) to d.grantedBasal,
         ).joinToString(" · ") { (label, ok) -> "$label " + (if (ok) yes else no) },
     )
 

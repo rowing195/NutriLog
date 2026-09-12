@@ -1,6 +1,7 @@
 package com.watson.nutrilog.data
 
 import java.time.LocalDate
+import java.time.LocalTime
 
 /**
  * 一天的活動量是從哪裡來的。
@@ -68,8 +69,25 @@ data class HealthDiagnostics(
     val grantedTotalCalories: Boolean,
     val grantedSteps: Boolean,
     val grantedExercise: Boolean,
+    val grantedBasal: Boolean = false,
     val activeKcal: Double?,
     val totalKcal: Double?,
+    /**
+     * 同一個「總消耗」，但只查到**讀取的那一刻**為止。
+     *
+     * 和整天那個值一起看才問得出「它到底會不會跟著時間累加」：兩個一樣，代表它是
+     * 一個不管你問哪一段都回同一個數的整日估計值，**那就沒辦法拿來當「今天到現在
+     * 動了多少」**；到現在的比較小，才表示它真的在累加。
+     */
+    val totalKcalSoFar: Double?,
+    /**
+     * 健康連線裡的基礎代謝（`BasalMetabolicRateRecord` 當天合計）。
+     *
+     * 存在的理由是「總消耗 − 基礎代謝」那條路**唯一的修法**：減數要和被減數同源。
+     * 我們自己用 Mifflin-St Jeor 算的那份和三星算的差幾個百分點，而答案只有一百多
+     * 大卡，誤差和答案同一個量級。這裡讀的是三星自己寫進來的那份。
+     */
+    val basalKcal: Double?,
     val steps: Long?,
     /** 正式路徑（[chooseActivity]）挑出來的結果，不是另外算的一份。 */
     val chosen: DailyActivity,
@@ -80,6 +98,9 @@ data class HealthDiagnostics(
     val activeOrigins: RecordOrigins? = null,
     val totalOrigins: RecordOrigins? = null,
     val stepsOrigins: RecordOrigins? = null,
+    val basalOrigins: RecordOrigins? = null,
+    /** 這份診斷是幾點讀的。隔幾小時讀兩次要比較數字有沒有動，沒有它就只能靠記憶。 */
+    val readAt: LocalTime = LocalTime.now(),
 )
 
 /** 兩種來源都沒有東西時給使用者看的說明。 */
