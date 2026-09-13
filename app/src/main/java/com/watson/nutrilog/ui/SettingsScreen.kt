@@ -643,24 +643,28 @@ private fun HealthSection(
     )
     if (writeOn) {
         Hairline()
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            StampButton(
-                label = stringResource(R.string.health_sync_now),
-                onClick = onSyncNow,
-                enabled = !busy,
-                color = Color.Transparent,
+        // **時間在自己一行，不要和章撠在同一個 Row裡**（同 Drive 那顆「立即備份」）。
+        //
+        // 舊版是 `Row { StampButton; Spacer(weight(1f)); Text }`，而 `StampButton` 內部是
+        // `fillMaxWidth()` —— 沒給它 weight 就會吃掉整行，時間那段被壓成 0 寬、
+        // 一個字一行地往下長，`CenterVertically` 再把章擺到那一長條的正中間。
+        // 症狀就是「寫入飲食紀錄跟立即同步距離超遠」，而且**只有時間段很長時才明顯**
+        // （剛同步完是「剛剛」兩個字，看起來像好了；隔一陣子變成完整日期就又跡掉）。
+        if (settings.lastHealthSyncAt > 0) {
+            Text(
+                withNumerals(
+                    stringResource(R.string.health_last_sync, lastBackupLabel(settings.lastHealthSyncAt))
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Spacer(Modifier.weight(1f))
-            if (settings.lastHealthSyncAt > 0) {
-                Text(
-                    withNumerals(
-                        stringResource(R.string.health_last_sync, lastBackupLabel(settings.lastHealthSyncAt))
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
         }
+        StampButton(
+            label = stringResource(R.string.health_sync_now),
+            onClick = onSyncNow,
+            enabled = !busy,
+            color = Color.Transparent,
+        )
     }
     if (busy) IndeterminateRule()
     result?.let {
