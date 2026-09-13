@@ -61,6 +61,7 @@ import com.watson.nutrilog.data.MonthlyReportStore
 import com.watson.nutrilog.data.MonthlyStats
 import com.watson.nutrilog.data.HealthDiagnostics
 import com.watson.nutrilog.data.NO_ACTIVITY_DATA_REASON
+import com.watson.nutrilog.data.NO_SURPLUS_REASON
 import com.watson.nutrilog.data.TargetRecommendation
 import com.watson.nutrilog.data.WeeklyAggregator
 import com.watson.nutrilog.data.WeeklyReport
@@ -1034,22 +1035,49 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         dailyActivityMap[date] = activity
         val dateKey = date.toString()
         val cached = dao.getHealthMetric(dateKey)
+        val stored = cached?.activeCalories ?: 0.0
+
+        // 讀取本身出錯（沒權限、健康連線壞掉）就完全不動快取 ——
+        // 把之前讀到的 400 大卡蓋成 0 比什麼都不顯示更糟。
         if (activity.source == ActivitySource.NONE &&
             activity.unavailableReason != null &&
-            activity.unavailableReason != NO_ACTIVITY_DATA_REASON
+            activity.unavailableReason != NO_ACTIVITY_DATA_REASON &&
+            activity.unavailableReason != NO_SURPLUS_REASON
         ) {
-            activeCaloriesMap[date] = cached?.activeCalories ?: 0.0
+            activeCaloriesMap[date] = stored
             return activity
         }
-        activeCaloriesMap[date] = activity.calories
-        dao.upsertHealthMetric(
-            (cached ?: DailyHealthMetric(date = dateKey)).copy(
+
+        // **過去的日子只往上補，不往下改。**
+        //
+        // 這一條修的是「前一天本來在目標內，過一天又變紅」：過去的日子每次被
+        // 看到都會重讀一次健康連線，而那次重讀可能什麼都拿不到（三星清掉、
+        // 手錶解除配對、或者使用者改了熱量目標讓步數的內含額度跟著變）。舊版
+        // 那一次重讀會把快取蓋成 0，於是那天的額度退回基準值、本來剛好在目標內的
+        // 一天突然變成超標。使用者那一天實際吃了多少、動了多少都沒變，只是我們忘了。
+        //
+        // 所以過去的日子取「存過的」與「這次讀到的」的最大值：晚一步同步進來的手錶
+        // 資料只會讓數字變大，變小則一律是「這次沒讀到」而不是「那天真的沒動」。
+        // **今天不適用這條** —— 今天本來就還在累積，而且手錶真的可能改寫小。
+        val settled = date.isBefore(LocalDate.now())
+        val metric = cached ?: DailyHealthMetric(date = dateKey)
+        val merged = if (settled) {
+            metric.copy(
+                activeCalories = maxOf(stored, activity.calories),
+                steps = maxOf(metric.steps, activity.steps),
+                workoutCalories = maxOf(metric.workoutCalories, activity.workoutCalories),
+                lastSyncedAt = System.currentTimeMillis(),
+            )
+        } else {
+            metric.copy(
                 activeCalories = activity.calories,
                 steps = activity.steps,
                 workoutCalories = activity.workoutCalories,
                 lastSyncedAt = System.currentTimeMillis(),
             )
-        )
+        }
+        activeCaloriesMap[date] = merged.activeCalories
+        dao.upsertHealthMetric(merged)
         return activity
     }
 
