@@ -155,4 +155,16 @@ interface NutriDao {
 
     @Query("SELECT * FROM daily_health_metrics")
     suspend fun getAllHealthMetrics(): List<DailyHealthMetric>
+
+    // --- 每日目標快照 ---
+
+    @Upsert
+    suspend fun upsertDailyTarget(target: DailyTarget)
+
+    /**
+     * 一次訂全部。一天一列、五個欄位，十年也才三千多列 ——
+     * 為了它再養一條跟著可見範圍跑的 Flow 不劃算。
+     */
+    @Query("SELECT * FROM daily_targets")
+    fun observeDailyTargets(): Flow<List<DailyTarget>>
 }

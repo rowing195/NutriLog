@@ -68,6 +68,7 @@ import com.watson.nutrilog.data.WeeklyReport
 import com.watson.nutrilog.data.WeeklyReportStore
 import com.watson.nutrilog.data.WeeklyStats
 import com.watson.nutrilog.data.db.DailyHealthMetric
+import com.watson.nutrilog.data.db.DailyTarget
 import com.watson.nutrilog.data.BackedUpProfile
 import com.watson.nutrilog.data.BmrCalculator
 import com.watson.nutrilog.data.WatchWearMode
@@ -337,6 +338,9 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     var monthTotals by mutableStateOf<Map<String, DayTotal>>(emptyMap())
         private set
 
+    /** 每一天當時的四格目標，見 [DailyTarget]。查不到的日子退回目前的設定。 */
+    val dailyTargetMap = mutableStateMapOf<LocalDate, DailyTarget>()
+
     /** 一週的第一天。星期日起算，和月曆的排法一致（台灣的日曆慣例）。 */
     val weekStart: LocalDate get() = selectedDate.minusDays((selectedDate.dayOfWeek.value % 7).toLong())
     var draft by mutableStateOf(EntryDraft())
@@ -416,6 +420,10 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             settingsStore.settingsFlow.collect {
                 settings = it
+                // **今天那一列每次都覆寫，過去的碰都不碰。**
+                // 這就是「過去的日子用過去的標準判斷」的全部機制：開過 app 的那一天
+                // 就會留下當時的四格目標，日子一過它就定了。見 [DailyTarget]。
+                rememberTodayTarget(it)
                 // 每次啟動都對一次：元件狀態存在系統那一側，重裝或使用者清資料之後
                 // 會跟設定裡記的那一款對不上，那時候桌面上的圖示就不是他選的那個。
                 AppIconSwitcher.apply(getApplication(), it.appIcon)
@@ -449,6 +457,14 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
                 .collect { totals -> monthTotals = totals.associateBy { it.date } }
+        }
+        viewModelScope.launch {
+            dao.observeDailyTargets().collect { rows ->
+                dailyTargetMap.clear()
+                rows.forEach { row ->
+                    runCatching { LocalDate.parse(row.date) }.getOrNull()?.let { dailyTargetMap[it] = row }
+                }
+            }
         }
         viewModelScope.launch {
             dao.observeFrequentFoods(
@@ -1664,6 +1680,24 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
             R.string.drive_failed,
             cause.message ?: cause.javaClass.simpleName,
         )
+
+    /**
+     * 把今天的四格目標釘下來。只寫今天 —— 過去的日子一旦寫過就不再動，
+     * 那正是「用那一天當時的標準判斷」的意思。
+     */
+    private fun rememberTodayTarget(s: NutriSettings) {
+        viewModelScope.launch {
+            dao.upsertDailyTarget(
+                DailyTarget(
+                    date = LocalDate.now().toString(),
+                    calorieTarget = s.calorieTarget,
+                    proteinTargetG = s.proteinTargetG,
+                    fatTargetG = s.fatTargetG,
+                    carbsTargetG = s.carbsTargetG,
+                )
+            )
+        }
+    }
 
     fun updateSettings(newSettings: NutriSettings) {
         // 先更新 UI 再落地，避免打字或拉 slider 時卡頓

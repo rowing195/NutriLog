@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.NutriSettings
+import com.watson.nutrilog.data.db.DailyTarget
 import com.watson.nutrilog.data.db.DayTotal
 import com.watson.nutrilog.ui.theme.numeric
 import com.watson.nutrilog.ui.theme.NutrientColors
@@ -80,6 +81,8 @@ fun HistoryScreen(
     selectedDate: LocalDate,
     /** 每一天的運動消耗，格子與月摘要的超標判斷要用加上它之後的目標。 */
     activeCaloriesMap: Map<LocalDate, Double>,
+    /** 每一天當時的四格目標。**拿熱量比目標一律走 `targetsOn()`，不要直接讀 settings。** */
+    dailyTargets: Map<LocalDate, DailyTarget>,
     onShiftMonth: (Long) -> Unit,
     onOpenDay: (LocalDate) -> Unit,
     /** 打開 AI 週報／月報，帶著正在看的那個月。 */
@@ -180,6 +183,7 @@ fun HistoryScreen(
                         today = today,
                         selectedDate = selectedDate,
                         activeCaloriesMap = activeCaloriesMap,
+                        dailyTargets = dailyTargets,
                         onOpenDay = onOpenDay,
                         enter = enter,
                     )
@@ -202,7 +206,7 @@ fun HistoryScreen(
                         }
                     ) {
                         Column {
-                            MonthSummary(pageMonth, totals, settings, activeCaloriesMap)
+                            MonthSummary(pageMonth, totals, settings, activeCaloriesMap, dailyTargets)
                             // 接在月摘要後面、跟著同一段落下動畫：報表講的就是「這一段期間」，
                             // 和摘要是同一件事的延伸。長相跟設定選單的列一樣，安靜、不搶月曆的戲。
                             Hairline(Modifier.padding(top = 14.dp))
@@ -360,6 +364,7 @@ private fun MonthGrid(
     today: LocalDate,
     selectedDate: LocalDate,
     activeCaloriesMap: Map<LocalDate, Double>,
+    dailyTargets: Map<LocalDate, DailyTarget>,
     onOpenDay: (LocalDate) -> Unit,
     enter: Transition<Boolean>,
 ) {
@@ -404,6 +409,7 @@ private fun MonthGrid(
                             total = totals[date.toString()],
                             settings = settings,
                             activeCalories = activeCaloriesMap[date] ?: 0.0,
+                            dayTarget = dailyTargets.targetsOn(date, settings),
                             isToday = date == today,
                             isSelected = date == selectedDate,
                             isFuture = date.isAfter(today),
@@ -426,6 +432,8 @@ private fun DayCell(
     total: DayTotal?,
     settings: NutriSettings,
     activeCalories: Double,
+    /** 那一天當時的四格目標。 */
+    dayTarget: DailyTarget,
     isToday: Boolean,
     isSelected: Boolean,
     isFuture: Boolean,
@@ -435,7 +443,8 @@ private fun DayCell(
     val kcal = total?.kcal ?: 0.0
     // 和今日頁同一個判斷：那天有運動，額度就跟著變多
     val goal = effectiveCalorieTarget(
-        settings.calorieTarget,
+        // 那一天當時的目標，不是現在的設定
+        dayTarget.calorieTarget,
         activeCalories,
         settings.readExerciseCalories,
         settings.exerciseEatBackPercent,
@@ -528,6 +537,7 @@ private fun MonthSummary(
     totals: Map<String, DayTotal>,
     settings: NutriSettings,
     activeCaloriesMap: Map<LocalDate, Double>,
+    dailyTargets: Map<LocalDate, DailyTarget>,
 ) {
     val prefix = "%04d-%02d".format(month.year, month.monthValue)
     val mine = remember(prefix, totals) { totals.filterKeys { it.startsWith(prefix) } }
@@ -548,7 +558,10 @@ private fun MonthSummary(
     val overDays = mine.values.count { day ->
         val active = runCatching { LocalDate.parse(day.date) }.getOrNull()?.let { activeCaloriesMap[it] } ?: 0.0
         val goal = effectiveCalorieTarget(
-            settings.calorieTarget,
+            dailyTargets.targetsOn(
+                runCatching { LocalDate.parse(day.date) }.getOrNull() ?: LocalDate.now(),
+                settings,
+            ).calorieTarget,
             active,
             settings.readExerciseCalories,
             settings.exerciseEatBackPercent,

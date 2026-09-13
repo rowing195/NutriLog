@@ -83,6 +83,7 @@ import androidx.compose.ui.unit.sp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.NutriSettings
 import com.watson.nutrilog.data.db.DayTotal
+import com.watson.nutrilog.data.db.DailyTarget
 import com.watson.nutrilog.data.db.FoodEntry
 import com.watson.nutrilog.data.db.Meal
 import com.watson.nutrilog.data.db.Totals
@@ -135,6 +136,8 @@ fun TodayScreen(
     isCurrent: Boolean,
     /** 每一天從健康連線讀到的活動消耗，見 NutriViewModel.activeCaloriesMap。 */
     activeCaloriesMap: Map<LocalDate, Double>,
+    /** 每一天當時的四格目標。**拿熱量比目標一律走 `targetsOn()`，不要直接讀 settings。** */
+    dailyTargets: Map<LocalDate, DailyTarget>,
     dailyActivityMap: Map<LocalDate, DailyActivity>,
     /**
      * 健康連線的運動消耗**接上了沒有**（開關開著＋權限真的拿到）。
@@ -334,6 +337,7 @@ fun TodayScreen(
                     today = today,
                     settings = settings,
                     activeCaloriesMap = activeCaloriesMap,
+                    dailyTargets = dailyTargets,
                     onPickDay = onPickDay,
                     onShiftWeek = onShiftWeek,
                 )
@@ -359,6 +363,7 @@ fun TodayScreen(
                 entriesCache = entriesCache,
                 settings = settings,
                 activeCalories = activeCaloriesMap[dayOfPage(page)] ?: 0.0,
+                dayTarget = dailyTargets.targetsOn(dayOfPage(page), settings),
                 activity = dailyActivityMap[dayOfPage(page)],
                 healthReadOn = healthReadOn,
                 healthWriteOn = healthWriteOn,
@@ -458,7 +463,7 @@ fun TodayScreen(
                     ExerciseDetailSheet(
                         date = lastDetailDate,
                         consumed = dayEntries.sumOf { it.calories },
-                        baseTarget = settings.calorieTarget,
+                        baseTarget = dailyTargets.targetsOn(lastDetailDate, settings).calorieTarget,
                         activeCalories = if (settings.readExerciseCalories) {
                             activeCaloriesMap[lastDetailDate] ?: 0.0
                         } else 0.0,
@@ -600,6 +605,7 @@ private fun WeekStrip(
     // 那一段 —— 四個值一路往下傳不如直接收 settings。
     settings: NutriSettings,
     activeCaloriesMap: Map<LocalDate, Double>,
+    dailyTargets: Map<LocalDate, DailyTarget>,
     onPickDay: (LocalDate) -> Unit,
     onShiftWeek: (Long) -> Unit,
 ) {
@@ -634,6 +640,7 @@ private fun WeekStrip(
                 today = today,
                 settings = settings,
                 activeCaloriesMap = activeCaloriesMap,
+                dailyTargets = dailyTargets,
                 dayPagerState = dayPagerState,
                 dayPageOf = dayPageOf,
                 onPickDay = onPickDay,
@@ -671,6 +678,7 @@ private fun WeekPageContent(
     today: LocalDate,
     settings: NutriSettings,
     activeCaloriesMap: Map<LocalDate, Double>,
+    dailyTargets: Map<LocalDate, DailyTarget>,
     dayPagerState: PagerState,
     dayPageOf: (LocalDate) -> Int,
     onPickDay: (LocalDate) -> Unit,
@@ -701,16 +709,16 @@ private fun WeekPageContent(
         val rowWidthPx = with(LocalDensity.current) { maxWidth.toPx() }
 
         Box(Modifier.graphicsLayer { translationX = (overflowBefore - overflowAfter) * rowWidthPx }) {
-            WeekRow(weekStart, weekTotalsFlow, weekTotalsCache, today, settings, activeCaloriesMap, dayPagerState, dayPageOf, onPickDay)
+            WeekRow(weekStart, weekTotalsFlow, weekTotalsCache, today, settings, activeCaloriesMap, dailyTargets, dayPagerState, dayPageOf, onPickDay)
         }
         if (overflowAfter > 0f) {
             Box(Modifier.graphicsLayer { translationX = (1f - overflowAfter) * rowWidthPx }) {
-                WeekRow(weekStart.plusWeeks(1), weekTotalsFlow, weekTotalsCache, today, settings, activeCaloriesMap, dayPagerState, dayPageOf, onPickDay)
+                WeekRow(weekStart.plusWeeks(1), weekTotalsFlow, weekTotalsCache, today, settings, activeCaloriesMap, dailyTargets, dayPagerState, dayPageOf, onPickDay)
             }
         }
         if (overflowBefore > 0f) {
             Box(Modifier.graphicsLayer { translationX = (overflowBefore - 1f) * rowWidthPx }) {
-                WeekRow(weekStart.minusWeeks(1), weekTotalsFlow, weekTotalsCache, today, settings, activeCaloriesMap, dayPagerState, dayPageOf, onPickDay)
+                WeekRow(weekStart.minusWeeks(1), weekTotalsFlow, weekTotalsCache, today, settings, activeCaloriesMap, dailyTargets, dayPagerState, dayPageOf, onPickDay)
             }
         }
     }
@@ -754,6 +762,7 @@ private fun WeekRow(
     today: LocalDate,
     settings: NutriSettings,
     activeCaloriesMap: Map<LocalDate, Double>,
+    dailyTargets: Map<LocalDate, DailyTarget>,
     dayPagerState: PagerState,
     dayPageOf: (LocalDate) -> Int,
     onPickDay: (LocalDate) -> Unit,
@@ -781,7 +790,8 @@ private fun WeekRow(
                 kcal = byDate[day.toString()]?.kcal ?: 0.0,
                 // 週長條每一格用那一天自己加上運動後的目標，和今日頁、月曆同一個判斷
                 target = effectiveCalorieTarget(
-                    settings.calorieTarget,
+                    // 每一格用那一天當時的目標，不是現在的設定
+                    dailyTargets.targetsOn(day, settings).calorieTarget,
                     activeCaloriesMap[day] ?: 0.0,
                     settings.readExerciseCalories,
                     settings.exerciseEatBackPercent,
@@ -911,6 +921,8 @@ private fun DayPage(
     entriesCache: MutableMap<LocalDate, List<FoodEntry>>,
     settings: NutriSettings,
     activeCalories: Double,
+    /** 這一天當時的四格目標。 */
+    dayTarget: DailyTarget,
     activity: DailyActivity?,
     healthReadOn: Boolean,
     healthWriteOn: Boolean,
@@ -951,10 +963,10 @@ private fun DayPage(
     ) {
         item { Hairline() }
         item {
-            Budget(date, entries, totals, settings, activeCalories, activity, healthReadOn, healthWriteOn, onOpenExerciseDetail)
+            Budget(date, entries, totals, settings, activeCalories, dayTarget, activity, healthReadOn, healthWriteOn, onOpenExerciseDetail)
         }
         item { Hairline() }
-        item { Macros(totals, settings) }
+        item { Macros(totals, settings, dayTarget) }
         item { Hairline() }
 
         // 餐別之間不再另外畫線：每一列自己帶上緣細線之後，餐別標題上方那段空白
@@ -1017,13 +1029,16 @@ private fun Budget(
     totals: Totals,
     settings: NutriSettings,
     activeCalories: Double,
+    dayTarget: DailyTarget,
     activity: DailyActivity?,
     healthReadOn: Boolean,
     healthWriteOn: Boolean,
     onOpenExerciseDetail: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val target = settings.calorieTarget
+    // 用那一天當時的目標，不是現在的設定 —— 不然改一次目標會把以前每一天
+    // 重新判一次，上個月本來在目標內的日子會集體變紅。
+    val target = dayTarget.calorieTarget
     val consumed = totals.calories
     // 運動消耗加進目標之後才是今天真正的額度：「還有／超出」、超標顏色、額度條都照它算。
     // 「目標」那一格仍然顯示原本設的數字，加了多少另外一行講 —— 直接把目標改成 2350
@@ -1222,7 +1237,7 @@ private fun MealSegmentBar(entries: List<FoodEntry>, target: Int) {
  * 三根各自的及格條只答得出後者，而且三根等長時看不出誰佔多數。
  */
 @Composable
-private fun Macros(totals: Totals, settings: NutriSettings) {
+private fun Macros(totals: Totals, settings: NutriSettings, dayTarget: DailyTarget) {
     val protein = NutrientColors.Protein
     val fat = NutrientColors.Fat
     val carbs = NutrientColors.Carbs
@@ -1237,9 +1252,9 @@ private fun Macros(totals: Totals, settings: NutriSettings) {
         // 額度條已經回答過一次了（而且分得更細）。真正每天會問的是「蛋白質夠了沒」，
         // 那是達成率，組成條答不出來 —— 三者佔比一樣時，可能三個都不足也可能三個都爆。
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            MacroColumn(stringResource(R.string.nutrient_protein), totals.proteinG, settings.proteinTargetG, protein, Modifier.weight(1f))
-            MacroColumn(stringResource(R.string.nutrient_fat), totals.fatG, settings.fatTargetG, fat, Modifier.weight(1f))
-            MacroColumn(stringResource(R.string.nutrient_carbs), totals.carbsG, settings.carbsTargetG, carbs, Modifier.weight(1f))
+            MacroColumn(stringResource(R.string.nutrient_protein), totals.proteinG, dayTarget.proteinTargetG, protein, Modifier.weight(1f))
+            MacroColumn(stringResource(R.string.nutrient_fat), totals.fatG, dayTarget.fatTargetG, fat, Modifier.weight(1f))
+            MacroColumn(stringResource(R.string.nutrient_carbs), totals.carbsG, dayTarget.carbsTargetG, carbs, Modifier.weight(1f))
         }
 
         if (settings.showExtendedNutrients) {

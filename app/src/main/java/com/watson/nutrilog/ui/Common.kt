@@ -86,6 +86,8 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.watson.nutrilog.R
+import com.watson.nutrilog.data.NutriSettings
+import com.watson.nutrilog.data.db.DailyTarget
 import com.watson.nutrilog.data.db.Meal
 import androidx.compose.ui.unit.TextUnit
 import com.watson.nutrilog.ui.theme.NumberFontFamily
@@ -1456,6 +1458,22 @@ private const val ENTER_BUDGET_MS = 180
  * 是久坐基準（見 [com.watson.nutrilog.data.BmrCalculator]），那正是「今天沒運動」
  * 該有的額度；關掉時 [target] 是使用者自己填的活動係數算出來的，同樣直接用。
  */
+/**
+ * 那一天當時的目標。**拿熱量去比目標之前先走這一步，不要直接讀
+ * `settings.calorieTarget`** —— 直接讀的話，改一次目標會把以前每一天都重新判一次，
+ * 上個月本來在目標內的日子會集體變紅。見 [DailyTarget]。
+ *
+ * 沒存過那一天就退回目前的設定（這個功能之前的舊紀錄、或 app 沒開過的那幾天）。
+ */
+fun Map<LocalDate, DailyTarget>.targetsOn(date: LocalDate, settings: NutriSettings): DailyTarget =
+    this[date] ?: DailyTarget(
+        date = date.toString(),
+        calorieTarget = settings.calorieTarget,
+        proteinTargetG = settings.proteinTargetG,
+        fatTargetG = settings.fatTargetG,
+        carbsTargetG = settings.carbsTargetG,
+    )
+
 fun effectiveCalorieTarget(
     target: Int,
     activeCalories: Double,

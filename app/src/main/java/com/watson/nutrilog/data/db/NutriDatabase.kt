@@ -29,9 +29,25 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
     }
 }
 
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS daily_targets (
+                date TEXT NOT NULL PRIMARY KEY,
+                calorieTarget INTEGER NOT NULL,
+                proteinTargetG INTEGER NOT NULL,
+                fatTargetG INTEGER NOT NULL,
+                carbsTargetG INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+    }
+}
+
 @Database(
-    entities = [FoodEntry::class, CachedProduct::class, DailyHealthMetric::class],
-    version = 3,
+    entities = [FoodEntry::class, CachedProduct::class, DailyHealthMetric::class, DailyTarget::class],
+    version = 4,
     exportSchema = false,
 )
 abstract class NutriDatabase : RoomDatabase() {
@@ -45,7 +61,7 @@ abstract class NutriDatabase : RoomDatabase() {
                 context.applicationContext,
                 NutriDatabase::class.java,
                 "nutrilog.db",
-            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
             .build().also { instance = it }
         }
     }
