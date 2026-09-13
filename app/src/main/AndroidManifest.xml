@@ -103,12 +103,27 @@
             </intent-filter>
         </activity-alias>
 
+
         <activity-alias
-            android:name=".IconBowl"
+            android:name=".IconIcetea"
             android:enabled="false"
             android:exported="true"
-            android:icon="@mipmap/ic_launcher_bowl"
-            android:roundIcon="@mipmap/ic_launcher_bowl"
+            android:icon="@mipmap/ic_launcher_icetea"
+            android:roundIcon="@mipmap/ic_launcher_icetea"
+            android:label="@string/app_name"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".IconKobe"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_kobe"
+            android:roundIcon="@mipmap/ic_launcher_kobe"
             android:label="@string/app_name"
             android:targetActivity=".MainActivity">
             <intent-filter>

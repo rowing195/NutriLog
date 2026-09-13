@@ -484,7 +484,8 @@ private fun iconArt(icon: AppIcon): Pair<Int, Int> = when (icon) {
     AppIcon.KEYBOARD -> R.mipmap.ic_launcher_keyboard_foreground to R.color.ic_launcher_background_paper
     AppIcon.INK -> R.mipmap.ic_launcher_foreground to R.color.ic_launcher_background_ink
     AppIcon.VERMILION -> R.mipmap.ic_launcher_foreground to R.color.ic_launcher_background_vermilion
-    AppIcon.BOWL -> R.drawable.ic_launcher_bowl_foreground to R.color.ic_launcher_background_paper
+    AppIcon.ICETEA -> R.mipmap.ic_launcher_icetea_foreground to R.color.ic_launcher_background_paper
+    AppIcon.KOBE -> R.mipmap.ic_launcher_kobe_foreground to R.color.ic_launcher_background_paper
 }
 
 private fun AppIcon.labelRes(): Int = when (this) {
@@ -494,7 +495,8 @@ private fun AppIcon.labelRes(): Int = when (this) {
     AppIcon.KEYBOARD -> R.string.app_icon_keyboard
     AppIcon.INK -> R.string.app_icon_ink
     AppIcon.VERMILION -> R.string.app_icon_vermilion
-    AppIcon.BOWL -> R.string.app_icon_bowl
+    AppIcon.ICETEA -> R.string.app_icon_icetea
+    AppIcon.KOBE -> R.string.app_icon_kobe
 }
 
 /** 回補比例的選項。數字本身就是百分比，100 在畫面上寫「全額」。 */

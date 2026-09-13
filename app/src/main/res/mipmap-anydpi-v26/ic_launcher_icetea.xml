@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 康師傅冰紅茶。照片素材，所以沒有 monochrome 層 —— 轉單色會變成一團黑。 -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background_paper" />
+    <foreground android:drawable="@mipmap/ic_launcher_icetea_foreground" />
+</adaptive-icon>

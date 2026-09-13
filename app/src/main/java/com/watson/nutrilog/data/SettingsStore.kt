@@ -182,7 +182,8 @@ enum class AppIcon(val aliasSuffix: String) {
     KEYBOARD(".IconKeyboard"),
     INK(".IconInk"),
     VERMILION(".IconVermilion"),
-    BOWL(".IconBowl"),
+    ICETEA(".IconIcetea"),
+    KOBE(".IconKobe"),
 }
 
 /**
@@ -233,7 +234,16 @@ private val Context.settingsDataStore: DataStore<Preferences> by preferencesData
 class SettingsStore(context: Context) {
 
     private val store = context.applicationContext.settingsDataStore
-    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+    // `coerceInputValues` 是為了**拿掉 enum 選項**而加的（例如曾經有過的
+    // `AppIcon.BOWL`）。`ignoreUnknownKeys` 只管認不得的**欄位**，認不得的
+    // **enum 值**會直接拋例外 —— 而這整包設定是一段 JSON，一拋就是底下
+    // `getOrDefault(NutriSettings())` 接走，**連 API 金鑰與每日目標一起變回預設**。
+    // 加了之後認不得的值只會退回那一欄自己的預設值，其他欄位不受影響。
+    private val json = Json {
+        ignoreUnknownKeys = true
+        encodeDefaults = true
+        coerceInputValues = true
+    }
 
     val settingsFlow: Flow<NutriSettings> = store.data.map { decode(it[KEY_SETTINGS]) }
 
