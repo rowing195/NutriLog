@@ -793,7 +793,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateAnalysisMultiplier(index: Int, multiplier: Double) {
         val current = analysisState as? AnalysisState.Ready ?: return
-        val clamped = (multiplier.coerceIn(0.1, 5.0) * 10.0).roundToInt() / 10.0
+        val clamped = (multiplier.coerceIn(0.1, MAX_PORTION_MULTIPLIER) * 10.0).roundToInt() / 10.0
         analysisState = AnalysisState.Ready(
             current.items.mapIndexed { i, item ->
                 if (i == index) item.copy(multiplier = clamped) else item

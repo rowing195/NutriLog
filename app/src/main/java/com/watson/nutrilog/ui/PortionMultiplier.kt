@@ -25,6 +25,8 @@ import com.watson.nutrilog.ui.theme.numeric
 import com.watson.nutrilog.ui.theme.NutrientColors
 import kotlin.math.roundToInt
 
+internal const val MAX_PORTION_MULTIPLIER = 99.0
+
 /**
  * 份數縮放：雙速步進（±1 與 ±0.1），中間顯示目前份數。
  *
@@ -47,7 +49,7 @@ fun PortionMultiplierBar(
     val keySize: Dp = if (compact) 34.dp else 40.dp
 
     fun applyStep(delta: Double) {
-        val next = (multiplier + delta).coerceIn(0.1, 10.0)
+        val next = (multiplier + delta).coerceIn(0.1, MAX_PORTION_MULTIPLIER)
         // 浮點累加會跑出 1.7000000000000002 這種值，每一步都收斂到一位小數
         onMultiplierChange((next * 10).roundToInt() / 10.0)
     }
