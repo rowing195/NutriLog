@@ -62,8 +62,25 @@ switch ($Action) {
         }
         # Detached: the emulator process must outlive this script.
         # -PassThru so we can tell "still booting" apart from "it died on startup".
-        $proc = Start-Process -FilePath $Emu -PassThru -ArgumentList @('-avd', $AvdName, '-no-boot-anim')
-        Write-Output "Booting $AvdName ..."
+        #
+        # Keep what the emulator prints. Telling the caller to "run it in the
+        # foreground to see why" does not work across machines or agents: the
+        # failure is often not reproducible by whoever reads the message, so the
+        # one run that actually failed is the only evidence there will ever be.
+        # Timestamped names on purpose - a live emulator would hold a fixed name
+        # open, and the previous failure's log is exactly what you want to diff.
+        $LogDir = Join-Path $env:TEMP 'nutrilog-emu'
+        New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+        $Stamp  = Get-Date -Format 'yyyyMMdd-HHmmss'
+        $OutLog = Join-Path $LogDir "emulator-$Stamp.out.log"
+        $ErrLog = Join-Path $LogDir "emulator-$Stamp.err.log"
+        $proc = Start-Process -FilePath $Emu -PassThru `
+            -ArgumentList @('-avd', $AvdName, '-no-boot-anim', '-verbose') `
+            -RedirectStandardOutput $OutLog -RedirectStandardError $ErrLog
+        # Touching .Handle caches it, which is what keeps .ExitCode readable later.
+        # Without this the exit code comes back empty and the error says "code ".
+        $null = $proc.Handle
+        Write-Output "Booting $AvdName ... (log: $LogDir)"
 
         # Deliberately NOT 'adb wait-for-device': it blocks forever when the
         # emulator process is already dead, and the real reason (which the
@@ -74,9 +91,21 @@ switch ($Action) {
             Start-Sleep -Seconds 3
 
             if ($proc.HasExited) {
-                throw ("emulator exited (code $($proc.ExitCode)) before the device came up. " +
-                       "Run it in the foreground to see why:`n" +
-                       "  & `"$Emu`" -avd $AvdName -verbose")
+                # Only the complaints. A -verbose boot is ~3000 lines of feature
+                # flags and IPv6 chatter, and the one line that matters is a
+                # WARNING or FATAL near the end of it.
+                $why = @()
+                foreach ($f in @($ErrLog, $OutLog)) {
+                    if (-not (Test-Path $f)) { continue }
+                    $hits = @(Get-Content $f -ErrorAction SilentlyContinue |
+                              Where-Object { $_ -match 'WARNING|ERROR|FATAL|PANIC' } |
+                              Select-Object -Last 15)
+                    if ($hits.Count) { $why += "--- $(Split-Path -Leaf $f) ---"; $why += $hits }
+                }
+                if (-not $why.Count) { $why = @("(it printed no warnings - see the full logs)") }
+                throw ("emulator exited (code $($proc.ExitCode)) before the device came up:`n" +
+                       ($why -join "`n") + "`n" +
+                       "Full logs: $OutLog`n           $ErrLog")
             }
             if ((Get-Date) -gt $deadline) {
                 throw "timed out after 5 minutes waiting for $Serial to boot"
