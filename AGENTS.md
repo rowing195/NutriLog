@@ -1,11 +1,11 @@
 # 本機 Android 環境
 
-- 工作前閱讀本專案的 `CLAUDE.md`、上一層 `..\CLAUDE.md` 與 `HANDOFF.md`，共用專案慣例與最新環境排錯紀錄；本檔只保留 Codex 需要立即注意的摘要，避免整份複製後內容不同步。
+- 工作前閱讀本專案的 `CLAUDE.md` 與上一層 `..\CLAUDE.md`（後者不在版控，是這台機器的環境與排錯紀錄）；本檔只保留 Codex 需要立即注意的摘要，避免整份複製後內容不同步。
 - 使用者指定的 Android SDK 路徑：`C:\Users\Watson\AppData\Local\Android\Sdk`。路徑末尾沒有空白；訊息中的 `&#x20;` 不是路徑的一部分。
 - ADB：`C:\Users\Watson\AppData\Local\Android\Sdk\platform-tools\adb.exe`。
 - 模擬器：`C:\Users\Watson\AppData\Local\Android\Sdk\emulator\emulator.exe`。
 - AVD 名稱：`localreader_api35`；操作目標固定為 `emulator-5554`，不要操作實體手機。
-- 操作前閱讀 `HANDOFF.md`；啟動使用 `tools\emu.ps1 start`。若需設定目前程序的 `ANDROID_HOME` 與 `ANDROID_SDK_ROOT`，使用上述完整 SDK 路徑。
+- 啟動使用 `tools\emu.ps1 start`，它自己會設好 `ANDROID_HOME` 與 `ANDROID_SDK_ROOT`，不需要另外設。
 - 啟動後用 ADB 確認裝置連線及 `sys.boot_completed`，只有完成開機才能回報啟動成功。
 - 啟動失敗時讀取腳本產生的 log，回報實際錯誤。不要自行下載、安裝系統映像或重建 AVD；使用者已明確要求不要下載。
 - 修改程式後，在模擬器驗證前先安裝新建置的 APK，避免測到舊版。
