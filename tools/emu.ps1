@@ -24,7 +24,13 @@ $Adb     = "$Sdk\platform-tools\adb.exe"
 $Emu     = "$Sdk\emulator\emulator.exe"
 $AvdMgr  = "$Sdk\cmdline-tools\latest\bin\avdmanager.bat"
 $Project = Split-Path -Parent $PSScriptRoot
-$Gradle  = "$env:LOCALAPPDATA\Android\tools\gradle-8.11.1\bin\gradle.bat"
+# The repo's wrapper, not a Gradle installed on the machine. The standalone
+# copy this used to point at (%LOCALAPPDATA%\Android\tools\gradle-8.11.1) is
+# not really there: it lives in the Claude desktop app's private redirected
+# AppData, so it exists for an agent launched from that app and for nobody
+# else. See ..\..\CLAUDE.md for the mechanism. The wrapper is in version
+# control, so it is there for everyone on every machine.
+$Gradle  = "$Project\gradlew.bat"
 
 $Image  = 'system-images;android-35;google_apis;x86_64'
 $Serial = 'emulator-5554'
