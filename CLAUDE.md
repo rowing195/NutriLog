@@ -4,9 +4,6 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。這個 repo 的�
 功能與設計決策看 [README.md](README.md)，已知問題與修法的紀錄看
 [GitHub Issues](https://github.com/rowing195/NutriLog/issues?q=is%3Aissue)（都關掉了，是當紀錄用的）。
 
-跨專案的共用規則（模擬器、SDK 路徑）在上一層的 `../CLAUDE.md`，那份**不在版控裡**，
-是這台機器的環境設定。
-
 ## 換機器接手
 
 **clone 完就能建置，不需要任何額外檔案。** 實測過一次乾淨 clone：沒有
