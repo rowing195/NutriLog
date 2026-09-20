@@ -833,8 +833,17 @@ private fun AiSection(
         selectedIndex = AiProvider.entries.indexOf(settings.textProvider),
         onSelect = { onChange(settings.copy(textProvider = AiProvider.entries[it])) },
     )
-    // 不講的話，選了 OpenRouter 的人會以為拍照也換過去了，然後困惑為什麼
-    // 明明選了別家卻還是要填 Gemini 的 key。
+
+    Hairline(Modifier.padding(vertical = 10.dp))
+
+    // 拍照自己一排：它要的是看得懂圖片的模型，和文字那邊常用的純文字模型不是同一個。
+    // 合成一個開關的話，選了 OpenRouter 之後拍照會用純文字模型去送圖片然後神祕地失敗。
+    SectionLabel(stringResource(R.string.settings_photo_provider))
+    BallotRow(
+        labels = AiProvider.entries.map { it.label },
+        selectedIndex = AiProvider.entries.indexOf(settings.photoProvider),
+        onSelect = { onChange(settings.copy(photoProvider = AiProvider.entries[it])) },
+    )
     Text(
         stringResource(R.string.settings_photo_note),
         style = MaterialTheme.typography.bodySmall,
@@ -990,16 +999,17 @@ fun ApiKeyScreen(
                 }
                 // OpenRouter 有幾百個模型，列不完也不該替使用者挑，所以是自由文字
                 ApiService.OPENROUTER -> {
-                    NutriTextField(
+                    OpenRouterModelField(
                         value = settings.openRouterModel,
-                        onValueChange = { onChange(settings.copy(openRouterModel = it.trim())) },
-                        label = stringResource(R.string.settings_openrouter_model),
-                        modifier = Modifier.fillMaxWidth(),
+                        onChange = { onChange(settings.copy(openRouterModel = it)) },
+                        forPhoto = false,
                     )
-                    Text(
-                        stringResource(R.string.settings_openrouter_model_help),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    // 拍照與文字各一個欄位：拍照要看得懂圖片的模型，文字那邊常用的是
+                    // 純文字模型，共用一個欄位的話改一邊就會弄壞另一邊。
+                    OpenRouterModelField(
+                        value = settings.openRouterPhotoModel,
+                        onChange = { onChange(settings.copy(openRouterPhotoModel = it)) },
+                        forPhoto = true,
                     )
                 }
                 // Tavily 只是搜尋，沒有模型可以挑
@@ -1214,7 +1224,35 @@ private fun TargetField(label: String, value: Int, max: Int, onChange: (Int) -> 
 }
 
 /** 目前支援的模型，改清單就不會再有「名稱打錯」這種輸入錯誤。 */
-private val GEMINI_MODELS = listOf(
+/**
+ * OpenRouter 的模型欄位。設定頁與辨識失敗那張面板共用同一個 —— 兩邊各寫一份的話，
+ * 說明文字與 trim 的規則遲早會漂掉。
+ *
+ * [forPhoto] 只換標題與說明：拍照那一個要提醒「模型得看得懂圖片」，
+ * 而那正是這條路唯一會安靜失敗的地方。
+ */
+@Composable
+internal fun OpenRouterModelField(value: String, onChange: (String) -> Unit, forPhoto: Boolean) {
+    NutriTextField(
+        value = value,
+        onValueChange = { onChange(it.trim()) },
+        label = stringResource(
+            if (forPhoto) R.string.settings_openrouter_photo_model
+            else R.string.settings_openrouter_model
+        ),
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Text(
+        stringResource(
+            if (forPhoto) R.string.settings_openrouter_photo_model_help
+            else R.string.settings_openrouter_model_help
+        ),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+internal val GEMINI_MODELS = listOf(
     "gemini-3.8-flash",
     "gemini-3.7-flash",
     "gemini-3.6-flash",
@@ -1232,7 +1270,7 @@ private val GEMINI_MODELS = listOf(
  * 用垂直的圈選（而不是 [BallotRow] 那種橫排）是因為模型名稱很長，排不成一列。
  */
 @Composable
-private fun ModelField(value: String, onChange: (String) -> Unit) {
+internal fun ModelField(value: String, onChange: (String) -> Unit) {
     val scheme = MaterialTheme.colorScheme
     Column {
         SectionLabel(stringResource(R.string.settings_model), Modifier.padding(bottom = 4.dp))

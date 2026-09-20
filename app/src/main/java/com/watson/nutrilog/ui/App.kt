@@ -351,6 +351,9 @@ fun NutriLogApp(viewModel: NutriViewModel) {
             BackHandler { viewModel.backToToday() }
             ReviewScreen(
                 state = viewModel.analysisState ?: AnalysisState.Analyzing,
+                settings = viewModel.settings,
+                isPhoto = viewModel.lastAnalysisIsPhoto,
+                onSettingsChange = viewModel::updateSettings,
                 meal = viewModel.analysisMeal,
                 onMealChange = viewModel::updateAnalysisMeal,
                 onToggle = viewModel::toggleAnalysisItem,

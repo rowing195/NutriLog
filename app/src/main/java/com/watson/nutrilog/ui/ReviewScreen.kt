@@ -18,6 +18,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -27,6 +31,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.watson.nutrilog.R
+import com.watson.nutrilog.data.NutriSettings
 import com.watson.nutrilog.data.db.Meal
 import com.watson.nutrilog.ui.theme.numeric
 import kotlin.math.roundToInt
@@ -44,6 +49,10 @@ import kotlin.math.roundToInt
 @Composable
 fun ReviewScreen(
     state: AnalysisState,
+    settings: NutriSettings,
+    /** 這次失敗的是拍照還是文字，失敗面板要改對應的那一組設定。 */
+    isPhoto: Boolean,
+    onSettingsChange: (NutriSettings) -> Unit,
     meal: Meal,
     onMealChange: (Meal) -> Unit,
     onToggle: (Int) -> Unit,
@@ -54,6 +63,12 @@ fun ReviewScreen(
     onManualInstead: () -> Unit,
     onClose: () -> Unit,
 ) {
+    // 失敗的當下直接把面板升上來，不用再多按一顆「換一家」——
+    // 會走到這裡就表示這次已經沒救了，換設定是唯一還能做的事。
+    // 收起來之後還是回得去：底下那顆章照舊是「重試」。
+    var showSwitch by rememberSaveable(state) { mutableStateOf(state is AnalysisState.Failed) }
+
+    Box(Modifier.fillMaxSize()) {
     Scaffold(
         topBar = {
             ScreenTopBar(
@@ -83,6 +98,7 @@ fun ReviewScreen(
             }
 
             is AnalysisState.Failed -> FailureBody(
+                hasSheet = showSwitch,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(inner)
@@ -125,6 +141,22 @@ fun ReviewScreen(
                         onSave = onSave,
                     )
                 }
+        }
+    }
+
+        // 失敗才升上來。狀態一變（重試成功、或換了一次新的辨識）rememberSaveable 的
+        // key 就跟著變，面板自己會回到「該不該開」的初始值，不必另外手動收。
+        if (showSwitch && state is AnalysisState.Failed) {
+            ProviderSwitchSheet(
+                settings = settings,
+                isPhoto = isPhoto,
+                onChange = onSettingsChange,
+                onRetry = {
+                    showSwitch = false
+                    onRetry()
+                },
+                onDismiss = { showSwitch = false },
+            )
         }
     }
 }
@@ -253,6 +285,12 @@ private fun ItemRow(
 @Composable
 private fun FailureBody(
     modifier: Modifier,
+    /**
+     * 底下那張「換一家再試」的面板開著沒有。開著的時候這裡**不擺章** ——
+     * 面板自己就有一顆重試，兩顆一模一樣的章同時在畫面上，使用者得先想一下
+     * 它們是不是同一件事（而且這套版面的規矩是一個畫面只有一顆章）。
+     */
+    hasSheet: Boolean,
     reason: String,
     onRetry: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -269,10 +307,12 @@ private fun FailureBody(
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(top = 24.dp),
         )
-        StampButton(
-            label = stringResource(if (missingKey) R.string.go_to_settings else R.string.retry),
-            onClick = if (missingKey) onOpenSettings else onRetry,
-        )
+        if (!hasSheet) {
+            StampButton(
+                label = stringResource(if (missingKey) R.string.go_to_settings else R.string.retry),
+                onClick = if (missingKey) onOpenSettings else onRetry,
+            )
+        }
         // 次要出路用純文字，不要再放一顆框 —— 一個畫面只有一顆印章
         Text(
             stringResource(R.string.add_manual),

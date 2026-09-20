@@ -730,15 +730,27 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
      * 可以取消勾選，否則等於在使用者的飲食紀錄裡塞它自己編的數字。
      */
     private fun startAnalysis(source: AnalysisSource) {
-        // 拍照永遠走 Gemini（要吃得下圖片的模型），文字才看使用者選了哪一家。
-        // 所以要擋的是「這一條路要用的那把 key」，不是固定擋 Gemini 那把。
-        val useOpenRouter =
-            source is AnalysisSource.Text && settings.textProvider == AiProvider.OPENROUTER
+        // **拍照與文字各看各的設定**：拍照要吃得下圖片的模型，文字常用的是純文字模型，
+        // 共用一個選擇的話改一邊就會弄壞另一邊。要擋的一律是「這一條路要用的那把 key」。
+        val provider =
+            if (source is AnalysisSource.Photo) settings.photoProvider else settings.textProvider
+        val useOpenRouter = provider == AiProvider.OPENROUTER
         val key = if (useOpenRouter) settings.openRouterApiKey else settings.geminiApiKey
         // 這裡仍然要擋一次：從相機回來的期間設定可能被改掉，
         // 而這裡才是真正會把 key 送出去的地方。
         if (key.isBlank()) {
-            reportMissingApiKey(if (useOpenRouter) AiProvider.OPENROUTER else AiProvider.GEMINI)
+            reportMissingApiKey(provider)
+            return
+        }
+        // 拍照走 OpenRouter 但還沒指定模型：擋在這裡並講清楚，不要拿文字那個模型
+        // 去送圖片 —— 純文字模型收到圖片回的錯誤各家寫法都不一樣，看不出真正的原因。
+        if (source is AnalysisSource.Photo && useOpenRouter && settings.openRouterPhotoModel.isBlank()) {
+            lastSource = source
+            analysisMeal = pendingMeal ?: guessMeal()
+            analysisState = AnalysisState.Failed(
+                getApplication<Application>().getString(R.string.photo_no_vision_model)
+            )
+            screen = Screen.Review
             return
         }
         lastSource = source
@@ -746,7 +758,11 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         analysisState = AnalysisState.Analyzing
         screen = Screen.Review
         viewModelScope.launch {
-            val model = if (useOpenRouter) settings.openRouterModel else settings.geminiModel
+            val model = when {
+                !useOpenRouter -> settings.geminiModel
+                source is AnalysisSource.Photo -> settings.openRouterPhotoModel
+                else -> settings.openRouterModel
+            }
             // **要不要查是使用者按哪一顆章決定的**，設定只決定「按下去用誰查」。
             //
             // 試過讓模型自己決定（tool-calling-search 分支），兩版都輸：不強制
@@ -782,7 +798,11 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
                     // 不然使用者只會看到轉圈停住
                     ImageCompressor.toBase64Jpeg(getApplication(), source.uri)
                         .mapCatching { base64 ->
-                            gemini.analyzeFood(base64, key, model).getOrThrow()
+                            if (useOpenRouter) {
+                                openRouter.analyzeFood(base64, key, model).getOrThrow()
+                            } else {
+                                gemini.analyzeFood(base64, key, model).getOrThrow()
+                            }
                         }
             }
             analysisState = result.fold(
@@ -791,6 +811,12 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
     }
+
+    /**
+     * 這次辨識是不是拍照。失敗面板要靠它決定改哪一組設定 —— 拍照與文字各有自己的
+     * 供應商與模型，改錯一組的症狀是「在面板裡換了，重試還是一樣的錯」。
+     */
+    val lastAnalysisIsPhoto: Boolean get() = lastSource is AnalysisSource.Photo
 
     fun updateAnalysisMeal(meal: Meal) { analysisMeal = meal }
 

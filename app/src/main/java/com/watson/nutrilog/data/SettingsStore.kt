@@ -56,6 +56,17 @@ data class NutriSettings(
      * 報告不需要另一把金鑰，多一把只是多一個會填錯的地方。
      */
     val reportProvider: AiProvider = AiProvider.GEMINI,
+    /**
+     * 拍照辨識送去哪一家。**和文字分開**：文字那邊常用的是純文字模型，拍照要吃得下
+     * 圖片的，共用一個欄位的話改一邊就會弄壞另一邊。預設 Gemini —— 它的視覺模型
+     * 不用自己挑。
+     */
+    val photoProvider: AiProvider = AiProvider.GEMINI,
+    /**
+     * 拍照走 OpenRouter 時用哪個模型。**空的就擋下來並講清楚**，不要拿文字那個
+     * 模型去送圖片：純文字模型收到圖片只會回一個看不懂的錯誤。
+     */
+    val openRouterPhotoModel: String = "",
     // --- 身型（算 BMR／TDEE 用）---
     // 預設值只是讓公式有東西可以算，不代表使用者真的是這個身型；
     // 有沒有真的填過看 [profileConfigured]。

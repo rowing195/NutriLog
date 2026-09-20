@@ -18,6 +18,13 @@
     <string name="nutrient_fiber">膳食纖維</string>
     <string name="nutrient_satfat">飽和脂肪</string>
     <string name="nutrient_water">水量</string>
+    <string name="switch_provider_title">換一家再試</string>
+    <string name="switch_provider_text_help">在這裡改的就是設定裡的那一組，選完按重試。</string>
+    <string name="switch_provider_photo_help">拍照要用看得懂圖片的模型。在這裡改的就是設定裡的那一組，選完按重試。</string>
+    <string name="settings_photo_provider">拍照辨識</string>
+    <string name="settings_openrouter_photo_model">拍照用的模型</string>
+    <string name="settings_openrouter_photo_model_help">要挑看得懂圖片的模型，在 openrouter.ai/models 篩 image 找得到。</string>
+    <string name="photo_no_vision_model">還沒指定拍照要用的 OpenRouter 模型。換一家或填一個看得懂圖片的模型再試。</string>
     <string name="water_label">飲水</string>
     <string name="unit_ml">ml</string>
     <string name="unit_kcal">kcal</string>
@@ -112,7 +119,7 @@
     <string name="settings_key_unset">尚未設定</string>
     <string name="settings_data_summary">匯出／匯入 CSV</string>
     <string name="settings_text_provider">文字辨識</string>
-    <string name="settings_photo_note">拍照一律走 Gemini。該設定只影響「用文字描述」</string>
+    <string name="settings_photo_note">拍照要用看得懂圖片的模型，Gemini 的不用自己挑。</string>
     <string name="settings_openrouter_model_help">OpenRouter 需填 openrouter.ai 上的完整模型路徑。使用前須確認它支援 tools calling。</string>
     <string name="settings_openrouter_model">模型路徑</string>
     <string name="settings_web_search">AI 查詢</string>

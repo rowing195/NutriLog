@@ -102,6 +102,74 @@ class OpenRouterClient(private val client: okhttp3.OkHttpClient = SharedHttp.cli
     }
 
     /**
+     * 從照片認食物。
+     *
+     * 和文字那條的差別只有 `content` 的形狀：OpenAI 格式的多模態訊息是一個陣列，
+     * 圖片用 `image_url` 帶 data URI 進去。鎖 JSON 的手法照舊（定義函式 ＋ 強制
+     * `tool_choice`），所以回來的東西和文字那條完全一樣。
+     *
+     * **模型必須看得懂圖片**，而這件事我們驗不了 —— 純文字模型收到圖片會回一個
+     * 各家寫法都不一樣的錯誤。所以辨識失敗時那張面板要讓使用者當場換模型，
+     * 那才是這條路的安全網。
+     */
+    suspend fun analyzeFood(
+        base64Jpeg: String,
+        apiKey: String,
+        model: String,
+    ): Result<List<DetectedFood>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val payload = buildJsonObject {
+                put("model", model)
+                putJsonArray("messages") {
+                    addJsonObject {
+                        put("role", "user")
+                        putJsonArray("content") {
+                            addJsonObject {
+                                put("type", "text")
+                                put("text", AiPrompts.PHOTO_PROMPT)
+                            }
+                            addJsonObject {
+                                put("type", "image_url")
+                                putJsonObject("image_url") {
+                                    put("url", "data:image/jpeg;base64," + base64Jpeg)
+                                }
+                            }
+                        }
+                    }
+                }
+                putJsonArray("tools") {
+                    addJsonObject {
+                        put("type", "function")
+                        putJsonObject("function") {
+                            put("name", TOOL_NAME)
+                            put("description", "回報這張照片裡的每一項食物與它的營養素")
+                            put("parameters", json.parseToJsonElement(TOOL_SCHEMA))
+                        }
+                    }
+                }
+                putJsonObject("tool_choice") {
+                    put("type", "function")
+                    putJsonObject("function") { put("name", TOOL_NAME) }
+                }
+            }
+
+            val request = Request.Builder()
+                .url(BASE_URL)
+                .header("Authorization", "Bearer " + apiKey)
+                .header("HTTP-Referer", "https://github.com/rowing195/NutriLog")
+                .header("X-Title", "NutriLog")
+                .post(payload.toString().toRequestBody(JSON_MEDIA))
+                .build()
+
+            val body = sendWithRetry(request)
+            val parsed = json.decodeFromString(ChatResponse.serializer(), body)
+            val call = parsed.choices.firstOrNull()?.message?.toolCalls?.firstOrNull()
+                ?: error("模型沒有照要求回傳結構化結果")
+            json.decodeFromString(AnalysisResult.serializer(), call.function.arguments).items
+        }
+    }
+
+    /**
      * 寫週報／月報用的純文字呼叫。
      *
      * 不帶 tools、也不強制 tool_choice：報告本體是給人讀的長文，建議的每日目標放在
