@@ -63,10 +63,16 @@ fun ReviewScreen(
     onManualInstead: () -> Unit,
     onClose: () -> Unit,
 ) {
+    // **「辨識失敗」對使用者來說有兩種**：真的出錯（[AnalysisState.Failed]），
+    // 以及模型有回話但一項都沒認出來（[AnalysisState.Ready] 而 items 是空的）。
+    // 後者從畫面上看起來一樣是白跑一趟，而且它正是換個模型最可能救得回來的情況 ——
+    // 只認 Failed 的話，使用者會說「我這邊失敗沒有跳面板」。
+    val looksFailed = state is AnalysisState.Failed ||
+        (state is AnalysisState.Ready && state.items.isEmpty())
     // 失敗的當下直接把面板升上來，不用再多按一顆「換一家」——
     // 會走到這裡就表示這次已經沒救了，換設定是唯一還能做的事。
-    // 收起來之後還是回得去：底下那顆章照舊是「重試」。
-    var showSwitch by rememberSaveable(state) { mutableStateOf(state is AnalysisState.Failed) }
+    // 收起來之後還是回得去：底下那顆章照舊在。
+    var showSwitch by rememberSaveable(state) { mutableStateOf(looksFailed) }
 
     Box(Modifier.fillMaxSize()) {
     Scaffold(
@@ -123,10 +129,25 @@ fun ReviewScreen(
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.padding(top = 24.dp),
                         )
-                        StampButton(
-                            label = stringResource(R.string.add_manual),
-                            onClick = onManualInstead,
-                        )
+                        // 面板開著時它自己有一顆「重試」，這裡再擺一顆章就是兩顆
+                        // 同時在畫面上。退成純文字的次要出路，收起面板就變回章。
+                        if (showSwitch) {
+                            Text(
+                                stringResource(R.string.add_manual),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(onClick = onManualInstead)
+                                    .padding(vertical = 8.dp),
+                            )
+                        } else {
+                            StampButton(
+                                label = stringResource(R.string.add_manual),
+                                onClick = onManualInstead,
+                            )
+                        }
                     }
                 } else {
                     ReadyBody(
@@ -146,7 +167,7 @@ fun ReviewScreen(
 
         // 失敗才升上來。狀態一變（重試成功、或換了一次新的辨識）rememberSaveable 的
         // key 就跟著變，面板自己會回到「該不該開」的初始值，不必另外手動收。
-        if (showSwitch && state is AnalysisState.Failed) {
+        if (showSwitch && looksFailed) {
             ProviderSwitchSheet(
                 settings = settings,
                 isPhoto = isPhoto,
