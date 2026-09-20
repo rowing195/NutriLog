@@ -135,6 +135,9 @@
     <string name="settings_show_extended_help">糖、鈉、膳食纖維、飽和脂肪。關掉的話這幾欄在輸入時預設收起來。</string>
     <string name="settings_paste">貼上</string>
     <string name="settings_data">本地資料管理</string>
+    <string name="settings_about">關於</string>
+    <string name="about_version">版本</string>
+    <string name="about_build">建置</string>
     <string name="export_csv">匯出 CSV</string>
     <string name="csv_help">存成 CSV，或把之前匯出的 CSV 檔讀回來。匯入時已經有的紀錄會自動略過。</string>
     <string name="export_done">已匯出 %1$d 筆紀錄</string>
@@ -203,14 +206,14 @@
     <string name="retry">重試</string>
     <string name="network_error">連線失敗，請檢查網路</string>
     <!-- 健康連線（Health Connect／Samsung Health） -->
-    <string name="settings_health">健康連線</string>
+    <string name="settings_health">Health 連線</string>
     <string name="health_summary_read">讀取運動</string>
     <string name="health_summary_read_write">讀取＋寫入</string>
     <string name="health_summary_write">寫入飲食</string>
     <string name="health_summary_off">未連結</string>
     <string name="health_summary_unsupported">不支援</string>
     <string name="health_diag_title">診斷</string>
-    <string name="health_diag_help">列出 App 今天從健康連線讀到的原始數值。數字和手錶的 app 對不上時從這裡看。</string>
+    <string name="health_diag_help">列出 App 今天從 Health 連線讀到的原始數值。數字和手錶的 app 對不上時從這裡看。</string>
     <string name="health_diag_run">讀取診斷資訊</string>
     <string name="health_diag_date">日期</string>
     <string name="health_diag_active">活動大卡</string>
@@ -238,8 +241,8 @@
     <string name="health_last_sync">上次同步 %1$s</string>
     <string name="health_sync_done">已同步 %1$d 筆紀錄</string>
     <string name="health_sync_failed">同步失敗：%1$s</string>
-    <string name="health_permission_denied">沒有取得權限，可以到系統設定的健康連線裡開啟。</string>
-    <string name="health_not_supported">這台手機沒有健康連線（Health Connect）</string>
+    <string name="health_permission_denied">沒有取得權限，可以到系統設定的 Health 連線裡開啟。</string>
+    <string name="health_not_supported">這台手機沒有 Health 連線（Health Connect）</string>
 
     <!-- 今日頁的運動消耗與明細 -->
     <string name="budget_exercise">運動</string>
@@ -260,7 +263,7 @@
     <string name="exercise_burned">運動</string>
     <string name="exercise_net">淨攝取</string>
     <string name="exercise_target_today">今天的目標</string>
-    <string name="exercise_written">今天 %1$d 筆餐點已寫入健康連線</string>
+    <string name="exercise_written">今天 %1$d 筆餐點已寫入 Health 連線</string>
     <string name="exercise_refresh">重新讀取</string>
 
     <!-- 依身型計算 -->

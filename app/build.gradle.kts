@@ -76,6 +76,8 @@ android {
 
     buildFeatures {
         compose = true
+        // 設定頁「關於」要讀版本與建置編號，兩個值都是 CI 從 tag 與 run number 帶進來的
+        buildConfig = true
     }
 }
 

@@ -51,6 +51,7 @@ import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.watson.nutrilog.BuildConfig
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.AiProvider
 import com.watson.nutrilog.data.AppIcon
@@ -254,6 +255,7 @@ private fun SettingsPage.titleRes(): Int = when (this) {
     SettingsPage.AI -> R.string.settings_ai
     SettingsPage.DRIVE -> R.string.drive_section
     SettingsPage.DATA -> R.string.settings_data
+    SettingsPage.ABOUT -> R.string.settings_about
 }
 
 @Composable
@@ -267,6 +269,7 @@ private fun SettingsPage.summary(settings: NutriSettings, healthSummary: String)
         if (settings.driveBackupEnabled) R.string.drive_summary_on else R.string.drive_summary_off
     )
     SettingsPage.DATA -> stringResource(R.string.settings_data_summary)
+    SettingsPage.ABOUT -> BuildConfig.VERSION_NAME
 }
 
 /**
@@ -353,6 +356,7 @@ fun SettingsDetailScreen(
                     settings, driveMessage, driveBusy, onConnectDrive, onBackupNow, onDisconnectDrive,
                 )
                 SettingsPage.DATA -> DataSection(dataMessage, onExportCsv, onImportCsv)
+                SettingsPage.ABOUT -> AboutSection()
             }
             }
         }
@@ -1076,6 +1080,29 @@ private fun DriveSection(
         )
     }
 
+}
+
+@Composable
+private fun AboutSection() {
+    AboutRow(stringResource(R.string.about_version), BuildConfig.VERSION_NAME)
+    Hairline()
+    // 建置編號就是 versionCode（CI 的 run number）。版本號可能重複 —— 收回重發的版本
+    // 名字一模一樣 —— 這個數字不會，回報問題時靠它分得出是哪一次建置。
+    AboutRow(stringResource(R.string.about_build), BuildConfig.VERSION_CODE.toString())
+}
+
+@Composable
+private fun AboutRow(label: String, value: String) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, modifier = Modifier.weight(1f))
+        Text(
+            withNumerals(value),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
 
 @Composable

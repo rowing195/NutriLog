@@ -87,7 +87,7 @@ import com.watson.nutrilog.data.WatchWearMode
  * 「顯示進階營養素」那個開關沒有自己的一頁 —— 它講的是編輯表單要不要攤開糖、鈉、
  * 膳食纖維、飽和脂肪，跟每日目標同樣是在講營養素，為了一個開關多開一頁不划算。
  */
-enum class SettingsPage { APPEARANCE, TARGETS, HEALTH, AI, DRIVE, DATA }
+enum class SettingsPage { APPEARANCE, TARGETS, HEALTH, AI, DRIVE, DATA, ABOUT }
 
 sealed interface Screen {
     data object Today : Screen

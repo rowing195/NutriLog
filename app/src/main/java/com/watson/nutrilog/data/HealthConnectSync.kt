@@ -161,13 +161,13 @@ class HealthConnectSync(private val context: Context) {
     suspend fun readDailyActivity(date: LocalDate, settings: NutriSettings): DailyActivity =
         withContext(Dispatchers.IO) {
             val c = client
-                ?: return@withContext DailyActivity(0.0, 0L, ActivitySource.NONE, "此裝置不支援健康連線")
+                ?: return@withContext DailyActivity(0.0, 0L, ActivitySource.NONE, "此裝置不支援 Health 連線")
 
             val granted = runCatching { c.permissionController.getGrantedPermissions() }
                 .getOrDefault(emptySet())
             if (READ_EXERCISE_PERMISSIONS.none { it in granted }) {
                 return@withContext DailyActivity(
-                    0.0, 0L, ActivitySource.NONE, "尚未在健康連線授權 NutriLog 讀取運動與步數",
+                    0.0, 0L, ActivitySource.NONE, "尚未在 Health 連線授權 NutriLog 讀取運動與步數",
                 )
             }
 
@@ -338,7 +338,7 @@ class HealthConnectSync(private val context: Context) {
                 )
             } catch (e: Exception) {
                 Log.e("HealthConnectSync", "readDailyActivity error: ${e.message}", e)
-                DailyActivity(0.0, 0L, ActivitySource.NONE, "讀取健康連線失敗：${e.message}")
+                DailyActivity(0.0, 0L, ActivitySource.NONE, "讀取 Health 連線失敗：${e.message}")
             }
         }
 

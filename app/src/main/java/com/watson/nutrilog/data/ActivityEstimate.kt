@@ -117,7 +117,7 @@ data class HealthDiagnostics(
 )
 
 /** 兩種來源都沒有東西時給使用者看的說明。 */
-const val NO_ACTIVITY_DATA_REASON = "健康連線裡沒有這一天的活動資料"
+const val NO_ACTIVITY_DATA_REASON = "Health 連線裡沒有這一天的活動資料"
 
 /**
  * 讀得到步數、但還沒超出久坐基準已經含的那一段。
