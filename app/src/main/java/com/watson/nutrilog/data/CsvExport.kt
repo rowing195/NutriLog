@@ -1,5 +1,6 @@
 package com.watson.nutrilog.data
 
+import com.watson.nutrilog.data.db.DailyWater
 import com.watson.nutrilog.data.db.FoodEntry
 import java.time.Instant
 import java.time.LocalDate
@@ -41,12 +42,23 @@ object CsvExport {
     const val COL_BARCODE = "條碼"
     const val COL_LOGGED_AT = "記錄時間"
     const val COL_MULTIPLIER = "份數倍率"
+    const val COL_WATER = "水量(ml)"
+
+    /**
+     * 手動加減的飲水。**它以天為單位，不屬於任何一筆食物**，所以走自己的列：
+     * 那一列只填日期與這一欄，食物名稱是空的（見 [buildWaterRow]）。
+     *
+     * 為什麼不塞進每一列：同一天會有很多列，每列都寫一次就得回答「以哪一列為準」，
+     * 而且那天要是一筆食物都沒記（只喝水的日子），就完全沒有地方可以寫。
+     */
+    const val COL_MANUAL_WATER = "手動飲水(ml)"
 
     private val HEADERS = listOf(
         COL_DATE, COL_MEAL, COL_NAME, COL_SERVING,
         COL_CALORIES, COL_PROTEIN, COL_FAT, COL_CARBS,
         COL_SUGAR, COL_SODIUM, COL_FIBER, COL_SATFAT,
         COL_SOURCE, COL_BARCODE, COL_LOGGED_AT, COL_MULTIPLIER,
+        COL_WATER, COL_MANUAL_WATER,
     )
 
     /**
@@ -66,7 +78,12 @@ object CsvExport {
             java.time.LocalDateTime.parse(text.trim(), TIME_FORMAT).atZone(zone).toInstant().toEpochMilli()
         }.getOrNull()
 
-    fun build(entries: List<FoodEntry>, zone: ZoneId = ZoneId.systemDefault()): String = buildString {
+    fun build(
+        entries: List<FoodEntry>,
+        zone: ZoneId = ZoneId.systemDefault(),
+        /** 一天一筆的手動飲水。0 的那幾天不寫，沒必要為了一個 0 多一列。 */
+        manualWater: List<DailyWater> = emptyList(),
+    ): String = buildString {
         // Excel 看到 UTF-8 而沒有 BOM 時會用系統 ANSI 解讀，中文全變亂碼。
         // 這一個字元決定了檔案在 Excel 裡打得開還是一團垃圾。
         append('﻿')
@@ -93,7 +110,22 @@ object CsvExport {
                     entry.barcode.orEmpty(),
                     formatLoggedAt(entry.loggedAt, zone),
                     num(entry.portionMultiplier),
+                    num(entry.waterMl),
+                    "",
                 ).joinToString(",") { escape(it) }
+            )
+        }
+
+        // 手動飲水接在最後面，一天一列。匯入時靠「有日期、沒有食物名稱」認出來。
+        manualWater.filter { it.manualMl != 0 }.sortedBy { it.date }.forEach { water ->
+            appendLine(
+                List(HEADERS.size) { i ->
+                    when (i) {
+                        HEADERS.indexOf(COL_DATE) -> water.date
+                        HEADERS.indexOf(COL_MANUAL_WATER) -> water.manualMl.toString()
+                        else -> ""
+                    }
+                }.joinToString(",") { escape(it) }
             )
         }
     }

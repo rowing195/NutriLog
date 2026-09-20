@@ -42,6 +42,9 @@ internal object AiPrompts {
         - name 用繁體中文。
         - calories 單位 kcal；proteinG / fatG / carbsG / sugarG / fiberG / satFatG 單位公克；sodiumMg 單位毫克。
         - 沒把握的營養素就填 null，不要猜 0。
+        - **waterMl 是這一項帶進來的水，單位毫升，只有喝的才填**：飲料填整杯的容量
+          （700 ml 的珍奶就是 700，全糖半糖都一樣），湯品填湯的部分。吃的東西一律
+          null —— 水果、粥裡的水分不算，那條線一旦鬆掉，每天的飲水量就會被灌水。
         - **數字只填純數值**：去掉千分位逗號與單位。來源寫「1,092.5 mg」就填
           1092.5 —— 不要因為它有逗號、格式不合就改填 null。
         - confidence 是 0 到 1 之間的數字，代表你對這一項的把握程度。
@@ -60,6 +63,9 @@ internal object AiPrompts {
         - name 用繁體中文。
         - calories 單位 kcal；proteinG / fatG / carbsG / sugarG / fiberG / satFatG 單位公克；sodiumMg 單位毫克。
         - 沒把握的營養素就填 null，不要猜 0。
+        - **waterMl 是這一項帶進來的水，單位毫升，只有喝的才填**：飲料填整杯的容量
+          （700 ml 的珍奶就是 700，全糖半糖都一樣），湯品填湯的部分。吃的東西一律
+          null —— 水果、粥裡的水分不算，那條線一旦鬆掉，每天的飲水量就會被灌水。
         - **數字只填純數值**：去掉千分位逗號與單位。來源寫「1,092.5 mg」就填
           1092.5 —— 不要因為它有逗號、格式不合就改填 null。
         - confidence 是 0 到 1 之間的數字。連鎖店有公開營養標示的給高一點，純估算的給低一點。

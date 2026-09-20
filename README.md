@@ -80,6 +80,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 - ✅ **AI 的數字一律要你點頭** — 模型給的是估算值，一定先經過確認畫面才入庫。
 - ⌚ **手錶動得多就能多吃一點** — 連上健康連線之後，運動消耗會加進**當天的目標**（不是從吃掉的裡面扣），今日頁、週長條、月曆判斷超標時全部改用加上運動後的額度。預設只回補一半，因為手錶估的熱量普遍偏高。
 - 🧮 **依身型算目標** — 填身高體重與活動量，用 Mifflin-St Jeor 算出基礎代謝、每日消耗與建議的三大營養素。**蛋白質跟著活動量走**，久坐的人不會拿到運動員的數字。
+- 💧 **喝的也算數** — 今日頁營養素底下一排加減鍵（一次 50 ml）記白開水，而飲料的水量跟著那一筆紀錄走：AI 估飲料時會一併給出容量，喝完就自動進當天的飲水量。
 - 🗒️ **AI 週報／月報** — 每週每月的統計是本機算的、隨時看得到；要不要花一次 AI 呼叫請它寫成報告，由你按下去決定，不會自動送出。
 - 🎨 **換 app 圖示** — 設定 → 外觀可以從七款內建圖示裡挑一款，桌面上的圖示跟著換。
 - 📅 **看得出空白** — 月曆式歷史讓「哪幾天忘了記」一眼就有形狀，清單做不到這件事。
@@ -97,7 +98,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 | 📄 | **文件** | <ul><li>README（本檔）＋ `CLAUDE.md`（環境與慣例）</li><li>踩過的坑與設計考量寫在原地註解裡，不另開 wiki</li></ul> |
 | 🔌 | **整合** | <ul><li>Google Gemini（照片／文字結構化輸出辨識）</li><li>OpenRouter（文字辨識的另一家供應商，可在設定切換）</li><li>Tavily（「AI 查」的網路搜尋來源）</li><li>Google Drive（每日自動備份，僅 <code>drive.file</code> 範圍）</li><li>Open Food Facts（條碼營養資訊查詢）</li><li>Health Connect（讀運動消耗，選配寫入飲食）</li><li>Play 服務 Code Scanner（免相機權限掃描 UI）</li><li>GitHub Actions 推 tag 自動發佈 Release APK</li></ul> |
 | 🧩 | **模組化** | <ul><li>`data/db` Room、`data/net` 外部 API、`ui` 畫面、`ui/theme` 色票與字階</li><li>`PortionMultiplier` 份數縮放與無損還原演算法</li><li>`CsvExport` / `CsvImport` 是純函式、不碰 Android API</li><li>`BmrCalculator`、`ActivityEstimate` 與兩支 `*Aggregator` 同樣是純計算，測試不必開模擬器</li><li>`DriveClient` 手寫 REST，不引官方 Drive client 函式庫</li></ul> |
-| 🧪 | **測試** | <ul><li>JUnit 單元測試套件共 60 條（`NutrientScalingTest`、`CsvRoundTripTest`、`DriveBackupPruneTest`、`FoodLibraryMatchTest`、`BackupScheduleTest`、`ActivityEstimateTest`、`BackedUpProfileTest`、`BmrCalculatorTest`、`CalorieTargetTest`）驗證份數縮放無損計算、CSV 匯出／匯入來回一致、雲端備份保留規則、食物庫模糊比對、兩種手錶配戴方式各採用哪種活動資料、運動熱量的回補比例、備份白名單不含金鑰與身型目標的營養素配比</li><li>`tools/ui.ps1` 提供依元件文字定位的手動 UI 自動化驗證</li><li>核心回歸清單：新增→編輯→刪除、換日滑動無跳躍、force-stop 狀態持久化、一次滑動剛好只換一天／一週／一個月</li></ul> |
+| 🧪 | **測試** | <ul><li>JUnit 單元測試套件共 70 條（`NutrientScalingTest`、`CsvRoundTripTest`、`DriveBackupPruneTest`、`FoodLibraryMatchTest`、`BackupScheduleTest`、`ActivityEstimateTest`、`BackedUpProfileTest`、`BmrCalculatorTest`、`CalorieTargetTest`、`WaterCsvTest`）驗證份數縮放無損計算、CSV 匯出／匯入來回一致、雲端備份保留規則、食物庫模糊比對、兩種手錶配戴方式各採用哪種活動資料、運動熱量的回補比例、備份白名單不含金鑰與身型目標的營養素配比、飲水的兩個來源在 CSV 來回之後仍然分得開</li><li>`tools/ui.ps1` 提供依元件文字定位的手動 UI 自動化驗證</li><li>核心回歸清單：新增→編輯→刪除、換日滑動無跳躍、force-stop 狀態持久化、一次滑動剛好只換一天／一週／一個月</li></ul> |
 | ⚡️ | **效能** | <ul><li>每日／每月合計由 SQL `GROUP BY` 算，不把明細撈進記憶體</li><li>相片長邊壓到 1024 px 才送出，節省流量與辨識延遲</li><li>全 app 共用一個 `OkHttpClient` 連線池</li><li>條碼結果存 Room 本機快取</li></ul> |
 | 🛡️ | **安全** | <ul><li>只有 `INTERNET` 權限</li><li>三家的 API key（Gemini／OpenRouter／Tavily）都存 DataStore，**不編進 APK**</li><li>key 走 `x-goog-api-key` header 而非 query string</li><li>`keystore.properties` 與 `release.jks` 都在 gitignore</li></ul> |
 | 📦 | **相依** | <ul><li>Room、DataStore、OkHttp、kotlinx-serialization、play-services-code-scanner、androidx.health.connect</li><li>刻意不用 Retrofit —— 只有兩支端點，手寫維持最精簡依賴</li></ul> |
@@ -185,6 +186,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
     │           └── java/com/watson/nutrilog/
     │               ├── ActivityEstimateTest.kt
     │               ├── CalorieTargetTest.kt
+    │               ├── WaterCsvTest.kt
     │               ├── BackedUpProfileTest.kt
     │               ├── BackupScheduleTest.kt
     │               ├── BmrCalculatorTest.kt
@@ -840,6 +842,16 @@ UI 部分使用 [`tools/ui.ps1`](tools/ui.ps1) 依元件文字進行模擬器自
 - 點擊任一項目直接帶入編輯表單，兼顧便捷與可編輯性。
 
 這裡的搜尋與[常吃頁那一個](#常吃頁一個框兩條路)**搜的不是同一種東西**：這頁搜的是逐筆紀錄（每一筆帶日期），回答的是「我哪天吃過這個」；常吃頁搜的是聚合後的品項，回答的是「拿一個品項來記一筆」——日期在那裡是雜訊，而且同一樣東西會重複出現二十次。兩頁共用同一個食物庫元件，但主要工作不同，所以沒有合併成一個要切換模式的畫面。
+
+### 飲水：手動加減與飲料自動帶入
+
+- 今日頁營養素底下那一排：中間是當天的飲水量，兩側各一顆 **±50 ml**。
+- **飲料的水量跟著那一筆紀錄走。** 編輯表單多一格「水量」，AI 辨識飲料時會自己填
+  （700 ml 的珍奶就是 700），確認畫面看得到那個數字才入庫。刪掉那筆飲料，水量跟著消失。
+- **手動那一段是獨立的**，存在自己的表裡，不會在紀錄清單長出一堆 0 大卡的白開水。
+  兩者相加才是當天的量，而總量不會被減成負的。
+- **匯出的 CSV 兩種都帶得走**：飲料的水量是每一列的欄位，手動的那一段以日期為單位
+  自己一列（食物名稱留空）—— 那天一筆食物都沒記也保得住。
 
 ### 健康連線：運動消耗加進當天的額度
 

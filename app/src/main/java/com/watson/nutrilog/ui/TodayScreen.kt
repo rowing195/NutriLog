@@ -151,6 +151,9 @@ fun TodayScreen(
     /** 飲食有沒有同步寫進健康連線；運動明細最後那一行只在開著時出現。 */
     healthWriteOn: Boolean,
     onRefreshActiveCalories: (LocalDate) -> Unit,
+    /** 每一天手動加減的飲水量，見 NutriViewModel.manualWater。 */
+    manualWaterMl: Map<LocalDate, Int>,
+    onAdjustWater: (LocalDate, Int) -> Unit,
 ) {
     val today = LocalDate.now()
     var showAddSheet by remember { mutableStateOf(false) }
@@ -367,6 +370,8 @@ fun TodayScreen(
                 activity = dailyActivityMap[dayOfPage(page)],
                 healthReadOn = healthReadOn,
                 healthWriteOn = healthWriteOn,
+                manualWaterMl = manualWaterMl[dayOfPage(page)] ?: 0,
+                onAdjustWater = { delta -> onAdjustWater(dayOfPage(page), delta) },
                 onOpenExerciseDetail = { exerciseDetailDate = dayOfPage(page) },
                 onOpenEntry = onOpenEntry,
                 onDeleteEntry = onDeleteEntry,
@@ -926,6 +931,9 @@ private fun DayPage(
     activity: DailyActivity?,
     healthReadOn: Boolean,
     healthWriteOn: Boolean,
+    /** 這一天手動加減的飲水量。食物帶的水在 [Totals.waterMl] 裡，兩個加起來才是當天的量。 */
+    manualWaterMl: Int,
+    onAdjustWater: (Int) -> Unit,
     onOpenExerciseDetail: () -> Unit,
     onOpenEntry: (FoodEntry) -> Unit,
     onDeleteEntry: (FoodEntry) -> Unit,
@@ -967,6 +975,8 @@ private fun DayPage(
         }
         item { Hairline() }
         item { Macros(totals, settings, dayTarget) }
+        item { Hairline() }
+        item { WaterRow(totals.waterMl + manualWaterMl, onAdjustWater) }
         item { Hairline() }
 
         // 餐別之間不再另外畫線：每一列自己帶上緣細線之後，餐別標題上方那段空白
@@ -1230,6 +1240,62 @@ private fun MealSegmentBar(entries: List<FoodEntry>, target: Int) {
 }
 
 /**
+ * 飲水：中間是當天的量（飲料帶的 ＋ 手動加減的），兩側各一顆加減鍵。
+ *
+ * 用 [RoundKey] 而不是另做一種按鍵 —— 它就是編輯表單那組份數步進的同一顆圓章，
+ * 「一次一格」的意思已經由那個形狀講完了。**不做進度條也不上色**：這裡沒有目標，
+ * 而朱紅在這套色票裡只給超標與刪除。
+ */
+@Composable
+private fun WaterRow(totalMl: Double, onAdjust: (Int) -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        WaterKey(-WATER_STEP_ML, onAdjust)
+        Column(
+            Modifier.weight(1f),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                stringResource(R.string.water_label),
+                style = MaterialTheme.typography.labelSmall,
+                color = scheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    totalMl.fmtInt(),
+                    style = MaterialTheme.typography.titleLarge.numeric(),
+                    modifier = Modifier.alignByBaseline(),
+                )
+                Text(
+                    stringResource(R.string.unit_ml),
+                    style = MaterialTheme.typography.bodySmall.numeric(),
+                    color = scheme.onSurfaceVariant,
+                    modifier = Modifier.alignByBaseline(),
+                )
+            }
+        }
+        WaterKey(WATER_STEP_ML, onAdjust)
+    }
+}
+
+@Composable
+private fun WaterKey(deltaMl: Int, onAdjust: (Int) -> Unit) {
+    RoundKey(onClick = { onAdjust(deltaMl) }) {
+        Text(
+            (if (deltaMl < 0) "−" else "+") + abs(deltaMl),
+            style = MaterialTheme.typography.bodyMedium.numeric(),
+        )
+    }
+}
+
+/** 一次加減多少。50 ml 大約是喝一口，按幾下就是一杯。 */
+private const val WATER_STEP_ML = 50
+
+/**
  * 三大營養素。
  *
  * 條子畫的是**組成**（三者換算成熱量後的佔比），圖例才講目標達成率。
@@ -1430,7 +1496,9 @@ private fun EntryRow(entry: FoodEntry, onClick: () -> Unit) {
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    withNumerals(detailLine(entry.servingText, entry.proteinG, entry.fatG, entry.carbsG)),
+                    withNumerals(
+                        detailLine(entry.servingText, entry.proteinG, entry.fatG, entry.carbsG, entry.waterMl)
+                    ),
                     style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
                     color = MaterialTheme.colorScheme.outline,
                     maxLines = 1,

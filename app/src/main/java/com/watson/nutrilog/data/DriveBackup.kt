@@ -42,7 +42,7 @@ class DriveBackup(
         val folderId = drive.ensureFolder(accessToken, FOLDER_NAME).getOrThrow()
         val today = LocalDate.now()
         val name = CsvExport.fileName(today)
-        val csv = CsvExport.build(dao.allEntries())
+        val csv = CsvExport.build(dao.allEntries(), manualWater = dao.allDailyWater())
         drive.upload(accessToken, folderId, name, csv).getOrThrow()
 
         // 目標與身型另外一份。一天一份、和 CSV 一樣留 30 天：只存一份的話，只要被覆蓋一次

@@ -20,6 +20,8 @@ data class FoodSuggestion(
     val sodiumMg: Double?,
     val fiberG: Double?,
     val satFatG: Double?,
+    /** 飲料才有值。給預設值是為了讓測試與其他呼叫端不必每次都填 null。 */
+    val waterMl: Double? = null,
     /** 統計期間內出現幾次 */
     val times: Int,
     /** 最後一次吃的日期，"yyyy-MM-dd" */

@@ -208,7 +208,9 @@ private fun ItemRow(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    withNumerals(detailLine(food.servingText, food.proteinG, food.fatG, food.carbsG)),
+                    withNumerals(
+                        detailLine(food.servingText, food.proteinG, food.fatG, food.carbsG, food.waterMl)
+                    ),
                     style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
                     color = scheme.outline,
                     maxLines = 1,

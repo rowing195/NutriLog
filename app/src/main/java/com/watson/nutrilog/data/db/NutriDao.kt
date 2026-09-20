@@ -65,7 +65,7 @@ interface NutriDao {
     @Query(
         """
         SELECT name, servingText,
-               calories, proteinG, fatG, carbsG, sugarG, sodiumMg, fiberG, satFatG,
+               calories, proteinG, fatG, carbsG, sugarG, sodiumMg, fiberG, satFatG, waterMl,
                COUNT(*)        AS times,
                date            AS lastDate,
                MAX(loggedAt)   AS lastLoggedAt
@@ -82,7 +82,7 @@ interface NutriDao {
     @Query(
         """
         SELECT name, servingText,
-               calories, proteinG, fatG, carbsG, sugarG, sodiumMg, fiberG, satFatG,
+               calories, proteinG, fatG, carbsG, sugarG, sodiumMg, fiberG, satFatG, waterMl,
                COUNT(*)        AS times,
                date            AS lastDate,
                MAX(loggedAt)   AS lastLoggedAt
@@ -167,4 +167,21 @@ interface NutriDao {
      */
     @Query("SELECT * FROM daily_targets")
     fun observeDailyTargets(): Flow<List<DailyTarget>>
+
+    // --- 飲水 ---
+
+    @Upsert
+    suspend fun upsertDailyWater(water: DailyWater)
+
+    /** 一天一列、五個欄位，一次訂全部比跟著可見範圍查便宜，同 [observeDailyTargets]。 */
+    @Query("SELECT * FROM daily_water")
+    fun observeDailyWater(): Flow<List<DailyWater>>
+
+    /** 匯出用。 */
+    @Query("SELECT * FROM daily_water ORDER BY date")
+    suspend fun allDailyWater(): List<DailyWater>
+
+    /** 那一天食物帶進來的水。手動值要減到剛好讓總量歸零就停，所以需要這個。 */
+    @Query("SELECT SUM(waterMl) FROM food_entries WHERE date = :date")
+    suspend fun waterFromFoodOn(date: String): Double?
 }

@@ -53,6 +53,7 @@ private enum class NumField(val unitRes: Int?, val unitText: String) {
     SODIUM(null, "mg"),
     FIBER(null, "g"),
     SATFAT(null, "g"),
+    WATER(null, "ml"),
 }
 
 /**
@@ -125,6 +126,7 @@ fun EditEntryScreen(
         NumField.SODIUM -> draft.sodium
         NumField.FIBER -> draft.fiber
         NumField.SATFAT -> draft.satFat
+        NumField.WATER -> draft.water
     }
 
     fun setValue(field: NumField, raw: String) {
@@ -137,6 +139,7 @@ fun EditEntryScreen(
             NumField.SODIUM -> draft.copy(sodium = raw)
             NumField.FIBER -> draft.copy(fiber = raw)
             NumField.SATFAT -> draft.copy(satFat = raw)
+            NumField.WATER -> draft.copy(water = raw)
         }
         if (multiplier == 1.0) {
             baseDraft = updated
@@ -288,6 +291,22 @@ fun EditEntryScreen(
                     )
                 }
             }
+
+            // 水量自己一列、和三大營養素一樣是小格：飲料才填得到，但每一筆都看得到它
+            // 在哪裡 —— 藏進「進階」的話，喝飲料的人每次都要先展開一次才記得到水。
+            NumberCell(
+                spec = NumberCellSpec(
+                    NumField.WATER,
+                    stringResource(R.string.nutrient_water),
+                    "ml",
+                    null,
+                ),
+                value = valueOf(NumField.WATER),
+                active = focused == NumField.WATER,
+                big = false,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                onClick = { focusNumber(NumField.WATER) },
+            )
 
             MacroCrossCheck(draft)
 
@@ -590,6 +609,7 @@ private fun fieldLabel(field: NumField): String = stringResource(
         NumField.SODIUM -> R.string.nutrient_sodium
         NumField.FIBER -> R.string.nutrient_fiber
         NumField.SATFAT -> R.string.nutrient_satfat
+        NumField.WATER -> R.string.nutrient_water
     }
 )
 

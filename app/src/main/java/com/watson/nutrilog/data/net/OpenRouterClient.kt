@@ -272,6 +272,7 @@ class OpenRouterClient(private val client: okhttp3.OkHttpClient = SharedHttp.cli
                   "sodiumMg":   { "type": ["number", "null"] },
                   "fiberG":     { "type": ["number", "null"] },
                   "satFatG":    { "type": ["number", "null"] },
+                  "waterMl":    { "type": ["number", "null"] },
                   "confidence": { "type": "number" }
                 },
                 "required": ["name", "servingText", "calories", "proteinG", "fatG", "carbsG", "confidence"]

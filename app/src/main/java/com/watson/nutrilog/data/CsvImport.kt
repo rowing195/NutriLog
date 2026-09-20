@@ -34,6 +34,13 @@ object CsvImport {
         val entries: List<FoodEntry>,
         /** 認不得而跳過的資料列數（日期解析不出來、或沒有食物名稱）。 */
         val skipped: Int,
+        /**
+         * 以天為單位的手動飲水（日期字串 -> ml）。
+         *
+         * 它不是食物，所以不能混進 [entries] —— 混進去會在紀錄清單裡長出一堆
+         * 沒有名字的空紀錄。
+         */
+        val manualWater: Map<String, Int> = emptyMap(),
     )
 
     fun parse(text: String, zone: ZoneId = ZoneId.systemDefault()): Result {
@@ -46,6 +53,7 @@ object CsvImport {
         if (dateAt == null || nameAt == null) throw NotNutriLogCsv()
 
         val entries = mutableListOf<FoodEntry>()
+        val manualWater = mutableMapOf<String, Int>()
         var skipped = 0
 
         records.drop(1).forEach { row ->
@@ -56,6 +64,15 @@ object CsvImport {
 
             val date = runCatching { LocalDate.parse(cell(CsvExport.COL_DATE)) }.getOrNull()
             val name = cell(CsvExport.COL_NAME)
+
+            // 沒有食物名稱、但有手動飲水：那是以天為單位的那一種列，不是壞掉的列。
+            // 這個判斷一定要排在下面那個 skipped++ 前面，不然它會被當成垃圾丟掉。
+            val manual = number(cell(CsvExport.COL_MANUAL_WATER))
+            if (date != null && name.isBlank() && manual != null) {
+                manualWater[date.toString()] = Math.round(manual).toInt()
+                return@forEach
+            }
+
             if (date == null || name.isBlank()) {
                 skipped++
                 return@forEach
@@ -82,10 +99,11 @@ object CsvImport {
                 source = sourceOf(cell(CsvExport.COL_SOURCE)).name,
                 barcode = cell(CsvExport.COL_BARCODE).ifBlank { null },
                 portionMultiplier = number(cell(CsvExport.COL_MULTIPLIER))?.takeIf { it > 0 } ?: 1.0,
+                waterMl = number(cell(CsvExport.COL_WATER)),
             )
         }
 
-        return Result(entries, skipped)
+        return Result(entries, skipped, manualWater)
     }
 
     /**

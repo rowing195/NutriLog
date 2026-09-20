@@ -38,6 +38,13 @@ data class DetectedFood(
     val sodiumMg: Double? = null,
     val fiberG: Double? = null,
     val satFatG: Double? = null,
+    /**
+     * 這一項帶進來多少水（ml）。**只有喝的才有值**，固體食物留 null。
+     *
+     * 有它「喝飲料自動算進當天飲水」才成立 —— 少了它，使用者每記一杯飲料都要自己
+     * 再去表單補一次水量，而那正是這個功能想省掉的事。
+     */
+    val waterMl: Double? = null,
     /** 0..1。低把握度的項目在確認畫面要標出來，不要讓使用者以為都一樣可靠。 */
     val confidence: Double = 0.0,
 )
@@ -341,9 +348,10 @@ class GeminiClient(private val client: OkHttpClient = SharedHttp.client) {
                   "sodiumMg":   { "type": "NUMBER", "nullable": true },
                   "fiberG":     { "type": "NUMBER", "nullable": true },
                   "satFatG":    { "type": "NUMBER", "nullable": true },
+                  "waterMl":    { "type": "NUMBER", "nullable": true },
                   "confidence": { "type": "NUMBER" }
                 },
-                "required": ["name", "servingText", "calories", "proteinG", "fatG", "carbsG", "sugarG", "sodiumMg", "fiberG", "satFatG", "confidence"]
+                "required": ["name", "servingText", "calories", "proteinG", "fatG", "carbsG", "sugarG", "sodiumMg", "fiberG", "satFatG", "waterMl", "confidence"]
               }
             }
           },

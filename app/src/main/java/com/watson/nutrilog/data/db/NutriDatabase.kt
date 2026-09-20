@@ -45,9 +45,31 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
     }
 }
 
+/**
+ * 水量：食物多一欄（飲料才有值），另外一張表放手動加減的那一段。
+ * 兩者分開的理由見 [DailyWater]。
+ */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // 既有的紀錄沒有人知道當初喝了多少水，所以是 NULL（沒標示）而不是 0
+        db.execSQL("ALTER TABLE food_entries ADD COLUMN waterMl REAL")
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS daily_water (
+                date TEXT NOT NULL PRIMARY KEY,
+                manualMl INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+    }
+}
+
 @Database(
-    entities = [FoodEntry::class, CachedProduct::class, DailyHealthMetric::class, DailyTarget::class],
-    version = 4,
+    entities = [
+        FoodEntry::class, CachedProduct::class, DailyHealthMetric::class,
+        DailyTarget::class, DailyWater::class,
+    ],
+    version = 5,
     exportSchema = false,
 )
 abstract class NutriDatabase : RoomDatabase() {
@@ -61,7 +83,7 @@ abstract class NutriDatabase : RoomDatabase() {
                 context.applicationContext,
                 NutriDatabase::class.java,
                 "nutrilog.db",
-            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
             .build().also { instance = it }
         }
     }

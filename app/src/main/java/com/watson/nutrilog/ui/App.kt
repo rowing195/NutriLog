@@ -304,6 +304,8 @@ fun NutriLogApp(viewModel: NutriViewModel) {
             healthReadOn = viewModel.settings.readExerciseCalories && viewModel.healthReadAuthorized,
             healthWriteOn = viewModel.settings.healthConnectSyncEnabled && viewModel.healthWriteAuthorized,
             onRefreshActiveCalories = viewModel::refreshActiveCalories,
+            manualWaterMl = viewModel.manualWater,
+            onAdjustWater = viewModel::adjustWater,
         )
 
         Screen.EditEntry -> {

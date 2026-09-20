@@ -17,6 +17,9 @@
     <string name="nutrient_sodium">鈉</string>
     <string name="nutrient_fiber">膳食纖維</string>
     <string name="nutrient_satfat">飽和脂肪</string>
+    <string name="nutrient_water">水量</string>
+    <string name="water_label">飲水</string>
+    <string name="unit_ml">ml</string>
     <string name="unit_kcal">kcal</string>
     <string name="calories_eaten">已經吃</string>
     <string name="calories_budget_left">目標 %1$d · 還有 %2$s 的空間</string>

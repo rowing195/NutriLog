@@ -190,12 +190,24 @@ fun withNumerals(
 private val NumeralRun = Regex("""\d+(?:\.\d+)*""")
 
 /** 紀錄列的第二行：「大碗 · 蛋白 19 · 脂肪 21 · 碳水 78」。份量沒填就不留空的分隔點。 */
-fun detailLine(servingText: String, proteinG: Double, fatG: Double, carbsG: Double): String =
+fun detailLine(
+    servingText: String,
+    proteinG: Double,
+    fatG: Double,
+    carbsG: Double,
+    /**
+     * 有水量才加一段。**確認畫面一定要看得到它** —— 模型填的數字沒出現在畫面上
+     * 就會默默落地，而水量會直接改到當天的飲水量（OpenRouter 把鈉填進膳食纖維
+     * 那次就是這樣，藏起來的欄位沒有人看得到）。
+     */
+    waterMl: Double? = null,
+): String =
     listOf(
         servingText.takeIf { it.isNotBlank() },
         "蛋白 " + proteinG.fmt(),
         "脂肪 " + fatG.fmt(),
         "碳水 " + carbsG.fmt(),
+        waterMl?.takeIf { it > 0 }?.let { "水 " + it.fmt() + " ml" },
     ).filterNotNull().joinToString(" · ")
 
 // ─────────────────────────── 線 ───────────────────────────

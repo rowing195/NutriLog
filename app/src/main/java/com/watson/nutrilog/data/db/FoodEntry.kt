@@ -32,6 +32,13 @@ data class FoodEntry(
     val sodiumMg: Double? = null,
     val fiberG: Double? = null,
     val satFatG: Double? = null,
+    /**
+     * 這一筆帶進來多少水（ml）。飲料才有值，固體食物留 null。
+     *
+     * 和延伸四項同一條規則：null 是「沒標示」，不是 0 —— 一杯沒填水量的拿鐵
+     * 和一塊真的不含水的餅乾必須分得開，不然飲水量會被無聲地算少。
+     */
+    val waterMl: Double? = null,
     val source: String = EntrySource.MANUAL.name,
     val barcode: String? = null,
     val portionMultiplier: Double = 1.0,
@@ -62,6 +69,7 @@ data class Totals(
     val sodiumMg: Double = 0.0,
     val fiberG: Double = 0.0,
     val satFatG: Double = 0.0,
+    val waterMl: Double = 0.0,
 )
 
 fun List<FoodEntry>.totals(): Totals = Totals(
@@ -75,4 +83,5 @@ fun List<FoodEntry>.totals(): Totals = Totals(
     sodiumMg = sumOf { it.sodiumMg ?: 0.0 },
     fiberG = sumOf { it.fiberG ?: 0.0 },
     satFatG = sumOf { it.satFatG ?: 0.0 },
+    waterMl = sumOf { it.waterMl ?: 0.0 },
 )

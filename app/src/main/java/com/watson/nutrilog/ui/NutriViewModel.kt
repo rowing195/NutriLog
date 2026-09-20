@@ -68,6 +68,7 @@ import com.watson.nutrilog.data.WeeklyReport
 import com.watson.nutrilog.data.WeeklyReportStore
 import com.watson.nutrilog.data.WeeklyStats
 import com.watson.nutrilog.data.db.DailyHealthMetric
+import com.watson.nutrilog.data.db.DailyWater
 import com.watson.nutrilog.data.db.DailyTarget
 import com.watson.nutrilog.data.BackedUpProfile
 import com.watson.nutrilog.data.BmrCalculator
@@ -182,6 +183,13 @@ data class ImportPreview(
     /** 認不得而跳過的資料列數。 */
     val skipped: Int,
     /**
+     * 檔案裡以天為單位的手動飲水，**只收本機還沒有值的那幾天**。
+     *
+     * 不覆寫已經有值的日子：還原是把不在手機上的東西接回來，不是拿舊檔去蓋掉
+     * 使用者今天剛按出來的數字。
+     */
+    val manualWater: Map<String, Int> = emptyMap(),
+    /**
      * 連結 Drive 時雲端那份目標與身型，跟本機不同才會有值。本地匯入 CSV 永遠是 null。
      * 和紀錄放在同一個確認面板：外部來的資料一律先停下來問，設定也不例外。
      */
@@ -207,6 +215,7 @@ data class EntryDraft(
     val protein: String = "",
     val fat: String = "",
     val carbs: String = "",
+    val water: String = "",
     val sugar: String = "",
     val sodium: String = "",
     val fiber: String = "",
@@ -232,6 +241,7 @@ data class EntryDraft(
         sodiumMg = sodium.toNumberOrNull(),
         fiberG = fiber.toNumberOrNull(),
         satFatG = satFat.toNumberOrNull(),
+        waterMl = water.toNumberOrNull(),
         source = source.name,
         barcode = barcode,
         portionMultiplier = portionMultiplier,
@@ -255,6 +265,7 @@ data class EntryDraft(
             sodium = unscale(sodium, isInt = true),
             fiber = unscale(fiber),
             satFat = unscale(satFat),
+            water = unscale(water, isInt = true),
             portionMultiplier = 1.0,
         )
     }
@@ -308,6 +319,7 @@ data class EntryDraft(
             sodium = entry.sodiumMg.asInput(),
             fiber = entry.fiberG.asInput(),
             satFat = entry.satFatG.asInput(),
+            water = entry.waterMl.asInput(),
             source = runCatching { EntrySource.valueOf(entry.source) }.getOrDefault(EntrySource.MANUAL),
             barcode = entry.barcode,
             portionMultiplier = entry.portionMultiplier,
@@ -833,7 +845,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             dataMessage = runCatching {
                 val entries = dao.allEntries()
-                val csv = CsvExport.build(entries)
+                val csv = CsvExport.build(entries, manualWater = dao.allDailyWater())
                 getApplication<Application>().contentResolver.openOutputStream(uri)?.use { out ->
                     out.write(csv.toByteArray(Charsets.UTF_8))
                 } ?: error("無法寫入檔案")
@@ -908,7 +920,13 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         parsed.entries.forEach { entry ->
             if (seen.add(CsvImport.dedupeKey(entry))) fresh += entry else duplicates++
         }
-        return ImportPreview(newEntries = fresh, duplicates = duplicates, skipped = parsed.skipped)
+        val existingWaterDates = dao.allDailyWater().mapTo(mutableSetOf()) { it.date }
+        return ImportPreview(
+            newEntries = fresh,
+            duplicates = duplicates,
+            skipped = parsed.skipped,
+            manualWater = parsed.manualWater.filterKeys { it !in existingWaterDates },
+        )
     }
 
     fun confirmImport() {
@@ -919,6 +937,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
             dataMessage = runCatching {
                 val ids = dao.insertAll(preview.newEntries)
                 pushToHealthConnect(preview.newEntries.zip(ids) { entry, id -> entry.copy(id = id) })
+                preview.manualWater.forEach { (date, ml) -> dao.upsertDailyWater(DailyWater(date, ml)) }
                 preview.newEntries.size
             }.fold(
                 onSuccess = { count ->
@@ -1160,6 +1179,27 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     fun runHealthDiagnostics() {
         viewModelScope.launch {
             healthDiagnostics = healthConnectSync.diagnose(LocalDate.now(), settings)
+        }
+    }
+
+    // --- 飲水 ---
+
+    /**
+     * 每一天**手動**加減的飲水量。食物帶的水不在這裡（那是每一筆紀錄自己的欄位），
+     * 當天的飲水量是兩者相加，見 [DailyWater]。
+     */
+    val manualWater = mutableStateMapOf<LocalDate, Int>()
+
+    /**
+     * 今日頁那排加減鍵。**總量不會變成負的** —— 手動值減到剛好抵銷食物帶的水就停住，
+     * 再按也不動。允許手動值本身是負的，那是「湯的水量填太滿、扣回來」的正常用法。
+     */
+    fun adjustWater(date: LocalDate, deltaMl: Int) {
+        viewModelScope.launch {
+            val fromFood = dao.waterFromFoodOn(date.toString()) ?: 0.0
+            val floor = -Math.round(fromFood).toInt()
+            val next = ((manualWater[date] ?: 0) + deltaMl).coerceAtLeast(floor)
+            dao.upsertDailyWater(DailyWater(date.toString(), next))
         }
     }
 
@@ -1556,6 +1596,14 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
                     ?.let { activeCaloriesMap[it] = metric.activeCalories }
             }
         }
+        viewModelScope.launch {
+            dao.observeDailyWater().collect { rows ->
+                manualWater.clear()
+                rows.forEach { row ->
+                    runCatching { LocalDate.parse(row.date) }.getOrNull()?.let { manualWater[it] = row.manualMl }
+                }
+            }
+        }
         viewModelScope.launch { snapshotFlow { selectedDate }.collect { fetchActiveCalories(it) } }
         viewModelScope.launch { snapshotFlow { visibleMonth }.collect { refreshMonthHealthMetrics(it) } }
     }
@@ -1745,6 +1793,7 @@ private fun DetectedFood.toEntry(date: LocalDate, meal: Meal, loggedAt: Long, po
     sodiumMg = sodiumMg,
     fiberG = fiberG,
     satFatG = satFatG,
+    waterMl = waterMl,
     source = EntrySource.PHOTO.name,
     portionMultiplier = portionMultiplier,
 )
@@ -1795,6 +1844,7 @@ fun DetectedFood.scale(multiplier: Double): DetectedFood {
         sodiumMg = sodiumMg?.let { Math.round(it * mult).toDouble() },
         fiberG = fiberG?.let { (it * mult).roundTo1() },
         satFatG = satFatG?.let { (it * mult).roundTo1() },
+        waterMl = waterMl?.let { Math.round(it * mult).toDouble() },
     )
 }
 
@@ -1940,6 +1990,7 @@ fun FoodSuggestion.toDraft() = EntryDraft(
     sodium = sodiumMg.asInput(),
     fiber = fiberG.asInput(),
     satFat = satFatG.asInput(),
+    water = waterMl.asInput(),
     source = EntrySource.MANUAL,
 )
 
