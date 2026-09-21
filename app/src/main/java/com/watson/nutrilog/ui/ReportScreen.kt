@@ -10,12 +10,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerDefaults
+import androidx.compose.foundation.pager.PagerSnapDistance
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -36,6 +44,8 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -91,30 +101,68 @@ fun ReportScreen(
                 selectedIndex = ReportTab.entries.indexOf(tab),
                 onSelect = { onSelectTab(ReportTab.entries[it]) },
             )
-            PeriodHeader(
-                label = if (weekly) weekLabel(weekStart, today) else monthLabel(month, today),
-                // 未來的週／月沒有東西可寫，箭頭淡掉而不是按了沒反應
-                canGoForward = if (weekly) !weekStart.plusDays(7).isAfter(today)
-                else month.isBefore(YearMonth.from(today)),
-                onPrevious = { if (weekly) onShiftWeek(-1) else onShiftMonth(-1) },
-                onNext = { if (weekly) onShiftWeek(1) else onShiftMonth(1) },
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-            )
-            Hairline(Modifier.padding(horizontal = 22.dp))
-            // 週報和月報各自記捲動位置：從讀到一半的週報切去月報，不該從月報的中段開始
             key(tab) {
-                Column(
-                    Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                        .padding(start = 22.dp, end = 22.dp, top = 14.dp, bottom = 28.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    if (weekly) {
-                        WeeklyContent(weeklyState, weeklyStats, onGenerateWeekly, onApplyTargets, onOpenApiSettings)
-                    } else {
-                        MonthlyContent(monthlyState, monthlyStats, onGenerateMonthly, onOpenApiSettings)
+                val anchorWeek = remember { weekStart }
+                val anchorMonth = remember { month }
+                val radius = 1200
+                fun pageOffset(page: Int) = (page - radius).toLong()
+                val lastPage = radius + if (weekly) {
+                    ChronoUnit.WEEKS.between(anchorWeek, today).toInt()
+                } else {
+                    ChronoUnit.MONTHS.between(anchorMonth, YearMonth.from(today)).toInt()
+                }
+                val selectedPage = radius + if (weekly) {
+                    ChronoUnit.WEEKS.between(anchorWeek, weekStart).toInt()
+                } else {
+                    ChronoUnit.MONTHS.between(anchorMonth, month).toInt()
+                }
+                val pager = rememberPagerState(initialPage = selectedPage, pageCount = { lastPage + 1 })
+                val currentPage = rememberUpdatedState(selectedPage)
+                val shift = rememberUpdatedState(if (weekly) onShiftWeek else onShiftMonth)
+                val scope = rememberCoroutineScope()
+                LaunchedEffect(pager) {
+                    snapshotFlow { pager.settledPage }.collect { page ->
+                        val delta = (page - currentPage.value).toLong()
+                        if (delta != 0L) shift.value(delta)
+                    }
+                }
+                HorizontalPager(
+                    state = pager,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    verticalAlignment = Alignment.Top,
+                    flingBehavior = PagerDefaults.flingBehavior(
+                        pager, pagerSnapDistance = PagerSnapDistance.atMost(1),
+                    ),
+                ) { page ->
+                    Column(Modifier.fillMaxSize()) {
+                        PeriodHeader(
+                            label = if (weekly) weekLabel(anchorWeek.plusWeeks(pageOffset(page)), today)
+                            else monthLabel(anchorMonth.plusMonths(pageOffset(page)), today),
+                            canGoForward = page < lastPage,
+                            onPrevious = {
+                                if (page > 0) scope.launch { pager.animateScrollToPage(page - 1) }
+                            },
+                            onNext = {
+                                if (page < lastPage) scope.launch { pager.animateScrollToPage(page + 1) }
+                            },
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                        )
+                        Hairline(Modifier.padding(horizontal = 22.dp))
+                        Column(
+                            Modifier.weight(1f).fillMaxWidth()
+                                .verticalScroll(rememberScrollState())
+                                .padding(start = 22.dp, end = 22.dp, top = 14.dp, bottom = 28.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            // 尚未選定的期間不能顯示上一期的數字或提供套用動作。
+                            if (page != selectedPage) {
+                                IndeterminateRule(Modifier.padding(top = 12.dp))
+                            } else if (weekly) {
+                                WeeklyContent(weeklyState, weeklyStats, onGenerateWeekly, onApplyTargets, onOpenApiSettings)
+                            } else {
+                                MonthlyContent(monthlyState, monthlyStats, onGenerateMonthly, onOpenApiSettings)
+                            }
+                        }
                     }
                 }
             }

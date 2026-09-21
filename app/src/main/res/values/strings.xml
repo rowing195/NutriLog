@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="photo_confirm_title">確認照片</string>
+    <string name="photo_note_label">備註（選填）</string>
+    <string name="photo_note_hint">例如：水煮餐、肉片與蔬菜都沒加油</string>
+    <string name="photo_confirm_send">送出辨識</string>
     <string name="app_name">肥胖日記</string>
 
     <!-- 今日 -->

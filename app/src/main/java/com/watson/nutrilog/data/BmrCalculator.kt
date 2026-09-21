@@ -68,9 +68,6 @@ object BmrCalculator {
         // 而合理的估算是久坐 1821 ＋ 運動，回補一半約 2025。
         //
         // 沒在讀手錶的人相反：係數是他唯一的活動量來源，要照他填的算。
-        //
-        // **蛋白質兩種情況都照 [ActivityLevel.proteinPerKg] 走**：它看的是這個人活動量
-        // 多大，不是熱量從哪裡來。
         val calorieMultiplier =
             if (watchSuppliesActivity) ActivityLevel.SEDENTARY.multiplier else activityLevel.multiplier
         val tdee = (bmr * calorieMultiplier).toInt()
@@ -82,14 +79,8 @@ object BmrCalculator {
             else -> rawTarget
         }.coerceIn(800, 6000)
 
-        // 蛋白質**跟著活動量走**（見 [ActivityLevel.proteinPerKg]），目標再加一點。
-        //
-        // 原本是只看目標的固定倍率（維持 1.7 g/kg）—— 那是 ISSN 給「有在訓練的人」
-        // 1.4–2.0 那一區的上緣，套在久坐、只想維持體重的人身上等於逼他每天喝高蛋白。
-        // 而且久坐與非常高活動量會算出一模一樣的數字，活動量那一欄形同白填。
-        val proteinPerKg = (activityLevel.proteinPerKg + goal.proteinBonusPerKg)
-            .coerceAtMost(PROTEIN_MAX_PER_KG)
-        val proteinG = (safeWeight * proteinPerKg).roundToInt().coerceIn(30, 400)
+        val proteinPerKg = goal.proteinPerKg
+        val proteinG = (safeWeight * proteinPerKg).roundToInt()
         val proteinKcal = proteinG * 4
 
         // **碳水固定佔 [CARBS_SHARE]，脂肪吃剩下的差額。**
@@ -126,12 +117,6 @@ object BmrCalculator {
             meals = meals,
         )
     }
-
-    /**
-     * 蛋白質的上限。運動營養的建議區間到 2.0 g/kg 為止，再往上沒有證據支持更好，
-     * 對一般人也只是更難吃到。
-     */
-    private const val PROTEIN_MAX_PER_KG = 2.0f
 
     /** 碳水佔總熱量的比例，落在一般建議的 50–65% 中間。 */
     private const val CARBS_SHARE = 0.55f

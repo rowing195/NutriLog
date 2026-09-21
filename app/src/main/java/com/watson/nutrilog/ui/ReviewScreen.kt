@@ -110,7 +110,11 @@ fun ReviewScreen(
                     .padding(inner)
                     .padding(horizontal = 22.dp),
                 reason = state.reason,
-                onRetry = onRetry,
+                onRetry = {
+                    showSwitch = true
+                    onRetry()
+                },
+                onSwitchProvider = { showSwitch = true },
                 onOpenSettings = onOpenSettings,
                 onManualInstead = onManualInstead,
             )
@@ -144,9 +148,10 @@ fun ReviewScreen(
                             )
                         } else {
                             StampButton(
-                                label = stringResource(R.string.add_manual),
-                                onClick = onManualInstead,
+                                label = stringResource(R.string.switch_provider_title),
+                                onClick = { showSwitch = true },
                             )
+                            TextAction(stringResource(R.string.add_manual), onClick = onManualInstead)
                         }
                     }
                 } else {
@@ -172,10 +177,7 @@ fun ReviewScreen(
                 settings = settings,
                 isPhoto = isPhoto,
                 onChange = onSettingsChange,
-                onRetry = {
-                    showSwitch = false
-                    onRetry()
-                },
+                onRetry = onRetry,
                 onDismiss = { showSwitch = false },
             )
         }
@@ -314,6 +316,7 @@ private fun FailureBody(
     hasSheet: Boolean,
     reason: String,
     onRetry: () -> Unit,
+    onSwitchProvider: () -> Unit,
     onOpenSettings: () -> Unit,
     onManualInstead: () -> Unit,
 ) {
@@ -333,6 +336,7 @@ private fun FailureBody(
                 label = stringResource(if (missingKey) R.string.go_to_settings else R.string.retry),
                 onClick = if (missingKey) onOpenSettings else onRetry,
             )
+            TextAction(stringResource(R.string.switch_provider_title), onClick = onSwitchProvider)
         }
         // 次要出路用純文字，不要再放一顆框 —— 一個畫面只有一顆印章
         Text(

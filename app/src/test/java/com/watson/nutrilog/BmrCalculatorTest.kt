@@ -8,13 +8,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * 蛋白質建議值的對照表。
- *
- * 這裡釘的是**每公斤幾克**，不是某個克數 —— 曾經是「只看目標的固定倍率」
- * （維持一律 1.7 g/kg），於是久坐和每週練五天的人拿到一模一樣的數字，
- * 而 1.7 是運動營養給有在訓練的人那一區的上緣。
- */
 class BmrCalculatorTest {
 
     private fun plan(
@@ -60,39 +53,22 @@ class BmrCalculatorTest {
     }
 
     @Test
-    fun `維持的蛋白質跟著活動量走`() {
-        assertEquals(1.0f, plan(ActivityLevel.SEDENTARY, DietGoal.MAINTAIN).proteinPerKg, 0.001f)
-        assertEquals(1.2f, plan(ActivityLevel.LIGHT, DietGoal.MAINTAIN).proteinPerKg, 0.001f)
-        assertEquals(1.4f, plan(ActivityLevel.MODERATE, DietGoal.MAINTAIN).proteinPerKg, 0.001f)
-        assertEquals(1.6f, plan(ActivityLevel.HEAVY, DietGoal.MAINTAIN).proteinPerKg, 0.001f)
-        assertEquals(1.8f, plan(ActivityLevel.VERY_HEAVY, DietGoal.MAINTAIN).proteinPerKg, 0.001f)
-    }
-
-    /** 64 kg、輕度活動、只想維持：77 g 吃得到，108 g（舊的 1.7 g/kg）要靠高蛋白粉。 */
-    @Test
-    fun `輕度活動想維持的人拿到一般成人的量`() {
-        assertEquals(77, plan(ActivityLevel.LIGHT, DietGoal.MAINTAIN).proteinG)
-    }
-
-    @Test
-    fun `減脂與增肌各多給零點二`() {
-        assertEquals(1.4f, plan(ActivityLevel.LIGHT, DietGoal.LOSE_FAT).proteinPerKg, 0.001f)
-        assertEquals(1.4f, plan(ActivityLevel.LIGHT, DietGoal.GAIN_MUSCLE).proteinPerKg, 0.001f)
-    }
-
-    /** 運動營養的建議區間到 2.0 g/kg 為止，再往上沒有證據支持更好。 */
-    @Test
-    fun `最高不超過每公斤兩克`() {
-        assertEquals(2.0f, plan(ActivityLevel.VERY_HEAVY, DietGoal.GAIN_MUSCLE).proteinPerKg, 0.001f)
-        assertEquals(2.0f, plan(ActivityLevel.VERY_HEAVY, DietGoal.LOSE_FAT).proteinPerKg, 0.001f)
-    }
-
-    /** 活動量那一欄不能形同白填：同樣的目標，久坐與高活動量必須不一樣。 */
-    @Test
-    fun `活動量真的會改變蛋白質`() {
-        val sedentary = plan(ActivityLevel.SEDENTARY, DietGoal.MAINTAIN).proteinG
-        val heavy = plan(ActivityLevel.HEAVY, DietGoal.MAINTAIN).proteinG
-        assertTrue("$sedentary 應該少於 $heavy", sedentary < heavy)
+    fun `蛋白質依目標固定倍率且不受活動量與手錶影響`() {
+        for ((goal, ratio) in listOf(
+            DietGoal.MAINTAIN to 1.4f,
+            DietGoal.GAIN_MUSCLE to 1.8f,
+            DietGoal.LOSE_FAT to 1.6f,
+        )) {
+            for (activity in ActivityLevel.entries) {
+                for (watch in listOf(false, true)) {
+                    for (weight in listOf(20f, 64f, 70f, 95f, 300f)) {
+                        val result = plan(activity, goal, weightKg = weight, watchSuppliesActivity = watch)
+                        assertEquals(ratio, result.proteinPerKg, 0.001f)
+                        assertEquals(kotlin.math.round(weight * ratio).toInt(), result.proteinG)
+                    }
+                }
+            }
+        }
     }
 
     /** 碳水是定值（總熱量的 55%），脂肪吃差額 —— 蛋白質變動不該全部倒進碳水。 */

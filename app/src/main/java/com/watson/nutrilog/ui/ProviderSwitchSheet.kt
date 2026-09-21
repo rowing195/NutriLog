@@ -1,5 +1,6 @@
 package com.watson.nutrilog.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
@@ -58,6 +59,7 @@ fun ProviderSwitchSheet(
     onRetry: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    BackHandler(onBack = onDismiss)
     val scheme = MaterialTheme.colorScheme
     val provider = if (isPhoto) settings.photoProvider else settings.textProvider
     // 第一次組成就往 true 跑，面板才會「升上來」而不是憑空出現。
@@ -92,12 +94,7 @@ fun ProviderSwitchSheet(
                 // 那句話才是使用者判斷「該換什麼」的依據，蓋掉它等於要他憑記憶選。
                 .fillMaxHeight(0.6f)
                 .background(scheme.surfaceContainerLow)
-                // 面板自己不接點擊，但要擋住底下那層的 onDismiss，不然點面板會關掉它
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = {},
-                )
+                .dismissKeyboardOnTap()
                 .navigationBarsPadding()
                 .padding(horizontal = 22.dp),
         ) {

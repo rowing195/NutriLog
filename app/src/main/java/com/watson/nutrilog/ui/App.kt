@@ -32,6 +32,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -66,38 +67,40 @@ fun NutriLogApp(viewModel: NutriViewModel) {
 
     // TakePicture 只回傳成功與否，圖存到我們事先指定的 URI，
     // 所以要把它記住才知道等一下要分析哪一張。
-    var pendingPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingPhotoUri by rememberSaveable { mutableStateOf<Uri?>(null) }
+    var photoToConfirm by rememberSaveable { mutableStateOf<Uri?>(null) }
 
     val takePicture = rememberLauncherForActivityResult(
         ActivityResultContracts.TakePicture()
     ) { success ->
-        pendingPhotoUri?.let { if (success) viewModel.analyzePhoto(it) }
+        if (success) photoToConfirm = pendingPhotoUri
+        pendingPhotoUri = null
     }
 
     val pickPhoto = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
-    ) { uri -> uri?.let(viewModel::analyzePhoto) }
+    ) { uri -> photoToConfirm = uri }
 
-    // 沒設 key 就先攔下來。等使用者拍完照才說「你沒設 key」，
-    // 等於白拍一張，而且他還得自己想到問題出在設定頁。
+    photoToConfirm?.let { uri ->
+        PhotoConfirmationDialog(
+            uri = uri,
+            onDismiss = { photoToConfirm = null },
+            onConfirm = { note ->
+                photoToConfirm = null
+                viewModel.analyzePhoto(uri, note)
+            },
+        )
+    }
+
+    // 先取得照片，缺金鑰時才能在失敗面板換供應商後重試同一張。
     val startCamera = {
-        if (!viewModel.hasApiKey()) {
-            viewModel.reportMissingApiKey()
-        } else {
-            // 每張都用新檔名。沿用同一個檔名時，相機 App 有時會因為
-            // 檔案已存在而直接失敗，而且舊圖也可能被誤讀成新拍的。
-            val uri = newPhotoUri(context)
-            pendingPhotoUri = uri
-            takePicture.launch(uri)
-        }
+        val uri = newPhotoUri(context)
+        pendingPhotoUri = uri
+        takePicture.launch(uri)
     }
 
     val startGallery = {
-        if (!viewModel.hasApiKey()) {
-            viewModel.reportMissingApiKey()
-        } else {
-            pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-        }
+        pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
     }
 
     // 走 SAF 讓使用者自己挑存檔位置：不需要儲存權限，

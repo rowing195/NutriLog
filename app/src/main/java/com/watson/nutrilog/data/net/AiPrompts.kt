@@ -33,10 +33,19 @@ internal object AiPrompts {
     }
 
 
+    fun photoRequest(note: String): String = buildString {
+        append(PHOTO_PROMPT)
+        if (note.isNotBlank()) {
+            append("\n\n使用者補充的餐點資訊（烹調方式、食材與份量以此為準）：\n")
+            append(note.trim())
+        }
+    }
+
     val PHOTO_PROMPT = """
         你是營養師。看這張食物照片，列出裡面每一種可辨識的食物。
 
         規則：
+        - 不要因為白飯與配菜擺在一起就套用便當或炒菜的假設；烹調方式不明時不要擅自加入大量油脂或醬料。
         - 依照片中看得到的份量估算，不要用「每 100 公克」的通用值。
         - servingText 要寫成人看得懂的份量，例如「1 碗（約 250 公克）」。
         - name 用繁體中文。

@@ -142,7 +142,7 @@ data class AnalysisItem(
  * 但文字辨識加進來之後那個做法就不成立了。
  */
 sealed interface AnalysisSource {
-    data class Photo(val uri: Uri) : AnalysisSource
+    data class Photo(val uri: Uri, val note: String) : AnalysisSource
     /**
      * [useSearch] 由使用者按哪一顆章決定，不是設定、也不是模型判斷。
      *
@@ -699,21 +699,18 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- AI 辨識（照片與文字共用）---
 
-    /** 有沒有 key。給 UI 在開相機**之前**問，別讓使用者拍完才發現不能用。 */
-    fun hasApiKey(): Boolean = settings.geminiApiKey.isNotBlank()
-
     /**
      * [provider] 一定要帶：兩家各有一把 key，訊息只寫「還沒設定 API key」的話，
      * 使用者很可能去填錯的那一把（尤其文字選了 OpenRouter、拍照卻缺 Gemini 那把時）。
      */
-    fun reportMissingApiKey(provider: AiProvider = AiProvider.GEMINI) {
+    private fun reportMissingApiKey(provider: AiProvider) {
         analysisState = AnalysisState.Failed(NO_API_KEY + ":" + provider.label)
         screen = Screen.Review
     }
 
     fun openTextLookup() { screen = Screen.TextLookup }
 
-    fun analyzePhoto(uri: Uri) = startAnalysis(AnalysisSource.Photo(uri))
+    fun analyzePhoto(uri: Uri, note: String) = startAnalysis(AnalysisSource.Photo(uri, note.trim()))
 
     fun analyzeText(query: String, useSearch: Boolean) {
         if (query.isBlank()) return
@@ -730,6 +727,9 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
      * 可以取消勾選，否則等於在使用者的飲食紀錄裡塞它自己編的數字。
      */
     private fun startAnalysis(source: AnalysisSource) {
+        // 金鑰或模型檢查失敗也要保留本次來源，切換供應商才能重試同一份內容。
+        lastSource = source
+        analysisMeal = pendingMeal ?: guessMeal()
         // **拍照與文字各看各的設定**：拍照要吃得下圖片的模型，文字常用的是純文字模型，
         // 共用一個選擇的話改一邊就會弄壞另一邊。要擋的一律是「這一條路要用的那把 key」。
         val provider =
@@ -745,16 +745,12 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         // 拍照走 OpenRouter 但還沒指定模型：擋在這裡並講清楚，不要拿文字那個模型
         // 去送圖片 —— 純文字模型收到圖片回的錯誤各家寫法都不一樣，看不出真正的原因。
         if (source is AnalysisSource.Photo && useOpenRouter && settings.openRouterPhotoModel.isBlank()) {
-            lastSource = source
-            analysisMeal = pendingMeal ?: guessMeal()
             analysisState = AnalysisState.Failed(
                 getApplication<Application>().getString(R.string.photo_no_vision_model)
             )
             screen = Screen.Review
             return
         }
-        lastSource = source
-        analysisMeal = pendingMeal ?: guessMeal()
         analysisState = AnalysisState.Analyzing
         screen = Screen.Review
         viewModelScope.launch {
@@ -799,9 +795,9 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
                     ImageCompressor.toBase64Jpeg(getApplication(), source.uri)
                         .mapCatching { base64 ->
                             if (useOpenRouter) {
-                                openRouter.analyzeFood(base64, key, model).getOrThrow()
+                                openRouter.analyzeFood(base64, key, model, source.note).getOrThrow()
                             } else {
-                                gemini.analyzeFood(base64, key, model).getOrThrow()
+                                gemini.analyzeFood(base64, key, model, source.note).getOrThrow()
                             }
                         }
             }
@@ -1446,6 +1442,8 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun loadWeeklyReport() {
         val start = reportWeekStart
+        weeklyStats = null
+        weeklyReportState = ReportUiState.Loading
         viewModelScope.launch {
             val stats = runCatching {
                 weeklyAggregator.aggregateWeek(start, dao, healthConnectSync, settings)
@@ -1463,6 +1461,8 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun loadMonthlyReport() {
         val month = reportMonth
+        monthlyStats = null
+        monthlyReportState = ReportUiState.Loading
         viewModelScope.launch {
             val stats = runCatching {
                 monthlyAggregator.aggregateMonth(month, dao, healthConnectSync, settings)

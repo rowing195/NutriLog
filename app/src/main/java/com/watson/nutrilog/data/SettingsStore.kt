@@ -204,24 +204,23 @@ enum class AppIcon(val aliasSuffix: String) {
  *   走動多少由手錶說了算。
  * - [WORKOUT_ONLY]：日常走動手錶記不到，只能靠活動係數，手錶只補運動場次那幾筆。
  *
- * **兩種都不影響蛋白質** —— 蛋白質看的是這個人活動量多大，不是手錶戴多久。
+ * **兩種都不影響蛋白質** —— 蛋白質依體態目標決定，不是手錶戴多久。
  */
 enum class WatchWearMode { WORKOUT_ONLY, ALL_DAY }
 
-enum class ActivityLevel(val multiplier: Float, val proteinPerKg: Float) {
-    SEDENTARY(1.2f, 1.0f),
-    LIGHT(1.375f, 1.2f),
-    MODERATE(1.55f, 1.4f),
-    HEAVY(1.725f, 1.6f),
-    VERY_HEAVY(1.9f, 1.8f),
+enum class ActivityLevel(val multiplier: Float) {
+    SEDENTARY(1.2f),
+    LIGHT(1.375f),
+    MODERATE(1.55f),
+    HEAVY(1.725f),
+    VERY_HEAVY(1.9f),
 }
 
-/** 體態目標：在 TDEE 上加減多少熱量，以及蛋白質要不要再往上加一點。 */
-enum class DietGoal(val calorieDelta: Int, val proteinBonusPerKg: Float) {
-    // 赤字期間多留一點蛋白質保住肌肉；增肌則是給合成用的材料
-    LOSE_FAT(-300, 0.2f),
-    MAINTAIN(0, 0f),
-    GAIN_MUSCLE(300, 0.2f),
+/** 體態目標：在 TDEE 上加減的熱量，以及每公斤體重的蛋白質克數。 */
+enum class DietGoal(val calorieDelta: Int, val proteinPerKg: Float) {
+    LOSE_FAT(-300, 1.6f),
+    MAINTAIN(0, 1.4f),
+    GAIN_MUSCLE(300, 1.8f),
 }
 
 /**

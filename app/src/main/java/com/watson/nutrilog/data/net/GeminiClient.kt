@@ -64,8 +64,9 @@ class GeminiClient(private val client: OkHttpClient = SharedHttp.client) {
         base64Jpeg: String,
         apiKey: String,
         model: String,
+        note: String = "",
     ): Result<List<DetectedFood>> = analyze(apiKey, model) {
-        addJsonObject { put("text", AiPrompts.PHOTO_PROMPT) }
+        addJsonObject { put("text", AiPrompts.photoRequest(note)) }
         addJsonObject {
             putJsonObject("inline_data") {
                 put("mime_type", "image/jpeg")

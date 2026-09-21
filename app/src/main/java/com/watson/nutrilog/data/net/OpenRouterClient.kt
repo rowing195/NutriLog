@@ -116,6 +116,7 @@ class OpenRouterClient(private val client: okhttp3.OkHttpClient = SharedHttp.cli
         base64Jpeg: String,
         apiKey: String,
         model: String,
+        note: String = "",
     ): Result<List<DetectedFood>> = withContext(Dispatchers.IO) {
         runCatching {
             val payload = buildJsonObject {
@@ -126,7 +127,7 @@ class OpenRouterClient(private val client: okhttp3.OkHttpClient = SharedHttp.cli
                         putJsonArray("content") {
                             addJsonObject {
                                 put("type", "text")
-                                put("text", AiPrompts.PHOTO_PROMPT)
+                                put("text", AiPrompts.photoRequest(note))
                             }
                             addJsonObject {
                                 put("type", "image_url")
