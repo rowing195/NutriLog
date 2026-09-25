@@ -44,6 +44,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -689,7 +690,7 @@ private fun WeekPageContent(
     onPickDay: (LocalDate) -> Unit,
 ) {
     val weekStartPage = dayPageOf(weekStart)
-    val pillPosition = (dayPagerState.currentPage + dayPagerState.currentPageOffsetFraction) - weekStartPage
+    val pillPosition = { (dayPagerState.currentPage + dayPagerState.currentPageOffsetFraction) - weekStartPage }
     // **借位只在「日分頁器真的在跨週界」那段時間成立。**
     //
     // 這條來回改了三版，錯都錯在同一件事：`coerceIn(0f, 1f)` 會把「差了整整一週」
@@ -706,23 +707,32 @@ private fun WeekPageContent(
     // 所以分辨的不是數值，是**誰在動**：日分頁器自己在捲，或者剛捲完、
     // 週分頁器還沒接上的那個空檔（[dayHandoff]）—— 只有這兩種情況借位才有意義。
     // 其餘時候每一頁就畫自己那一週，不多想。
-    val borrowing = dayPagerState.isScrollInProgress || dayHandoff
-    val overflowAfter = if (borrowing) (pillPosition - 6f).coerceIn(0f, 1f) else 0f
-    val overflowBefore = if (borrowing) (-pillPosition).coerceIn(0f, 1f) else 0f
+    val overflowAfter = {
+        if (dayPagerState.isScrollInProgress || dayHandoff) (pillPosition() - 6f).coerceIn(0f, 1f) else 0f
+    }
+    val overflowBefore = {
+        if (dayPagerState.isScrollInProgress || dayHandoff) (-pillPosition()).coerceIn(0f, 1f) else 0f
+    }
+    val showAfter by remember(dayPagerState, weekStartPage, dayHandoff) {
+        derivedStateOf { overflowAfter() > 0f }
+    }
+    val showBefore by remember(dayPagerState, weekStartPage, dayHandoff) {
+        derivedStateOf { overflowBefore() > 0f }
+    }
 
     BoxWithConstraints(Modifier.fillMaxWidth().clipToBounds()) {
         val rowWidthPx = with(LocalDensity.current) { maxWidth.toPx() }
 
-        Box(Modifier.graphicsLayer { translationX = (overflowBefore - overflowAfter) * rowWidthPx }) {
+        Box(Modifier.graphicsLayer { translationX = (overflowBefore() - overflowAfter()) * rowWidthPx }) {
             WeekRow(weekStart, weekTotalsFlow, weekTotalsCache, today, settings, activeCaloriesMap, dailyTargets, dayPagerState, dayPageOf, onPickDay)
         }
-        if (overflowAfter > 0f) {
-            Box(Modifier.graphicsLayer { translationX = (1f - overflowAfter) * rowWidthPx }) {
+        if (showAfter) {
+            Box(Modifier.graphicsLayer { translationX = (1f - overflowAfter()) * rowWidthPx }) {
                 WeekRow(weekStart.plusWeeks(1), weekTotalsFlow, weekTotalsCache, today, settings, activeCaloriesMap, dailyTargets, dayPagerState, dayPageOf, onPickDay)
             }
         }
-        if (overflowBefore > 0f) {
-            Box(Modifier.graphicsLayer { translationX = (overflowBefore - 1f) * rowWidthPx }) {
+        if (showBefore) {
+            Box(Modifier.graphicsLayer { translationX = (overflowBefore() - 1f) * rowWidthPx }) {
                 WeekRow(weekStart.minusWeeks(1), weekTotalsFlow, weekTotalsCache, today, settings, activeCaloriesMap, dailyTargets, dayPagerState, dayPageOf, onPickDay)
             }
         }
@@ -785,7 +795,7 @@ private fun WeekRow(
     val over = NutrientColors.Over
 
     val weekStartPage = dayPageOf(weekStart)
-    val pillPosition = (dayPagerState.currentPage + dayPagerState.currentPageOffsetFraction) - weekStartPage
+    val pillPosition = { (dayPagerState.currentPage + dayPagerState.currentPageOffsetFraction) - weekStartPage }
 
     Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
         repeat(7) { index ->
@@ -803,7 +813,7 @@ private fun WeekRow(
                 ),
                 isFuture = day.isAfter(today),
                 overColor = over,
-                pillAlpha = (1f - abs(pillPosition - index)).coerceIn(0f, 1f),
+                pillAlpha = { (1f - abs(pillPosition() - index)).coerceIn(0f, 1f) },
                 onClick = { onPickDay(day) },
                 modifier = Modifier.weight(1f),
             )
@@ -818,7 +828,7 @@ private fun DayColumn(
     target: Int,
     isFuture: Boolean,
     overColor: Color,
-    pillAlpha: Float,
+    pillAlpha: () -> Float,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -834,7 +844,8 @@ private fun DayColumn(
     // 粗體、文字色、指示條都跟著 pillAlpha 這個連續值切換（過半才算選到），
     // 不要用外面 settle 才會變的已選日期 —— 不然拖動時底色已經跟到新的一天，
     // 文字卻要等放開手指才變粗，兩者步調對不上，使用者會覺得「反應慢半拍」。
-    val isSelected = pillAlpha > 0.5f
+    val latestPillAlpha = rememberUpdatedState(pillAlpha)
+    val isSelected by remember { derivedStateOf { latestPillAlpha.value() > 0.5f } }
 
     Column(
         modifier
@@ -901,7 +912,8 @@ private fun DayColumn(
             Modifier
                 .fillMaxWidth()
                 .height(2.dp)
-                .background(scheme.onSurface.copy(alpha = pillAlpha))
+                .graphicsLayer { alpha = pillAlpha() }
+                .background(scheme.onSurface)
         )
     }
 }

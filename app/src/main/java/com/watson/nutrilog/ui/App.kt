@@ -404,6 +404,10 @@ fun NutriLogApp(viewModel: NutriViewModel) {
         // 從月曆開進來的，返回回月曆 —— 報表講的就是月曆上那一段期間，
         // 一路退回今日頁的話，看完週報想接著看別的月份就要重點兩次。
         Screen.Reports -> {
+            DisposableEffect(viewModel) {
+                viewModel.loadReports()
+                onDispose { viewModel.stopReportLoading() }
+            }
             BackHandler { viewModel.goTo(Screen.History) }
             ReportScreen(
                 tab = viewModel.reportTab,
@@ -413,6 +417,8 @@ fun NutriLogApp(viewModel: NutriViewModel) {
                 monthlyState = viewModel.monthlyReportState,
                 weeklyStats = viewModel.weeklyStats,
                 monthlyStats = viewModel.monthlyStats,
+                loadWeekPreview = viewModel::previewWeek,
+                loadMonthPreview = viewModel::previewMonth,
                 onSelectTab = viewModel::selectReportTab,
                 onShiftWeek = viewModel::shiftReportWeek,
                 onShiftMonth = viewModel::shiftReportMonth,

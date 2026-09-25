@@ -9,6 +9,7 @@ import androidx.health.connect.client.records.BasalMetabolicRateRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.MealType
 import androidx.health.connect.client.records.NutritionRecord
+import androidx.health.connect.client.records.HydrationRecord
 import androidx.health.connect.client.records.Record
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
@@ -18,9 +19,11 @@ import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import androidx.health.connect.client.units.Energy
 import androidx.health.connect.client.units.Mass
+import androidx.health.connect.client.units.Volume
 import com.watson.nutrilog.data.db.FoodEntry
 import com.watson.nutrilog.data.db.Meal
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
@@ -48,11 +51,16 @@ class HealthConnectSync(private val context: Context) {
     fun isSupported(): Boolean =
         HealthConnectClient.getSdkStatus(context) == HealthConnectClient.SDK_AVAILABLE
 
-    /** 檢查是否已取得寫入飲食權限 */
+    /**
+     * 檢查是否已取得寫入飲食權限。**只看營養、不看飲水**：開關亮不亮跟著它走，
+     * 而餐點寫不寫得進去只取決於營養權限。要求兩個都有的話，升級前就授權過營養的
+     * 使用者會看到開關是關的、餐點卻照樣在寫，而且從 App 裡關不掉。
+     * 飲水是選配，沒授權時 [syncWater] 自己跳過。
+     */
     suspend fun hasWritePermission(): Boolean {
         val c = client ?: return false
         val granted = c.permissionController.getGrantedPermissions()
-        return granted.containsAll(WRITE_PERMISSIONS)
+        return HealthPermission.getWritePermission(NutritionRecord::class) in granted
     }
 
     /**
@@ -146,6 +154,27 @@ class HealthConnectSync(private val context: Context) {
         count
     }
 
+    suspend fun syncWater(totals: Map<LocalDate, Double>): Result<Int> = runCatching {
+        val c = client ?: error("Health Connect is not available")
+        // 飲水權限是選配：沒給就只寫餐點。當成錯誤的話，「立即同步」會因為缺它整個失敗，
+        // 而餐點其實已經寫進去了。
+        if (HealthPermission.getWritePermission(HydrationRecord::class) !in
+            c.permissionController.getGrantedPermissions()) return@runCatching 0
+        val now = Instant.now()
+        val zone = ZoneId.systemDefault()
+        val emptyDates = totals.filterValues { it <= 0.0 }.keys
+        emptyDates.chunked(50).forEach { dates ->
+            c.deleteRecords(
+                recordType = HydrationRecord::class,
+                recordIdsList = emptyList(),
+                clientRecordIdsList = dates.map { waterRecordId(it) },
+            )
+        }
+        val records = totals.mapNotNull { (date, ml) -> hydrationRecord(date, ml, now, zone) }
+        records.chunked(50).forEach { c.insertRecords(it) }
+        records.size
+    }.onFailure { if (it is CancellationException) throw it }
+
     /**
      * 讀取指定日期（00:00 至隔日 00:00）的活動量。
      *
@@ -164,6 +193,7 @@ class HealthConnectSync(private val context: Context) {
                 ?: return@withContext DailyActivity(0.0, 0L, ActivitySource.NONE, "此裝置不支援 Health 連線")
 
             val granted = runCatching { c.permissionController.getGrantedPermissions() }
+                .onFailure { if (it is CancellationException) throw it }
                 .getOrDefault(emptySet())
             if (READ_EXERCISE_PERMISSIONS.none { it in granted }) {
                 return@withContext DailyActivity(
@@ -220,6 +250,7 @@ class HealthConnectSync(private val context: Context) {
                             )
                         ).records
                     }.onFailure { e ->
+                        if (e is CancellationException) throw e
                         Log.e("HealthConnectSync", "readRecords ExerciseSessionRecord error for $date: ${e.message}", e)
                     }.getOrDefault(emptyList())
 
@@ -240,7 +271,7 @@ class HealthConnectSync(private val context: Context) {
                             for (r in recent) {
                                 Log.i("HealthConnectSync", "  -> Session: type=${r.exerciseType}, title=${r.title}, start=${r.startTime}, end=${r.endTime}, origin=${r.metadata.dataOrigin.packageName}")
                             }
-                        }
+                        }.onFailure { if (it is CancellationException) throw it }
                     }
 
                     workoutCount = sessions.size
@@ -254,7 +285,7 @@ class HealthConnectSync(private val context: Context) {
                                         timeRangeFilter = TimeRangeFilter.between(session.startTime, session.endTime),
                                     )
                                 )
-                            }.getOrNull()
+                            }.onFailure { if (it is CancellationException) throw it }.getOrNull()
                             sessionAgg?.get(ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL)?.inKilocalories ?: 0.0
                         } else 0.0
 
@@ -270,7 +301,7 @@ class HealthConnectSync(private val context: Context) {
                                         ),
                                     )
                                 )
-                            }.getOrNull()
+                            }.onFailure { if (it is CancellationException) throw it }.getOrNull()
                             val sessionTotal = totalAgg?.get(TotalCaloriesBurnedRecord.ENERGY_TOTAL)?.inKilocalories ?: 0.0
                             if (sessionTotal > 0.0) {
                                 val durationSec = java.time.Duration.between(session.startTime, session.endTime).seconds.toDouble()
@@ -296,7 +327,7 @@ class HealthConnectSync(private val context: Context) {
                                         timeRangeFilter = TimeRangeFilter.between(session.startTime, session.endTime),
                                     )
                                 )
-                            }.getOrNull()
+                            }.onFailure { if (it is CancellationException) throw it }.getOrNull()
                             stepsAgg?.get(StepsRecord.COUNT_TOTAL) ?: 0L
                         } else 0L
 
@@ -337,6 +368,7 @@ class HealthConnectSync(private val context: Context) {
                     ),
                 )
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 Log.e("HealthConnectSync", "readDailyActivity error: ${e.message}", e)
                 DailyActivity(0.0, 0L, ActivitySource.NONE, "讀取 Health 連線失敗：${e.message}")
             }
@@ -578,6 +610,7 @@ class HealthConnectSync(private val context: Context) {
     companion object {
         val WRITE_PERMISSIONS = setOf(
             HealthPermission.getWritePermission(NutritionRecord::class),
+            HealthPermission.getWritePermission(HydrationRecord::class),
         )
 
         val READ_ACTIVE_CALORIES_PERMISSION =
@@ -616,6 +649,24 @@ class HealthConnectSync(private val context: Context) {
         val REQUIRED_PERMISSIONS = WRITE_PERMISSIONS + READ_EXERCISE_PERMISSIONS
 
         fun clientRecordId(entryId: Long): String = "nutrilog_$entryId"
+
+        fun waterRecordId(date: LocalDate): String = "nutrilog_water_$date"
+
+        internal fun hydrationRecord(date: LocalDate, ml: Double, now: Instant, zone: ZoneId): HydrationRecord? {
+            val start = date.atStartOfDay(zone).toInstant()
+            val end = minOf(date.plusDays(1).atStartOfDay(zone).toInstant(), now)
+            if (ml <= 0.0 || !start.isBefore(end)) return null
+            return HydrationRecord(
+                startTime = start,
+                endTime = end,
+                startZoneOffset = zone.rules.getOffset(start),
+                endZoneOffset = zone.rules.getOffset(end),
+                volume = Volume.milliliters(ml),
+                metadata = Metadata.manualEntry(
+                    clientRecordId = waterRecordId(date),
+                    clientRecordVersion = now.toEpochMilli(),
+                ),
+            )
+        }
     }
 }
-

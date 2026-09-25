@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -47,6 +48,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -98,6 +101,7 @@ import java.time.LocalDate
 import java.time.format.TextStyle as JavaTextStyle
 import java.util.Locale
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.coroutineScope
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -493,14 +497,26 @@ fun SwipeToReveal(
     val revealPx = with(LocalDensity.current) { actionWidth.toPx() }
     val slop = LocalViewConfiguration.current.touchSlop
     // 紅塊的位置。0＝完全收在右邊界外，-revealPx＝貼齊右緣。
-    val offsetX = remember { Animatable(0f) }
+    var offsetX by remember { mutableFloatStateOf(0f) }
     // 字卡的位移。拖曳時跟著 offsetX 走，放手後永遠彈回 0 —— 它的休息位置只有一個。
-    val cardX = remember { Animatable(0f) }
-    val scope = rememberCoroutineScope()
+    var cardX by remember { mutableFloatStateOf(0f) }
+    var isDragging by remember { mutableStateOf(false) }
+    var settleRequest by remember { mutableIntStateOf(0) }
+    val latestOnRevealedChange = rememberUpdatedState(onRevealedChange)
 
     // 外面把它關掉時（點了別列、或這一筆被刪了）要跟著收回去
-    LaunchedEffect(revealed, revealPx) {
-        offsetX.animateTo(if (revealed) -revealPx else 0f, tween(200))
+    LaunchedEffect(revealed, revealPx, isDragging, settleRequest) {
+        if (!isDragging) coroutineScope {
+            launch {
+                animate(offsetX, if (revealed) -revealPx else 0f, animationSpec = tween(200)) { value, _ -> offsetX = value }
+            }
+            launch {
+                animate(cardX, 0f, animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessMedium,
+                )) { value, _ -> cardX = value }
+            }
+        }
     }
 
     Box(
@@ -513,12 +529,12 @@ fun SwipeToReveal(
             .pointerInput(revealPx) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
-                    val startedOpen = offsetX.value < 0f
+                    val startedOpen = offsetX < 0f
                     // 紅塊與字卡**各自從自己的起點累加**，不能共用同一個值：
                     // 已經展開時紅塊停在 -revealPx 而字卡在 0，把字卡設成紅塊的位置
                     // 會讓它一被碰到就瞬間跳到 -revealPx（看起來像畫面閃回拖曳中）。
-                    val blockStart = offsetX.value
-                    val cardStart = cardX.value
+                    val blockStart = offsetX
+                    val cardStart = cardX
                     // 手指真正開始拖的位置。從 down 算會多含一段 slop，
                     // 那會讓字卡一進入拖曳就先跳一小格。
                     var dragStartX = 0f
@@ -526,62 +542,52 @@ fun SwipeToReveal(
                     // 那樣每一次點擊在放開時都會重新宣告一次 onRevealedChange(true)，
                     // 蓋掉刪除鍵與列自己剛剛設好的「關起來」——症狀是點了沒反應。
                     var dragging = false
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                        if (!change.pressed) break
-                        if (!dragging) {
-                            val dx = change.position.x - down.position.x
-                            val dy = change.position.y - down.position.y
-                            // 垂直先過門檻 → 這是在捲清單，整個放手
-                            if (abs(dy) > slop && abs(dy) > abs(dx)) break
-                            if (abs(dx) < slop) continue
-                            // 關著時往右 → 不消費，讓日分頁器去換前一天。
-                            // 已經開著時往右是「把它收回去」，那要接。
-                            if (dx > 0 && !startedOpen) break
-                            dragging = true
-                            dragStartX = change.position.x
+                    try {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            if (!change.pressed) break
+                            if (!dragging) {
+                                val dx = change.position.x - down.position.x
+                                val dy = change.position.y - down.position.y
+                                // 垂直先過門檻 → 這是在捲清單，整個放手
+                                if (abs(dy) > slop && abs(dy) > abs(dx)) break
+                                if (abs(dx) < slop) continue
+                                // 關著時往右 → 不消費，讓日分頁器去換前一天。
+                                // 已經開著時往右是「把它收回去」，那要接。
+                                if (dx > 0 && !startedOpen) break
+                                dragging = true
+                                isDragging = true
+                                dragStartX = change.position.x
+                            }
+                            val total = change.position.x - dragStartX
+                            change.consume()
+                            // 關著時兩者一起走；已經開著時紅塊卡在底，字卡仍跟手指走。
+                            offsetX = (blockStart + total).coerceIn(-revealPx, 0f)
+                            cardX = (cardStart + total).coerceIn(-revealPx, 0f)
                         }
-                        val total = change.position.x - dragStartX
-                        change.consume()
-                        scope.launch {
-                            // 關著時兩者一起走（接成一列往左推）；已經開著時紅塊卡在
-                            // 底了不動，字卡照樣跟著手指走，放手再彈回來。
-                            offsetX.snapTo((blockStart + total).coerceIn(-revealPx, 0f))
-                            cardX.snapTo((cardStart + total).coerceIn(-revealPx, 0f))
+                        if (dragging) {
+                            // 過半就吸開，沒過就收回 —— 停在中間看起來像卡住了
+                            latestOnRevealedChange.value(offsetX < -revealPx / 2)
                         }
-                    }
-                    if (dragging) {
-                        // 過半就吸開，沒過就收回 —— 停在中間看起來像卡住了
-                        val open = offsetX.value < -revealPx / 2
-                        onRevealedChange(open)
-                        scope.launch {
-                            offsetX.animateTo(if (open) -revealPx else 0f, tween(200))
-                        }
-                        // 撞到牆反彈：字卡永遠彈回 0，紅塊留在原地。
-                        // 用帶回彈的 spring 是這套設計裡唯一一處刻意的 Q 彈 ——
-                        // 它不是裝飾，是「推到底了，卡片被彈回來」這個物理回饋。
-                        scope.launch {
-                            cardX.animateTo(
-                                0f,
-                                spring(
-                                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                                    stiffness = Spring.StiffnessMedium,
-                                ),
-                            )
+                    } finally {
+                        if (dragging) {
+                            isDragging = false
+                            // 短拖或系統取消手勢，也要回到吸附位置。
+                            settleRequest++
                         }
                     }
                 }
             },
     ) {
-        Box(Modifier.offset { IntOffset(cardX.value.roundToInt(), 0) }) { content() }
+        Box(Modifier.offset { IntOffset(cardX.roundToInt(), 0) }) { content() }
         Box(
             Modifier
                 .matchParentSize()
                 .wrapContentSize(Alignment.CenterEnd)
                 // 收起來時整塊停在右邊界外（+revealPx），拖到底才剛好貼齊。
                 // 拖曳中它的左緣正好接在字卡的右緣上，所以中間不會露出底色。
-                .offset { IntOffset((revealPx + offsetX.value).roundToInt(), 0) },
+                .offset { IntOffset((revealPx + offsetX).roundToInt(), 0) },
         ) { action() }
     }
 }

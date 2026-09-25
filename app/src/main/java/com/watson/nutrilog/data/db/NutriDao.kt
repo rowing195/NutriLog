@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Upsert
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 /** 歷史清單用：一天一列的合計，不必把整年的明細撈進記憶體再自己加。 */
@@ -184,4 +185,24 @@ interface NutriDao {
     /** 那一天食物帶進來的水。手動值要減到剛好讓總量歸零就停，所以需要這個。 */
     @Query("SELECT SUM(waterMl) FROM food_entries WHERE date = :date")
     suspend fun waterFromFoodOn(date: String): Double?
+
+    @Query("SELECT * FROM daily_water WHERE date = :date")
+    suspend fun dailyWaterOn(date: String): DailyWater?
+
+    @Transaction
+    suspend fun adjustWater(date: String, deltaMl: Int) {
+        val floor = -Math.round(waterFromFoodOn(date) ?: 0.0).toInt()
+        val next = ((dailyWaterOn(date)?.manualMl ?: 0) + deltaMl).coerceAtLeast(floor)
+        upsertDailyWater(DailyWater(date, next))
+    }
+
+    // 保留歸零的日期，刪掉最後一筆飲料後仍能在下次同步清除健康連線的舊水量。
+    @Query("INSERT OR IGNORE INTO daily_water (date, manualMl) VALUES (:date, 0)")
+    suspend fun retainWaterDate(date: String)
+
+    @Query("SELECT date FROM daily_water UNION SELECT date FROM food_entries WHERE waterMl > 0")
+    suspend fun allWaterDates(): List<String>
+
+    @Query("SELECT COALESCE((SELECT SUM(waterMl) FROM food_entries WHERE date = :date), 0.0) + COALESCE((SELECT manualMl FROM daily_water WHERE date = :date), 0)")
+    suspend fun totalWaterOn(date: String): Double
 }

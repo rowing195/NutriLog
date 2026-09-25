@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -173,7 +175,7 @@ fun HistoryScreen(
             ) { page ->
                 val pageMonth = monthOfPage(page)
                 Column(
-                    Modifier.padding(horizontal = 22.dp),
+                    Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 22.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     MonthGrid(
@@ -310,7 +312,6 @@ private fun MonthTitle(pagerState: PagerState, monthOfPage: (Int) -> YearMonth) 
     // 這兩個值在拖曳的每一幀都會變，所以讀取要關在這個小元件裡 ——
     // 寫在外層的話整個月曆（含每一格）都會跟著每幀重組。
     val page = pagerState.currentPage
-    val offset = pagerState.currentPageOffsetFraction
     val gapPx = with(LocalDensity.current) { MONTH_TITLE_GAP.toPx() }
     Box(
         Modifier.width(IntrinsicSize.Max).clipToBounds(),
@@ -326,7 +327,7 @@ private fun MonthTitle(pagerState: PagerState, monthOfPage: (Int) -> YearMonth) 
                 // 步距也一樣，不必再去量外框（BoxWithConstraints 是 SubcomposeLayout，
                 // 撐不起 IntrinsicSize，量不了）。
                 modifier = Modifier.graphicsLayer {
-                    translationX = (delta - offset) * (size.width + gapPx)
+                    translationX = (delta - pagerState.currentPageOffsetFraction) * (size.width + gapPx)
                 },
             )
         }

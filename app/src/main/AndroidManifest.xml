@@ -12,6 +12,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Health Connect（健康連線）：將飲食記錄同步至系統與 Samsung Health，並讀取運動消耗熱量 -->
     <uses-permission android:name="android.permission.health.WRITE_NUTRITION" />
+    <uses-permission android:name="android.permission.health.WRITE_HYDRATION" />
     <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
     <!-- 三星不保證會寫「活動大卡」，很多機種只同步步數與總消耗。
          這兩個是 readDailyActivity 的退路，少了它們那些機種的運動消耗永遠是 0。 -->

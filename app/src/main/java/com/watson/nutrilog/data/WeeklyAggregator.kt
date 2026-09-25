@@ -4,6 +4,9 @@ import android.util.Log
 import com.watson.nutrilog.data.db.DailyHealthMetric
 import com.watson.nutrilog.data.db.FoodEntry
 import com.watson.nutrilog.data.db.NutriDao
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -59,6 +62,7 @@ class WeeklyAggregator {
         healthConnectSync: HealthConnectSync,
         settings: NutriSettings,
         includeComparison: Boolean = true,
+        refreshHealth: Boolean = true,
     ): WeeklyStats {
         val weekEnd = weekStart.plusDays(6)
         val fromStr = weekStart.toString()
@@ -75,6 +79,7 @@ class WeeklyAggregator {
         val today = LocalDate.now()
 
         for (i in 0..6) {
+            currentCoroutineContext().ensureActive()
             val date = weekStart.plusDays(i.toLong())
             val dateStr = date.toString()
             val dayEntries = entriesByDate[dateStr].orEmpty()
@@ -87,8 +92,9 @@ class WeeklyAggregator {
             val naMg = dayEntries.sumOf { it.sodiumMg ?: 0.0 }
 
             val cachedMetric = dao.getHealthMetric(dateStr)
-            val (activeBurn, workoutDesc) = if (healthConnectSync.isSupported() && settings.readExerciseCalories && !date.isAfter(today)) {
-                val activity = runCatching { healthConnectSync.readDailyActivity(date, settings) }.getOrNull()
+            val (activeBurn, workoutDesc) = if (refreshHealth && healthConnectSync.isSupported() && settings.readExerciseCalories && !date.isAfter(today)) {
+                val activity = runCatching { healthConnectSync.readDailyActivity(date, settings) }
+                    .onFailure { if (it is CancellationException) throw it }.getOrNull()
                 if (activity != null) {
                     dao.upsertHealthMetric(
                         (cachedMetric ?: DailyHealthMetric(date = dateStr)).copy(
@@ -148,7 +154,7 @@ class WeeklyAggregator {
         // 計算跨週對比（與上週同期）
         val comparison = if (includeComparison) {
             val prevWeekStart = weekStart.minusWeeks(1)
-            val prevStats = aggregateWeek(prevWeekStart, dao, healthConnectSync, settings, includeComparison = false)
+            val prevStats = aggregateWeek(prevWeekStart, dao, healthConnectSync, settings, includeComparison = false, refreshHealth = refreshHealth)
             if (prevStats.loggedDaysCount > 0) {
                 WeeklyComparison(
                     deltaCaloriesInPerDay = avgConsumed - prevStats.avgDailyCaloriesConsumed,

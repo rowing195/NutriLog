@@ -2,6 +2,9 @@ package com.watson.nutrilog.data
 
 import com.watson.nutrilog.data.db.DailyHealthMetric
 import com.watson.nutrilog.data.db.NutriDao
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -19,6 +22,7 @@ class MonthlyAggregator {
         healthConnectSync: HealthConnectSync,
         settings: NutriSettings,
         includeComparison: Boolean = true,
+        refreshHealth: Boolean = true,
     ): MonthlyStats {
         val startDate = yearMonth.atDay(1)
         val endDate = yearMonth.atEndOfMonth()
@@ -42,6 +46,7 @@ class MonthlyAggregator {
         val today = LocalDate.now()
 
         for (day in 1..daysInMonth) {
+            currentCoroutineContext().ensureActive()
             val date = yearMonth.atDay(day)
             val dateStr = date.toString()
             val dayEntries = entriesByDate[dateStr].orEmpty()
@@ -56,8 +61,9 @@ class MonthlyAggregator {
 
             // 快取優先讀取手錶活動熱量，若無且支援則從 Health Connect 抓取並存庫
             val cachedMetric = dao.getHealthMetric(dateStr)
-            val activeBurn = if (healthConnectSync.isSupported() && settings.readExerciseCalories && !date.isAfter(today)) {
-                val activity = runCatching { healthConnectSync.readDailyActivity(date, settings) }.getOrNull()
+            val activeBurn = if (refreshHealth && healthConnectSync.isSupported() && settings.readExerciseCalories && !date.isAfter(today)) {
+                val activity = runCatching { healthConnectSync.readDailyActivity(date, settings) }
+                    .onFailure { if (it is CancellationException) throw it }.getOrNull()
                 if (activity != null) {
                     dao.upsertHealthMetric(
                         (cachedMetric ?: DailyHealthMetric(date = dateStr)).copy(
@@ -93,7 +99,7 @@ class MonthlyAggregator {
         // 計算跨月對比（與上個月）
         val comparison = if (includeComparison) {
             val prevMonth = yearMonth.minusMonths(1)
-            val prevStats = aggregateMonth(prevMonth, dao, healthConnectSync, settings, includeComparison = false)
+            val prevStats = aggregateMonth(prevMonth, dao, healthConnectSync, settings, includeComparison = false, refreshHealth = refreshHealth)
             if (prevStats.loggedDaysCount > 0) {
                 MonthlyComparison(
                     deltaCaloriesInPerDay = avgDailyCaloriesConsumed - prevStats.avgDailyCaloriesConsumed,

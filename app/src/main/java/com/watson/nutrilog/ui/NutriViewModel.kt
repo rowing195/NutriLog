@@ -41,12 +41,17 @@ import com.watson.nutrilog.data.net.OpenFoodFactsClient
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.YearMonth
@@ -596,9 +601,12 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         if (!draft.isValid) return
         val entry = draft.toEntry(selectedDate)
         viewModelScope.launch {
+            val previous = if (entry.id != 0L) dao.findEntry(entry.id) else null
+            previous?.takeIf { (it.waterMl ?: 0.0) > 0.0 }?.let { dao.retainWaterDate(it.date) }
             val id = dao.upsert(entry)
             // 新增時 upsert 回傳新的 id；編輯時沿用原本那個（回傳值沒有意義）
             pushToHealthConnect(listOf(if (entry.id != 0L) entry else entry.copy(id = id)))
+            if (previous != null && previous.date != entry.date) pushWaterToHealthConnect(setOf(previous.date))
             pendingMeal = null
             screen = Screen.Today
         }
@@ -615,8 +623,9 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         // 前一筆的復原機會就此作廢（它已經刪掉了，只是不再提供復原）
         undoJob?.cancel()
         viewModelScope.launch {
+            if ((entry.waterMl ?: 0.0) > 0.0) dao.retainWaterDate(entry.date)
             dao.delete(entry)
-            removeFromHealthConnect(entry.id)
+            removeFromHealthConnect(entry)
             pendingUndo = entry
             undoJob = launch {
                 delay(UNDO_WINDOW_MS)
@@ -640,8 +649,9 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         val id = draft.id ?: return
         viewModelScope.launch {
             dao.findEntry(id)?.let {
+                if ((it.waterMl ?: 0.0) > 0.0) dao.retainWaterDate(it.date)
                 dao.delete(it)
-                removeFromHealthConnect(it.id)
+                removeFromHealthConnect(it)
             }
             // 刪完要退出去，不然會停在一張已經不存在的紀錄上
             screen = Screen.Today
@@ -958,8 +968,9 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             dataMessage = runCatching {
                 val ids = dao.insertAll(preview.newEntries)
-                pushToHealthConnect(preview.newEntries.zip(ids) { entry, id -> entry.copy(id = id) })
                 preview.manualWater.forEach { (date, ml) -> dao.upsertDailyWater(DailyWater(date, ml)) }
+                pushToHealthConnect(preview.newEntries.zip(ids) { entry, id -> entry.copy(id = id) })
+                pushWaterToHealthConnect(preview.manualWater.keys)
                 preview.newEntries.size
             }.fold(
                 onSuccess = { count ->
@@ -1218,10 +1229,27 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun adjustWater(date: LocalDate, deltaMl: Int) {
         viewModelScope.launch {
-            val fromFood = dao.waterFromFoodOn(date.toString()) ?: 0.0
-            val floor = -Math.round(fromFood).toInt()
-            val next = ((manualWater[date] ?: 0) + deltaMl).coerceAtLeast(floor)
-            dao.upsertDailyWater(DailyWater(date.toString(), next))
+            dao.adjustWater(date.toString(), deltaMl)
+            pushWaterToHealthConnect(setOf(date.toString()))
+        }
+    }
+
+    private val waterSyncMutex = Mutex()
+
+    private suspend fun syncWaterToHealthConnect(dates: Set<String>? = null): Result<Int> =
+        waterSyncMutex.withLock {
+            // 取得鎖後才讀資料，避免快速加減或全量同步把較舊的水量寫回去。
+            val totals = (dates ?: dao.allWaterDates().toSet()).associate { date ->
+                LocalDate.parse(date) to dao.totalWaterOn(date).coerceAtLeast(0.0)
+            }
+            healthConnectSync.syncWater(totals)
+        }
+
+    private fun pushWaterToHealthConnect(dates: Set<String>) {
+        if (!settings.healthConnectSyncEnabled || dates.isEmpty()) return
+        viewModelScope.launch {
+            syncWaterToHealthConnect(dates)
+                .onFailure { android.util.Log.w("NutriViewModel", "health connect water write failed", it) }
         }
     }
 
@@ -1236,7 +1264,11 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
                 healthSyncResult = HealthSyncResult.NotSupported
                 return@launch
             }
-            if (healthConnectSync.hasWritePermission()) {
+            // 缺的只有飲水也要問：營養已經給過的人（升級前授權的）只有在這裡才會被問到飲水。
+            // 回來之後有沒有給飲水都照樣打開，見 [onHealthPermissionsResult]。
+            val missingWrite = HealthConnectSync.WRITE_PERMISSIONS intersect
+                healthConnectSync.missingPermissions()
+            if (missingWrite.isEmpty()) {
                 healthWriteAuthorized = true
                 updateSettings(settings.copy(healthConnectSyncEnabled = true))
                 syncAllToHealthConnect()
@@ -1286,7 +1318,10 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         }
         viewModelScope.launch {
             healthSyncBusy = true
-            healthSyncResult = healthConnectSync.syncEntries(dao.allEntries()).fold(
+            healthSyncResult = runCatching {
+                val meals = healthConnectSync.syncEntries(dao.allEntries()).getOrThrow()
+                meals + syncWaterToHealthConnect().getOrThrow()
+            }.onFailure { if (it is CancellationException) throw it }.fold(
                 onSuccess = { count ->
                     updateSettings(settings.copy(lastHealthSyncAt = System.currentTimeMillis()))
                     HealthSyncResult.Written(count)
@@ -1303,16 +1338,18 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
      */
     private fun pushToHealthConnect(entries: List<FoodEntry>) {
         if (!settings.healthConnectSyncEnabled || entries.isEmpty()) return
+        pushWaterToHealthConnect(entries.map { it.date }.toSet())
         viewModelScope.launch {
             healthConnectSync.syncEntries(entries)
                 .onFailure { android.util.Log.w("NutriViewModel", "health connect write failed", it) }
         }
     }
 
-    private fun removeFromHealthConnect(entryId: Long) {
+    private fun removeFromHealthConnect(entry: FoodEntry) {
         if (!settings.healthConnectSyncEnabled) return
+        pushWaterToHealthConnect(setOf(entry.date))
         viewModelScope.launch {
-            healthConnectSync.deleteEntry(entryId)
+            healthConnectSync.deleteEntry(entry.id)
                 .onFailure { android.util.Log.w("NutriViewModel", "health connect delete failed", it) }
         }
     }
@@ -1404,12 +1441,37 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     /** 正在產生的是哪一週／哪個月。產生到一半切去看別週，回來時要看得出還在跑。 */
     private var generatingWeek: LocalDate? = null
     private var generatingMonth: YearMonth? = null
+    private var weeklyLoadJob: Job? = null
+    private var monthlyLoadJob: Job? = null
 
-    fun selectReportTab(tab: ReportTab) { reportTab = tab }
+    suspend fun previewWeek(start: LocalDate): Pair<WeeklyStats?, WeeklyReport?> {
+        val stats = runCatching {
+            weeklyAggregator.aggregateWeek(start, dao, healthConnectSync, settings, refreshHealth = false)
+        }.onFailure { if (it is CancellationException) throw it }.getOrNull()
+        return stats to weeklyReportStore.getReport(start.toString())
+    }
+
+    suspend fun previewMonth(month: YearMonth): Pair<MonthlyStats?, MonthlyReport?> {
+        val stats = runCatching {
+            monthlyAggregator.aggregateMonth(month, dao, healthConnectSync, settings, refreshHealth = false)
+        }.onFailure { if (it is CancellationException) throw it }.getOrNull()
+        return stats to monthlyReportStore.getReport(month.toString())
+    }
+
+    fun selectReportTab(tab: ReportTab) {
+        if (reportTab == tab) return
+        reportTab = tab
+        loadReports()
+    }
+
+    fun stopReportLoading() {
+        weeklyLoadJob?.cancel()
+        monthlyLoadJob?.cancel()
+    }
 
     fun loadReports() {
-        loadWeeklyReport()
-        loadMonthlyReport()
+        stopReportLoading()
+        if (reportTab == ReportTab.WEEKLY) loadWeeklyReport() else loadMonthlyReport()
     }
 
     /**
@@ -1422,8 +1484,11 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         val today = LocalDate.now()
         val lastDay = reportMonth.atEndOfMonth().let { if (it.isAfter(today)) today else it }
         reportWeekStart = sundayOf(lastDay)
+        weeklyStats = null
+        monthlyStats = null
+        weeklyReportState = ReportUiState.Loading
+        monthlyReportState = ReportUiState.Loading
         screen = Screen.Reports
-        loadReports()
     }
 
     fun shiftReportWeek(weeks: Long) {
@@ -1441,13 +1506,15 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun loadWeeklyReport() {
+        weeklyLoadJob?.cancel()
         val start = reportWeekStart
         weeklyStats = null
         weeklyReportState = ReportUiState.Loading
-        viewModelScope.launch {
+        weeklyLoadJob = viewModelScope.launch {
             val stats = runCatching {
                 weeklyAggregator.aggregateWeek(start, dao, healthConnectSync, settings)
-            }.getOrNull()
+            }.onFailure { if (it is CancellationException) throw it }.getOrNull()
+            currentCoroutineContext().ensureActive()
             if (start != reportWeekStart) return@launch
             weeklyStats = stats
             weeklyReportState = when {
@@ -1460,13 +1527,15 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun loadMonthlyReport() {
+        monthlyLoadJob?.cancel()
         val month = reportMonth
         monthlyStats = null
         monthlyReportState = ReportUiState.Loading
-        viewModelScope.launch {
+        monthlyLoadJob = viewModelScope.launch {
             val stats = runCatching {
                 monthlyAggregator.aggregateMonth(month, dao, healthConnectSync, settings)
-            }.getOrNull()
+            }.onFailure { if (it is CancellationException) throw it }.getOrNull()
+            currentCoroutineContext().ensureActive()
             if (month != reportMonth) return@launch
             monthlyStats = stats
             monthlyReportState = when {

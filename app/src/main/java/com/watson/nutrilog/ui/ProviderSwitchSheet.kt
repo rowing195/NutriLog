@@ -1,17 +1,11 @@
 package com.watson.nutrilog.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -22,12 +16,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.AiProvider
 import com.watson.nutrilog.data.NutriSettings
+import kotlinx.coroutines.launch
 
 /**
  * 辨識失敗時從底下升上來的那張面板：換一家、換個模型，再按重試。
@@ -62,6 +63,22 @@ fun ProviderSwitchSheet(
     BackHandler(onBack = onDismiss)
     val scheme = MaterialTheme.colorScheme
     val provider = if (isPhoto) settings.photoProvider else settings.textProvider
+    val pager = rememberPagerState(initialPage = provider.ordinal, pageCount = { AiProvider.entries.size })
+    val scope = rememberCoroutineScope()
+    val latestSettings = rememberUpdatedState(settings)
+    val latestOnChange = rememberUpdatedState(onChange)
+    LaunchedEffect(provider) {
+        if (pager.currentPage != provider.ordinal) pager.animateScrollToPage(provider.ordinal)
+    }
+    LaunchedEffect(pager, isPhoto) {
+        snapshotFlow { pager.settledPage }.collect { page ->
+            val current = latestSettings.value
+            val picked = AiProvider.entries[page]
+            if (picked != if (isPhoto) current.photoProvider else current.textProvider) {
+                latestOnChange.value(if (isPhoto) current.copy(photoProvider = picked) else current.copy(textProvider = picked))
+            }
+        }
+    }
     // 第一次組成就往 true 跑，面板才會「升上來」而不是憑空出現。
     // 收起來沒有退場動畫：那要父層留著它等動畫播完，而這張面板收起來的下一步
     // 不是重試就是回到失敗畫面，多留那 200ms 只會擋著使用者。
@@ -115,13 +132,9 @@ fun ProviderSwitchSheet(
 
             BallotRow(
                 labels = AiProvider.entries.map { it.label },
-                selectedIndex = AiProvider.entries.indexOf(provider),
+                selectedIndex = pager.currentPage,
                 onSelect = { index ->
-                    val picked = AiProvider.entries[index]
-                    onChange(
-                        if (isPhoto) settings.copy(photoProvider = picked)
-                        else settings.copy(textProvider = picked)
-                    )
+                    scope.launch { pager.animateScrollToPage(index) }
                 },
             )
             Hairline(Modifier.padding(vertical = 12.dp))
@@ -129,22 +142,13 @@ fun ProviderSwitchSheet(
             // 換供應商時底下這塊整個滑過去：兩家的模型是兩份不同的東西
             // （Gemini 是幾個固定型號，OpenRouter 是自由文字），淡入淡出會讓人以為
             // 是同一份清單在換內容。方向跟著圈選的左右位置 —— 右邊那家從右邊進來。
-            AnimatedContent(
-                targetState = provider,
-                transitionSpec = {
-                    val forward = targetState.ordinal > initialState.ordinal
-                    val width = { full: Int -> if (forward) full else -full }
-                    (slideInHorizontally(tween(260)) { width(it) } + fadeIn(tween(160)))
-                        .togetherWith(
-                            slideOutHorizontally(tween(260)) { -width(it) } + fadeOut(tween(160))
-                        )
-                        .using(SizeTransform(clip = false))
-                },
-                label = "provider-models",
+            HorizontalPager(
+                state = pager,
+                verticalAlignment = Alignment.Top,
                 modifier = Modifier.weight(1f),
-            ) { current ->
+            ) { page ->
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-                    when (current) {
+                    when (AiProvider.entries[page]) {
                         AiProvider.GEMINI -> ModelField(
                             value = settings.geminiModel,
                             onChange = { onChange(settings.copy(geminiModel = it)) },
@@ -166,6 +170,7 @@ fun ProviderSwitchSheet(
             Rule(Modifier.padding(top = 10.dp, bottom = 12.dp))
             StampButton(
                 label = stringResource(R.string.retry),
+                enabled = !pager.isScrollInProgress && pager.settledPage == provider.ordinal,
                 onClick = onRetry,
                 modifier = Modifier.padding(bottom = 16.dp),
             )
