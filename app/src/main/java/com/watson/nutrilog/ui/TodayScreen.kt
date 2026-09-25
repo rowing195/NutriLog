@@ -177,11 +177,13 @@ fun TodayScreen(
     // 運動明細開在哪一天。狀態提到這一層而不是留在 Budget 裡，是因為模糊要掛在
     // Scaffold 上 —— 只有這一層抓得到「後面那一整頁」。
     var exerciseDetailDate by remember { mutableStateOf<LocalDate?>(null) }
+    // 飲水明細同理。
+    var waterDetailDate by remember { mutableStateOf<LocalDate?>(null) }
 
     // 選單展開時把後面整片模糊掉。Modifier.blur 只在 API 31+ 有效，minSdk 是 26 ——
     // 舊機器上這行等於沒作用，所以遮罩那層一定要留著，那才是共通的退路。
     val backdropBlur by animateDpAsState(
-        targetValue = if (showAddSheet || exerciseDetailDate != null) 16.dp else 0.dp,
+        targetValue = if (showAddSheet || exerciseDetailDate != null || waterDetailDate != null) 16.dp else 0.dp,
         animationSpec = tween(220),
         label = "backdropBlur",
     )
@@ -373,6 +375,7 @@ fun TodayScreen(
                 healthWriteOn = healthWriteOn,
                 manualWaterMl = manualWaterMl[dayOfPage(page)] ?: 0,
                 onAdjustWater = { delta -> onAdjustWater(dayOfPage(page), delta) },
+                onOpenWaterDetail = { waterDetailDate = dayOfPage(page) },
                 onOpenExerciseDetail = { exerciseDetailDate = dayOfPage(page) },
                 onOpenEntry = onOpenEntry,
                 onDeleteEntry = onDeleteEntry,
@@ -430,57 +433,75 @@ fun TodayScreen(
             onAddBarcode = onAddBarcode,
         )
 
-        // 運動明細的覆蓋層。和「記一筆」同一層、同一片 0.32 遮罩、同一個模糊 ——
-        // 以前它是 Dialog，那是另一個 window，Compose 主題管不到它的視窗底色，
-        // 開的瞬間會閃一下白（同 `windowBackground` 那條），而且另一個 window
-        // 也模糊不了後面那一頁。
-        //
         // 退場時 exerciseDetailDate 已經變回 null，內容還要再畫幾幀，
         // 所以要記住最後看的那一天 —— 同上面 UndoStamp 的 lastUndoId。
         var lastDetailDate by remember { mutableStateOf(LocalDate.now()) }
         LaunchedEffect(exerciseDetailDate) { exerciseDetailDate?.let { lastDetailDate = it } }
-        BackHandler(enabled = exerciseDetailDate != null) { exerciseDetailDate = null }
-        AnimatedVisibility(
-            visible = exerciseDetailDate != null,
-            // 不做方向性的位移：這張面板沒有從哪個角落開出來，淡入就是它的全部。
-            enter = fadeIn(tween(180)),
-            exit = fadeOut(tween(170)),
-        ) {
-            val scheme = MaterialTheme.colorScheme
+        DetailOverlay(visible = exerciseDetailDate != null, onDismiss = { exerciseDetailDate = null }) {
             val dayEntries = entriesCache[lastDetailDate].orEmpty()
-            Box(Modifier.fillMaxSize()) {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(scheme.scrim.copy(alpha = 0.32f))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = { exerciseDetailDate = null },
-                        )
-                )
-                Box(
-                    Modifier
-                        .align(Alignment.Center)
-                        .statusBarsPadding()
-                        .navigationBarsPadding()
-                        .padding(horizontal = 24.dp),
-                ) {
-                    ExerciseDetailSheet(
-                        date = lastDetailDate,
-                        consumed = dayEntries.sumOf { it.calories },
-                        baseTarget = dailyTargets.targetsOn(lastDetailDate, settings).calorieTarget,
-                        activeCalories = if (settings.readExerciseCalories) {
-                            activeCaloriesMap[lastDetailDate] ?: 0.0
-                        } else 0.0,
-                        eatBackPercent = settings.exerciseEatBackPercent,
-                        activity = dailyActivityMap[lastDetailDate],
-                        mealsWritten = if (healthWriteOn) dayEntries.count { it.calories > 0 } else null,
-                        onRefresh = { onRefreshActiveCalories(lastDetailDate) },
-                        onDismiss = { exerciseDetailDate = null },
+            ExerciseDetailSheet(
+                date = lastDetailDate,
+                consumed = dayEntries.sumOf { it.calories },
+                baseTarget = dailyTargets.targetsOn(lastDetailDate, settings).calorieTarget,
+                activeCalories = if (settings.readExerciseCalories) {
+                    activeCaloriesMap[lastDetailDate] ?: 0.0
+                } else 0.0,
+                eatBackPercent = settings.exerciseEatBackPercent,
+                activity = dailyActivityMap[lastDetailDate],
+                mealsWritten = if (healthWriteOn) dayEntries.count { it.calories > 0 } else null,
+                onRefresh = { onRefreshActiveCalories(lastDetailDate) },
+                onDismiss = { exerciseDetailDate = null },
+            )
+        }
+
+        var lastWaterDate by remember { mutableStateOf(LocalDate.now()) }
+        LaunchedEffect(waterDetailDate) { waterDetailDate?.let { lastWaterDate = it } }
+        DetailOverlay(visible = waterDetailDate != null, onDismiss = { waterDetailDate = null }) {
+            WaterDetailSheet(
+                date = lastWaterDate,
+                entries = entriesCache[lastWaterDate].orEmpty(),
+                manualMl = manualWaterMl[lastWaterDate] ?: 0,
+                onDismiss = { waterDetailDate = null },
+            )
+        }
+    }
+}
+
+/**
+ * 今日頁明細面板（運動、飲水）的覆蓋層。和「記一筆」同一層、同一片 0.32 遮罩、
+ * 同一個模糊（模糊掛在 Scaffold 上，由呼叫端算進 backdropBlur）——
+ * 以前運動明細是 Dialog，那是另一個 window，Compose 主題管不到它的視窗底色，
+ * 開的瞬間會閃一下白（同 `windowBackground` 那條），而且另一個 window
+ * 也模糊不了後面那一頁。
+ */
+@Composable
+private fun DetailOverlay(visible: Boolean, onDismiss: () -> Unit, content: @Composable () -> Unit) {
+    BackHandler(enabled = visible, onBack = onDismiss)
+    AnimatedVisibility(
+        visible = visible,
+        // 不做方向性的位移：這張面板沒有從哪個角落開出來，淡入就是它的全部。
+        enter = fadeIn(tween(180)),
+        exit = fadeOut(tween(170)),
+    ) {
+        val scheme = MaterialTheme.colorScheme
+        Box(Modifier.fillMaxSize()) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(scheme.scrim.copy(alpha = 0.32f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onDismiss,
                     )
-                }
-            }
+            )
+            Box(
+                Modifier
+                    .align(Alignment.Center)
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 24.dp),
+            ) { content() }
         }
     }
 }
@@ -946,6 +967,7 @@ private fun DayPage(
     /** 這一天手動加減的飲水量。食物帶的水在 [Totals.waterMl] 裡，兩個加起來才是當天的量。 */
     manualWaterMl: Int,
     onAdjustWater: (Int) -> Unit,
+    onOpenWaterDetail: () -> Unit,
     onOpenExerciseDetail: () -> Unit,
     onOpenEntry: (FoodEntry) -> Unit,
     onDeleteEntry: (FoodEntry) -> Unit,
@@ -988,7 +1010,7 @@ private fun DayPage(
         item { Hairline() }
         item { Macros(totals, settings, dayTarget) }
         item { Hairline() }
-        item { WaterRow(totals.waterMl + manualWaterMl, onAdjustWater) }
+        item { WaterRow(totals.waterMl + manualWaterMl, onAdjustWater, onOpenWaterDetail) }
         item { Hairline() }
 
         // 餐別之間不再另外畫線：每一列自己帶上緣細線之後，餐別標題上方那段空白
@@ -1257,9 +1279,12 @@ private fun MealSegmentBar(entries: List<FoodEntry>, target: Int) {
  * 用 [RoundKey] 而不是另做一種按鍵 —— 它就是編輯表單那組份數步進的同一顆圓章，
  * 「一次一格」的意思已經由那個形狀講完了。**不做進度條也不上色**：這裡沒有目標，
  * 而朱紅在這套色票裡只給超標與刪除。
+ *
+ * 中間那塊點下去是飲水明細（哪幾杯、手動按了多少）。標籤旁的 › 和「運動 +0 ›」
+ * 同一個記號，講的是同一件事：這個數字點得進去。
  */
 @Composable
-private fun WaterRow(totalMl: Double, onAdjust: (Int) -> Unit) {
+private fun WaterRow(totalMl: Double, onAdjust: (Int) -> Unit, onOpenDetail: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     Row(
         Modifier.fillMaxWidth().padding(vertical = 10.dp),
@@ -1267,15 +1292,21 @@ private fun WaterRow(totalMl: Double, onAdjust: (Int) -> Unit) {
     ) {
         WaterKey(-WATER_STEP_ML, onAdjust)
         Column(
-            Modifier.weight(1f),
+            Modifier
+                .weight(1f)
+                .clickable(onClick = onOpenDetail),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Text(
-                stringResource(R.string.water_label),
-                style = MaterialTheme.typography.labelSmall,
-                color = scheme.onSurfaceVariant,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.water_label),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = scheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.width(2.dp))
+                ChevronMark(scheme.outline, pointsLeft = false, size = 12.dp)
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     totalMl.fmtInt(),

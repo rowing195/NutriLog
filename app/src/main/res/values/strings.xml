@@ -30,6 +30,9 @@
     <string name="settings_openrouter_photo_model_help">要挑看得懂圖片的模型，在 openrouter.ai/models 篩 image 找得到。</string>
     <string name="photo_no_vision_model">還沒指定拍照要用的 OpenRouter 模型。換一家或填一個看得懂圖片的模型再試。</string>
     <string name="water_label">飲水</string>
+    <string name="water_detail_title">飲水明細</string>
+    <string name="water_manual">手動加減</string>
+    <string name="water_total">合計</string>
     <string name="unit_ml">ml</string>
     <string name="unit_kcal">kcal</string>
     <string name="calories_eaten">已經吃</string>
