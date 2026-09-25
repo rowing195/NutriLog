@@ -42,6 +42,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.delay
@@ -801,8 +803,11 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
                     else gemini.analyzeDescription(source.query, key, model, searchContext)
                 is AnalysisSource.Photo ->
                     // 壓縮失敗（檔案壞了、格式不支援）也要走同一條錯誤路徑，
-                    // 不然使用者只會看到轉圈停住
-                    ImageCompressor.toBase64Jpeg(getApplication(), source.uri)
+                    // 不然使用者只會看到轉圈停住。解碼要離開主執行緒：viewModelScope
+                    // 預設在主執行緒上，2 億畫素的照片在這裡解會讓畫面卡住一兩秒。
+                    withContext(Dispatchers.Default) {
+                        ImageCompressor.toBase64Jpeg(getApplication(), source.uri)
+                    }
                         .mapCatching { base64 ->
                             if (useOpenRouter) {
                                 openRouter.analyzeFood(base64, key, model, source.note).getOrThrow()

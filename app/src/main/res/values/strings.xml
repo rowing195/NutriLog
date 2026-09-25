@@ -4,6 +4,12 @@
     <string name="photo_note_label">備註（選填）</string>
     <string name="photo_note_hint">例如：水煮餐、肉片與蔬菜都沒加油</string>
     <string name="photo_confirm_send">送出辨識</string>
+    <string name="photo_unreadable">這張圖讀不出來</string>
+    <string name="photo_unreadable_help">（檔案壞了、格式不支援，或還在雲端）</string>
+    <string name="photo_too_large">這張圖太大</string>
+    <string name="photo_too_many_pixels">（這張 %1$s 億畫素，上限 %2$s 億）</string>
+    <string name="photo_too_many_bytes">（這張 %1$d MB，上限 %2$d MB）</string>
+    <string name="photo_back">返回</string>
     <string name="app_name">肥胖日記</string>
 
     <!-- 今日 -->
