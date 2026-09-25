@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -15,8 +16,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -26,6 +30,25 @@ import com.watson.nutrilog.ui.theme.NutrientColors
 import kotlin.math.roundToInt
 
 internal const val MAX_PORTION_MULTIPLIER = 99.0
+
+/** 收斂到 0.1～99、一位小數。步進與手動輸入共用，兩邊的上下限才不會漂。 */
+internal fun clampPortion(value: Double): Double =
+    (value.coerceIn(0.1, MAX_PORTION_MULTIPLIER) * 10).roundToInt() / 10.0
+
+/**
+ * 份數格收不收這一下按鍵：整數最多兩位、小數最多一位。超過的那一下直接無效，
+ * 不讓人先看到 150 再在離開時跳回 99 —— 那讀起來像是數字自己變了。
+ */
+internal fun acceptsPortionText(text: String): Boolean = PORTION_TEXT.matches(text)
+
+private val PORTION_TEXT = Regex("""\d{0,2}(\.\d?)?""")
+
+/**
+ * 離開份數格時的倍率。空白（或只剩小數點）等於沒填，維持原本的倍率；
+ * 0 收到下限 0.1。
+ */
+internal fun typedPortion(text: String, current: Double): Double =
+    text.toDoubleOrNull()?.let(::clampPortion) ?: current
 
 /**
  * 份數縮放：雙速步進（±1 與 ±0.1），中間顯示目前份數。
@@ -37,59 +60,123 @@ internal const val MAX_PORTION_MULTIPLIER = 99.0
  * 為什麼是步進而不是 0.5／1／1.5／2 四個預設：預設值只能涵蓋整齊的倍率，
  * 但「一碗半再多一點」這種實際吃法落不進去，而且四個預設一字排開看起來像
  * 四顆獨立的鈕，不像一個開關的四個檔位。
+ *
+ * 中間那格也能直接打字：點下去跳出自製數字鍵盤，[typing] 是正在打的字。
+ * 打字時整張表單的數字不動，**離開這格才換算**（由呼叫端決定什麼叫離開）。
  */
 @Composable
 fun PortionMultiplierBar(
     multiplier: Double,
     onMultiplierChange: (Double) -> Unit,
+    /** 正在用數字鍵盤打的字；null＝沒在打。 */
+    typing: String?,
+    onTapValue: () -> Unit,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
+    /** false＝整排變淡、點不動（AI 確認畫面裡沒勾選的那一項）。 */
+    enabled: Boolean = true,
 ) {
     val scheme = MaterialTheme.colorScheme
     val keySize: Dp = if (compact) 34.dp else 40.dp
 
     fun applyStep(delta: Double) {
-        val next = (multiplier + delta).coerceIn(0.1, MAX_PORTION_MULTIPLIER)
-        // 浮點累加會跑出 1.7000000000000002 這種值，每一步都收斂到一位小數
-        onMultiplierChange((next * 10).roundToInt() / 10.0)
+        // 正在打字時按步進鍵，以打到一半的那個數字為準再加減 —— 打了 2 再按 +1
+        // 要得到 3，而不是拿舊的倍率去加。浮點累加會跑出 1.7000000000000002，
+        // clampPortion 每一步都收斂到一位小數。
+        val base = typing?.let { typedPortion(it, multiplier) } ?: multiplier
+        onMultiplierChange(clampPortion(base + delta))
     }
 
     Row(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().alpha(if (enabled) 1f else 0.38f),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         SectionLabel(stringResource(R.string.portion_multiplier_label), Modifier.padding(end = 2.dp))
-        StepKey("−1", keySize) { applyStep(-1.0) }
-        StepKey("−0.1", keySize) { applyStep(-0.1) }
+        StepKey("−1", keySize, enabled) { applyStep(-1.0) }
+        StepKey("−0.1", keySize, enabled) { applyStep(-0.1) }
 
+        // 外層只負責吃掉剩下的寬度、把格子擺正中間，本身沒有底色 —— 格子兩側露出的是
+        // 紙的米色。以前整段剩餘寬度都是格子，寬螢幕上是一大塊白框。
         Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(
-                    formatMultiplierValue(multiplier),
-                    style = MaterialTheme.typography.headlineSmall.copy(
-                        fontSize = if (compact) 20.sp else 24.sp,
-                    ).numeric(),
-                    // 不是 1 份就上朱紅：這是「你動過它」的提示，跟聚焦同色
-                    color = if (multiplier != 1.0) NutrientColors.Accent else scheme.onSurface,
-                    modifier = Modifier.alignByBaseline(),
-                )
-                Text(
-                    "份",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = scheme.onSurfaceVariant,
-                    modifier = Modifier.alignByBaseline(),
-                )
+            // 格子本身跟編輯表單的數字格同一套：外框 ＋ 比其他三邊重的底規線，
+            // 正在填時外框轉墨色、底線轉朱紅。
+            val active = typing != null
+            Box(
+                Modifier
+                    .clip(NutriFieldShape)
+                    .background(if (active) scheme.surfaceContainerLowest else scheme.surfaceContainerLow)
+                    .border(1.dp, if (active) scheme.onSurface else NutrientColors.FieldBorder, NutriFieldShape)
+                    .clickable(enabled = enabled, onClick = onTapValue),
+            ) {
+                Box(
+                    Modifier.padding(horizontal = 8.dp, vertical = if (compact) 3.dp else 5.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    // **寬度固定在「99.9 份」**（最寬的值）：用那串字本身撐出寬度，再把真正的
+                    // 數字疊在正中間。寬度跟著字型與系統字體大小一起縮放，不寫死 dp；
+                    // 打字時也不會一個字一個字地變寬。它看不見，也不能讓讀螢幕的人聽見。
+                    Box(Modifier.clearAndSetSemantics { }) {
+                        PortionValue("99.9", compact, Color.Transparent, Color.Transparent)
+                    }
+                    val shown = typing ?: formatMultiplierValue(multiplier)
+                    PortionValue(
+                        // 打到全部刪光時顯示破折號，跟其他數字格一樣
+                        shown.ifEmpty { "—" },
+                        compact,
+                        // 正在填、或不是 1 份就上朱紅：後者是「你動過它」的提示，跟聚焦同色
+                        numberColor = when {
+                            shown.isEmpty() -> scheme.outline.copy(alpha = 0.6f)
+                            active || multiplier != 1.0 -> NutrientColors.Accent
+                            else -> scheme.onSurface
+                        },
+                        unitColor = scheme.onSurfaceVariant,
+                    )
+                }
+                // 底規線放在跟格子一樣大的那一層裡，才會貼齊外框、又不會把格子撐寬
+                Box(Modifier.matchParentSize(), contentAlignment = Alignment.BottomCenter) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(if (active) 3.dp else 2.dp)
+                            .background(if (active) NutrientColors.Accent else scheme.onSurface)
+                    )
+                }
             }
         }
 
-        StepKey("+0.1", keySize) { applyStep(0.1) }
-        StepKey("+1", keySize) { applyStep(1.0) }
+        StepKey("+0.1", keySize, enabled) { applyStep(0.1) }
+        StepKey("+1", keySize, enabled) { applyStep(1.0) }
+    }
+}
+
+/** 份數格裡的「數字 ＋ 份」。**不換行**：擠的時候寧可被裁掉，也不要整排忽然變高。 */
+@Composable
+private fun PortionValue(number: String, compact: Boolean, numberColor: Color, unitColor: Color) {
+    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(
+            number,
+            style = MaterialTheme.typography.headlineSmall.copy(
+                fontSize = if (compact) 20.sp else 24.sp,
+            ).numeric(),
+            color = numberColor,
+            softWrap = false,
+            maxLines = 1,
+            modifier = Modifier.alignByBaseline(),
+        )
+        Text(
+            "份",
+            style = MaterialTheme.typography.bodySmall,
+            color = unitColor,
+            softWrap = false,
+            maxLines = 1,
+            modifier = Modifier.alignByBaseline(),
+        )
     }
 }
 
 @Composable
-private fun StepKey(text: String, size: Dp, onClick: () -> Unit) {
+private fun StepKey(text: String, size: Dp, enabled: Boolean, onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     Box(
         Modifier
@@ -97,7 +184,7 @@ private fun StepKey(text: String, size: Dp, onClick: () -> Unit) {
             .clip(CircleShape)
             .background(scheme.surfaceContainerLow)
             .border(1.5.dp, NutrientColors.FieldBorder, CircleShape)
-            .clickable(onClick = onClick),
+            .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -111,7 +198,7 @@ private fun StepKey(text: String, size: Dp, onClick: () -> Unit) {
     }
 }
 
-private fun formatMultiplierValue(multiplier: Double): String {
+internal fun formatMultiplierValue(multiplier: Double): String {
     val rounded = (multiplier * 10).roundToInt() / 10.0
     return if (rounded % 1.0 == 0.0) rounded.toInt().toString() else rounded.toString()
 }

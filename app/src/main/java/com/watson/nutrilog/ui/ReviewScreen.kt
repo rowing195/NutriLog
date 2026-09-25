@@ -1,6 +1,8 @@
 package com.watson.nutrilog.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,14 +16,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -195,9 +201,42 @@ private fun ReadyBody(
     onSave: () -> Unit,
 ) {
     val selectedCount = state.items.count { it.selected }
+    // 正在打份數的是第幾項；null＝沒在打。一次只有一項，跟編輯表單的數字格一樣。
+    // 不能拿 state 當 remember 的 key：每改一次份數 state 就換一個新物件，會把打到一半的字清掉。
+    var editingIndex by remember { mutableStateOf<Int?>(null) }
+    var editText by remember { mutableStateOf("") }
+    // 剛點進來的第一下按鍵直接覆蓋原值，同編輯表單
+    var fresh by remember { mutableStateOf(false) }
+
+    // **鍵盤升起來會蓋住靠下的那幾項**：清單跟著變矮，被擠出畫面的項目 LazyColumn 會
+    // 直接從組合裡拿掉，掛在那一排身上的「捲進畫面」也就跟著被取消（實測過，完全沒捲）。
+    // 所以在點下去的當下先記住那一項的下緣（那時它還看得到），等鍵盤排好版再由清單
+    // 自己捲過去超出的那一段。
+    val listState = rememberLazyListState()
+    var revealBottom by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(editingIndex) {
+        val bottom = revealBottom ?: return@LaunchedEffect
+        revealBottom = null
+        withFrameNanos { }
+        val overflow = bottom - listState.layoutInfo.viewportEndOffset
+        if (overflow > 0) listState.animateScrollBy(overflow.toFloat())
+    }
+
+    /** 離開份數格：這時才換算那一項的熱量。 */
+    fun commit() {
+        val index = editingIndex ?: return
+        editingIndex = null
+        state.items.getOrNull(index)?.let { onMultiplierChange(index, typedPortion(editText, it.multiplier)) }
+    }
+
+    // 鍵盤開著時返回鍵先收鍵盤，而不是直接把整個確認畫面關掉
+    BackHandler(enabled = editingIndex != null) { commit() }
+
     Column(modifier) {
         LazyColumn(
-            modifier = Modifier.weight(1f),
+            state = listState,
+            // 點空白處也算離開。列本身（勾選、份數）會先把點擊消費掉，傳得上來的只剩空白。
+            modifier = Modifier.weight(1f).dismissKeyboardOnTap { commit() },
             contentPadding = PaddingValues(horizontal = 22.dp),
         ) {
             item {
@@ -211,25 +250,57 @@ private fun ReadyBody(
             }
             item { SectionLabel(stringResource(R.string.review_meal)) }
             item { MealPicker(meal, Modifier.padding(top = 2.dp, bottom = 10.dp), onSelect = onMealChange) }
-            itemsIndexed(state.items) { index, item ->
+            itemsIndexed(state.items, key = { index, _ -> "item-$index" }) { index, item ->
                 ItemRow(
                     item = item,
-                    onToggle = { onToggle(index) },
-                    onMultiplierChange = { mult -> onMultiplierChange(index, mult) },
+                    onToggle = {
+                        commit()
+                        onToggle(index)
+                    },
+                    onMultiplierChange = { mult ->
+                        // 步進鍵已經把打到一半的字算進去了（見 PortionMultiplierBar），
+                        // 這一項就不必再 commit 一次；別項還開著的話要先收掉它。
+                        if (editingIndex == index) editingIndex = null else commit()
+                        onMultiplierChange(index, mult)
+                    },
+                    typing = if (editingIndex == index) editText else null,
+                    onTapValue = {
+                        if (editingIndex != index) {
+                            commit()
+                            revealBottom = listState.layoutInfo.visibleItemsInfo
+                                .firstOrNull { it.key == "item-$index" }
+                                ?.let { it.offset + it.size }
+                            editingIndex = index
+                            editText = formatMultiplierValue(item.multiplier)
+                        }
+                        fresh = true
+                    },
                 )
             }
             item { Box(Modifier.padding(bottom = 16.dp)) }
         }
-        Column(
-            Modifier
-                .navigationBarsPadding()
-                .padding(horizontal = 22.dp, vertical = 12.dp)
-        ) {
-            StampButton(
-                label = stringResource(R.string.photo_save_selected, selectedCount),
-                enabled = selectedCount > 0,
-                onClick = onSave,
+        if (editingIndex != null) {
+            NumberKeypad(
+                label = stringResource(R.string.portion_multiplier_label),
+                onKey = { key ->
+                    val next = applyKey(editText, key, fresh)
+                    if (acceptsPortionText(next)) editText = next
+                    fresh = false
+                },
+                onDone = { commit() },
             )
+        } else {
+            Column(
+                Modifier
+                    .navigationBarsPadding()
+                    .padding(horizontal = 22.dp, vertical = 12.dp)
+            ) {
+                StampButton(
+                    label = stringResource(R.string.photo_save_selected, selectedCount),
+                    enabled = selectedCount > 0,
+                    onClick = onSave,
+                )
+            }
         }
     }
 }
@@ -239,6 +310,8 @@ private fun ItemRow(
     item: AnalysisItem,
     onToggle: () -> Unit,
     onMultiplierChange: (Double) -> Unit,
+    typing: String?,
+    onTapValue: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
     val food = item.food
@@ -292,16 +365,18 @@ private fun ItemRow(
                 color = if (item.selected) scheme.onSurface else scheme.outline,
             )
         }
-        // 份數只在勾選的那幾項展開：沒要記錄的東西不需要調份量，
-        // 全部都展開會讓這一頁看起來像五張表單疊在一起。
-        if (item.selected) {
-            PortionMultiplierBar(
-                multiplier = item.multiplier,
-                onMultiplierChange = onMultiplierChange,
-                compact = true,
-                modifier = Modifier.padding(start = 32.dp, bottom = 10.dp),
-            )
-        }
+        // **取消勾選時份數這一排照樣留著**，只是變淡、點不動。以前是整排收掉，
+        // 那一項一下子矮一截、底下的項目全部往上跳 —— 連續取消好幾項時，
+        // 下一下很容易點到別項。勾回來就恢復，調好的份數也還在。
+        PortionMultiplierBar(
+            multiplier = item.multiplier,
+            onMultiplierChange = onMultiplierChange,
+            typing = typing,
+            onTapValue = onTapValue,
+            compact = true,
+            enabled = item.selected,
+            modifier = Modifier.padding(start = 32.dp, bottom = 10.dp),
+        )
     }
 }
 
