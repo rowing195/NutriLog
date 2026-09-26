@@ -22,8 +22,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -140,6 +142,10 @@ fun EditEntryScreen(
         BackHandler { focused = null }
     }
 
+    // 最後一個填過的格子。鍵盤收起的動畫裡還要顯示「正在填：」那一行。
+    var lastFocused by remember { mutableStateOf(NumField.CALORIES) }
+    SideEffect { focused?.let { lastFocused = it } }
+
     fun valueOf(field: NumField): String = when (field) {
         NumField.CALORIES -> draft.calories
         NumField.PROTEIN -> draft.protein
@@ -199,31 +205,37 @@ fun EditEntryScreen(
             )
         },
         bottomBar = {
-            if (focused != null) {
-                NumberKeypad(
-                    label = fieldLabel(focused!!),
-                    onKey = { key ->
-                        val field = focused!!
-                        setValue(field, applyKey(valueOf(field), key, fresh))
-                        fresh = false
-                    },
-                    onDone = { focused = null },
-                )
-            } else {
-                Column(
-                    Modifier
-                        .navigationBarsPadding()
-                        .padding(horizontal = 22.dp, vertical = 12.dp)
-                ) {
-                    // 不能存的時候整顆退成外框章，理由用 helper 講一句就好，不彈東西。
-                    StampButton(
-                        label = stringResource(R.string.save),
-                        enabled = draft.isValid,
-                        onClick = onSave,
-                        helper = if (draft.isValid) null else stringResource(R.string.entry_name_required),
+            KeypadSlot(
+                open = updateTransition(focused != null, label = "keypad"),
+                keypad = {
+                    NumberKeypad(
+                        // 收起的那段動畫裡鍵盤還會再畫幾幀，那時 focused 已經是 null
+                        label = fieldLabel(focused ?: lastFocused),
+                        onKey = { key ->
+                            // 退場途中按到的鍵不算：那時已經沒有正在填的格子了
+                            val field = focused ?: return@NumberKeypad
+                            setValue(field, applyKey(valueOf(field), key, fresh))
+                            fresh = false
+                        },
+                        onDone = { focused = null },
                     )
-                }
-            }
+                },
+                closed = {
+                    Column(
+                        Modifier
+                            .navigationBarsPadding()
+                            .padding(horizontal = 22.dp, vertical = 12.dp)
+                    ) {
+                        // 不能存的時候整顆退成外框章，理由用 helper 講一句就好，不彈東西。
+                        StampButton(
+                            label = stringResource(R.string.save),
+                            enabled = draft.isValid,
+                            onClick = onSave,
+                            helper = if (draft.isValid) null else stringResource(R.string.entry_name_required),
+                        )
+                    }
+                },
+            )
         },
     ) { inner ->
         Column(

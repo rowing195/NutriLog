@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -27,7 +28,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.first
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -214,10 +216,13 @@ private fun ReadyBody(
     // 自己捲過去超出的那一段。
     val listState = rememberLazyListState()
     var revealBottom by remember { mutableStateOf<Int?>(null) }
+    val keypad = updateTransition(editingIndex != null, label = "keypad")
     LaunchedEffect(editingIndex) {
         val bottom = revealBottom ?: return@LaunchedEffect
         revealBottom = null
-        withFrameNanos { }
+        // 鍵盤是一路長上來的（見 KeypadSlot），要等它完全升好，清單剩多高才是真的；
+        // 只等一幀量到的是半途的高度，會捲得不夠。
+        snapshotFlow { keypad.currentState && !keypad.isRunning }.first { it }
         val overflow = bottom - listState.layoutInfo.viewportEndOffset
         if (overflow > 0) listState.animateScrollBy(overflow.toFloat())
     }
@@ -279,29 +284,35 @@ private fun ReadyBody(
             }
             item { Box(Modifier.padding(bottom = 16.dp)) }
         }
-        if (editingIndex != null) {
-            NumberKeypad(
-                label = stringResource(R.string.portion_multiplier_label),
-                onKey = { key ->
-                    val next = applyKey(editText, key, fresh)
-                    if (acceptsPortionText(next)) editText = next
-                    fresh = false
-                },
-                onDone = { commit() },
-            )
-        } else {
-            Column(
-                Modifier
-                    .navigationBarsPadding()
-                    .padding(horizontal = 22.dp, vertical = 12.dp)
-            ) {
-                StampButton(
-                    label = stringResource(R.string.photo_save_selected, selectedCount),
-                    enabled = selectedCount > 0,
-                    onClick = onSave,
+        KeypadSlot(
+            open = keypad,
+            keypad = {
+                NumberKeypad(
+                    label = stringResource(R.string.portion_multiplier_label),
+                    onKey = { key ->
+                        // 退場途中按到的鍵不算：那時已經沒有正在打的那一項了
+                        if (editingIndex == null) return@NumberKeypad
+                        val next = applyKey(editText, key, fresh)
+                        if (acceptsPortionText(next)) editText = next
+                        fresh = false
+                    },
+                    onDone = { commit() },
                 )
-            }
-        }
+            },
+            closed = {
+                Column(
+                    Modifier
+                        .navigationBarsPadding()
+                        .padding(horizontal = 22.dp, vertical = 12.dp)
+                ) {
+                    StampButton(
+                        label = stringResource(R.string.photo_save_selected, selectedCount),
+                        enabled = selectedCount > 0,
+                        onClick = onSave,
+                    )
+                }
+            },
+        )
     }
 }
 
