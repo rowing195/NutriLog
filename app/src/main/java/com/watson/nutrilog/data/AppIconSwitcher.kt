@@ -3,6 +3,7 @@ package com.watson.nutrilog.data
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
+import com.watson.nutrilog.MainActivity
 
 /**
  * 換桌面圖示：把選到的那個 activity-alias 打開、其餘關掉。
@@ -28,7 +29,7 @@ object AppIconSwitcher {
     }
 
     private fun setState(pm: PackageManager, context: Context, icon: AppIcon, state: Int) {
-        val component = ComponentName(context.packageName, context.packageName + icon.aliasSuffix)
+        val component = ComponentName(context.packageName, MainActivity::class.java.packageName + icon.aliasSuffix)
         // 已經是這個狀態就不要再寫一次：每寫一次桌面都會重整，圖示會閃一下
         if (pm.getComponentEnabledSetting(component) == state) return
         pm.setComponentEnabledSetting(component, state, PackageManager.DONT_KILL_APP)
