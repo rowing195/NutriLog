@@ -1,7 +1,22 @@
 package com.watson.nutrilog.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
+import androidx.compose.runtime.key
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.layout.LastBaseline
+import androidx.compose.ui.layout.FirstBaseline
+import androidx.compose.ui.layout.Layout
+import kotlin.math.roundToInt
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -437,7 +452,8 @@ fun TodayScreen(
         // 所以要記住最後看的那一天 —— 同上面 UndoStamp 的 lastUndoId。
         var lastDetailDate by remember { mutableStateOf(LocalDate.now()) }
         LaunchedEffect(exerciseDetailDate) { exerciseDetailDate?.let { lastDetailDate = it } }
-        DetailOverlay(visible = exerciseDetailDate != null, onDismiss = { exerciseDetailDate = null }) {
+        // 運動與飲水明細都畫在 NutriOverlay 裡（壓暗、淡入、返回鍵），和「記一筆」同一層、同一個模糊。
+        NutriOverlay(visible = exerciseDetailDate != null, onDismiss = { exerciseDetailDate = null }) {
             val dayEntries = entriesCache[lastDetailDate].orEmpty()
             ExerciseDetailSheet(
                 date = lastDetailDate,
@@ -456,52 +472,13 @@ fun TodayScreen(
 
         var lastWaterDate by remember { mutableStateOf(LocalDate.now()) }
         LaunchedEffect(waterDetailDate) { waterDetailDate?.let { lastWaterDate = it } }
-        DetailOverlay(visible = waterDetailDate != null, onDismiss = { waterDetailDate = null }) {
+        NutriOverlay(visible = waterDetailDate != null, onDismiss = { waterDetailDate = null }) {
             WaterDetailSheet(
                 date = lastWaterDate,
                 entries = entriesCache[lastWaterDate].orEmpty(),
                 manualMl = manualWaterMl[lastWaterDate] ?: 0,
                 onDismiss = { waterDetailDate = null },
             )
-        }
-    }
-}
-
-/**
- * 今日頁明細面板（運動、飲水）的覆蓋層。和「記一筆」同一層、同一片 0.32 遮罩、
- * 同一個模糊（模糊掛在 Scaffold 上，由呼叫端算進 backdropBlur）——
- * 以前運動明細是 Dialog，那是另一個 window，Compose 主題管不到它的視窗底色，
- * 開的瞬間會閃一下白（同 `windowBackground` 那條），而且另一個 window
- * 也模糊不了後面那一頁。
- */
-@Composable
-private fun DetailOverlay(visible: Boolean, onDismiss: () -> Unit, content: @Composable () -> Unit) {
-    BackHandler(enabled = visible, onBack = onDismiss)
-    AnimatedVisibility(
-        visible = visible,
-        // 不做方向性的位移：這張面板沒有從哪個角落開出來，淡入就是它的全部。
-        enter = fadeIn(tween(180)),
-        exit = fadeOut(tween(170)),
-    ) {
-        val scheme = MaterialTheme.colorScheme
-        Box(Modifier.fillMaxSize()) {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(scheme.scrim.copy(alpha = 0.32f))
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onDismiss,
-                    )
-            )
-            Box(
-                Modifier
-                    .align(Alignment.Center)
-                    .statusBarsPadding()
-                    .navigationBarsPadding()
-                    .padding(horizontal = 24.dp),
-            ) { content() }
         }
     }
 }
@@ -861,6 +838,17 @@ private fun DayColumn(
         OverSeverity.NORMAL -> null
     }
     val fraction = if (target > 0) (kcal / target).coerceIn(0.0, 1.0).toFloat() else 0f
+    // 柱子長到新高度而不是一幀跳過去。第一次組成時直接就是目標值（animate*AsState
+    // 不會從 0 長起），所以換週、借位畫鄰週時不會每根柱子都重長一次。
+    val barHeight by animateFloatAsState(
+        when {
+            kcal <= 0 -> 0f
+            isOver -> 1f
+            else -> fraction
+        },
+        tween(BAR_MS, easing = FastOutSlowInEasing),
+        label = "weekBar",
+    )
     val weekday = day.dayOfWeek.value % 7
     // 粗體、文字色、指示條都跟著 pillAlpha 這個連續值切換（過半才算選到），
     // 不要用外面 settle 才會變的已選日期 —— 不然拖動時底色已經跟到新的一天，
@@ -902,17 +890,20 @@ private fun DayColumn(
                 ),
             contentAlignment = Alignment.BottomCenter,
         ) {
-            if (kcal > 0) {
+            if (barHeight > 0f) {
                 Box(
                     Modifier
                         .fillMaxWidth()
-                        .fillMaxHeight(if (isOver) 1f else fraction)
+                        .fillMaxHeight(barHeight)
                         .background(
-                            when {
-                                severityColor != null -> severityColor
-                                isSelected -> scheme.onSurface
-                                else -> scheme.outline
-                            }
+                            feedbackColor(
+                                when {
+                                    severityColor != null -> severityColor
+                                    isSelected -> scheme.onSurface
+                                    else -> scheme.outline
+                                },
+                                "weekBarColor",
+                            )
                         )
                 )
             }
@@ -1244,31 +1235,42 @@ private fun MealSegmentBar(entries: List<FoodEntry>, target: Int) {
         OverSeverity.NORMAL -> null
     }
 
+    // **每一段的熱量各自平滑變化**，加一筆時那一餐的色段是長出來的、其餘的跟著讓位。
+    // 以前是一排 weight 的 Box：沒吃的那一餐整段不存在，weight 也不能是 0，沒辦法動畫，
+    // 所以改成自己畫。排法不變：照比例分、段與段之間留 2dp 的縫、剩下的額度墊在最後。
+    val kcals = Meal.entries.map { meal ->
+        animateFloatAsState(
+            entries.filter { it.mealType == meal }.sumOf { it.calories }.toFloat(),
+            tween(BAR_MS, easing = FastOutSlowInEasing),
+            label = "mealSegment",
+        ).value
+    }
+    val rest by animateFloatAsState(
+        remainder.toFloat(), tween(BAR_MS, easing = FastOutSlowInEasing), label = "mealRemainder",
+    )
+    val colors = Meal.entries.indices.map { index ->
+        feedbackColor(severityColor ?: mealColors[index], "mealSegmentColor")
+    }
+    val restColor = scheme.surfaceContainerHigh
+
     // 方角、8dp。圓角在這個尺寸只會把兩端的分段啃掉一截，看起來像沒對齊。
-    Row(
+    Canvas(
         Modifier
             .fillMaxWidth()
             .height(8.dp)
-            .background(scheme.surfaceContainerHigh),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
+            .background(restColor)
     ) {
-        Meal.entries.forEachIndexed { index, meal ->
-            val kcal = entries.filter { it.mealType == meal }.sumOf { it.calories }
-            if (kcal <= 0.0) return@forEachIndexed
-            Box(
-                Modifier
-                    .weight(kcal.toFloat())
-                    .fillMaxHeight()
-                    .background(severityColor ?: mealColors[index])
-            )
-        }
-        if (remainder > 0.0) {
-            Box(
-                Modifier
-                    .weight(remainder.toFloat())
-                    .fillMaxHeight()
-                    .background(scheme.surfaceContainerHigh)
-            )
+        // 小於半大卡的段視為不存在：動畫收到尾巴時不要留一條 2dp 的縫加一根細線
+        val parts = (kcals.zip(colors) + (rest to restColor)).filter { it.first > 0.5f }
+        val total = parts.sumOf { it.first.toDouble() }.toFloat()
+        if (total <= 0f) return@Canvas
+        val gap = 2.dp.toPx()
+        val usable = size.width - gap * (parts.size - 1)
+        var x = 0f
+        parts.forEach { (kcal, color) ->
+            val w = usable * kcal / total
+            drawRect(color, topLeft = Offset(x, 0f), size = Size(w, size.height))
+            x += w + gap
         }
     }
 }
@@ -1308,8 +1310,8 @@ private fun WaterRow(totalMl: Double, onAdjust: (Int) -> Unit, onOpenDetail: () 
                 ChevronMark(scheme.outline, pointsLeft = false, size = 12.dp)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    totalMl.fmtInt(),
+                RollingNumber(
+                    value = totalMl.roundToInt(),
                     style = MaterialTheme.typography.titleLarge.numeric(),
                     modifier = Modifier.alignByBaseline(),
                 )
@@ -1337,6 +1339,90 @@ private fun WaterKey(deltaMl: Int, onAdjust: (Int) -> Unit) {
 
 /** 一次加減多少。50 ml 大約是喝一口，按幾下就是一杯。 */
 private const val WATER_STEP_ML = 50
+
+/**
+ * 像計數器翻頁一樣換數字：**只有變了的那幾位會捲**，沒變的原地不動。
+ * 增加時新的數字從下面捲上來、減少時從上面捲下來，外面裁掉，看起來像撥動的字輪。
+ *
+ * 位數從右邊對齊（個位對個位），而且是固定 [ROLL_SLOTS] 格、沒有數字的格子寬度是 0：
+ * 50 → 100 時百位那一格是從空白捲出一個 1，100 → 50 時那個 1 捲走、寬度跟著收。
+ * 只照目前的位數排的話，多出來的那一位會一幀冒出來（中途讀起來像「150」），
+ * 少掉的那一位會一幀消失（中途只剩「00」）—— 實測慢速逐格看過。
+ */
+@Composable
+private fun RollingNumber(value: Int, style: TextStyle, modifier: Modifier = Modifier) {
+    // 捲的方向跟著「整個數字」是變大還是變小，不是每一位自己比：950 → 1000 的十位是
+    // 5 → 0，照那一位自己看會往下捲，但整個計數器明明是在往上走。
+    val direction = remember { RollDirection(value) }
+    val up = direction.update(value)
+    val text = value.toString()
+    Layout(
+        content = {
+            // 看不見的一個字：只拿它的高度與基線。捲動中的數字有垂直位移，它們的基線會
+            // 跟著動 —— 外面用 alignByBaseline 對齊的話，整排會在捲的時候上下跳。
+            Text("0", style = style, color = Color.Transparent)
+            Row(Modifier.clipToBounds()) {
+                for (slot in ROLL_SLOTS - 1 downTo 0) {
+                    val digit = text.getOrNull(text.length - 1 - slot)?.toString().orEmpty()
+                    key(slot) {
+                        AnimatedContent(
+                            targetState = digit,
+                            transitionSpec = {
+                                val from = if (up) 1 else -1
+                                (slideInVertically(tween(ROLL_MS, easing = FastOutSlowInEasing)) { it * from } +
+                                    fadeIn(tween(ROLL_MS)))
+                                    .togetherWith(
+                                        slideOutVertically(tween(ROLL_MS, easing = FastOutSlowInEasing)) { -it * from } +
+                                            fadeOut(tween(ROLL_MS))
+                                    )
+                                    .using(SizeTransform(clip = false) { _, _ -> tween(ROLL_MS, easing = FastOutSlowInEasing) })
+                            },
+                            label = "rollingDigit",
+                        ) { d -> Text(d, style = style) }
+                    }
+                }
+            }
+        },
+        modifier = modifier,
+    ) { measurables, constraints ->
+        val probe = measurables[0].measure(constraints.copy(minWidth = 0, minHeight = 0))
+        val row = measurables[1].measure(
+            Constraints(maxWidth = constraints.maxWidth, minHeight = probe.height, maxHeight = probe.height)
+        )
+        layout(
+            row.width,
+            probe.height,
+            mapOf(FirstBaseline to probe[FirstBaseline], LastBaseline to probe[LastBaseline]),
+        ) {
+            probe.place(0, 0)
+            row.place(0, 0)
+        }
+    }
+}
+
+/**
+ * 記住上一次的數字，算出這次是往上還是往下。刻意不是 State：它只在組合時被讀、
+ * 值只跟著 [value] 變，寫進 State 反而會多觸發一次重組。
+ */
+private class RollDirection(private var last: Int) {
+    private var up = true
+    fun update(value: Int): Boolean {
+        if (value != last) {
+            up = value > last
+            last = value
+        }
+        return up
+    }
+}
+
+/** 計數器捲一格的時間。按住連點時一格還沒捲完下一格就來了，所以要比轉場短。 */
+private const val ROLL_MS = 220
+
+/** 計數器固定幾格。飲水一天不會超過六位數；負號也佔一格。 */
+private const val ROLL_SLOTS = 6
+
+/** 長條（額度、三大營養素、週長條）長到新長度的時間。 */
+private const val BAR_MS = 300
 
 /**
  * 三大營養素。
@@ -1388,7 +1474,12 @@ private fun MacroColumn(
 ) {
     val scheme = MaterialTheme.colorScheme
     val tint = severityTint(value, target)
-    val fraction = if (target > 0) (value / target).coerceIn(0.0, 1.0).toFloat() else 0f
+    // 加一筆、刪一筆時長條是長過去／縮回去的，不是一幀跳到新長度
+    val fraction by animateFloatAsState(
+        if (target > 0) (value / target).coerceIn(0.0, 1.0).toFloat() else 0f,
+        tween(BAR_MS, easing = FastOutSlowInEasing),
+        label = "macroBar",
+    )
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(5.dp)) {
         SectionLabel(label)
@@ -1416,7 +1507,7 @@ private fun MacroColumn(
                 Modifier
                     .fillMaxWidth(fraction)
                     .height(3.dp)
-                    .background(tint ?: color)
+                    .background(feedbackColor(tint ?: color, "macroBarColor"))
             )
         }
     }

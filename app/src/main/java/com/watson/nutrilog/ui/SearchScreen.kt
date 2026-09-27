@@ -32,7 +32,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.db.FoodEntry
 import com.watson.nutrilog.data.db.FoodSuggestion
@@ -165,15 +171,26 @@ internal fun FoodLibrary(
     HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
         // 「最近」那頁不顯示次數：它的排序依據就是日期，次數在那裡只是雜訊
         val items = if (page == 0) frequent else recent
-        if (items.isEmpty()) {
-            EmptyLibraryHint(isFrequentPage = page == 0, filtered = filtered)
+        // 篩到一筆都不剩（或從空的長回來）時，清單與空狀態那句話交叉淡換。
+        // 「有沒有在篩選」跟著狀態一起帶進去：清掉搜尋字的那一刻 filtered 已經是 false，
+        // 正在淡出的那句話若讀外面的值，會先變成「還沒有紀錄」那句才淡掉（慢速錄影看到過）。
+        // key 只看空不空，打字過程中那句話不必每打一個字就重播一次。
+        AnimatedContent(
+            targetState = items.isEmpty() to filtered,
+            contentKey = { it.first },
+            transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(150)) },
+            label = "libraryEmpty",
+        ) { (empty, wasFiltered) ->
+        if (empty) {
+            EmptyLibraryHint(isFrequentPage = page == 0, filtered = wasFiltered)
         } else {
             LazyColumn(
                 Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(horizontal = 22.dp, vertical = 8.dp),
             ) {
                 items(items, key = { it.name + "|" + it.servingText }) { suggestion ->
-                    Column {
+                    // 邊打邊篩時，被篩掉的列淡出、留下來的滑到新位置，不是整份清單一幀換掉
+                    Column(Modifier.animateItem(fadeInSpec = listFade, placementSpec = listPlacement, fadeOutSpec = listFade)) {
                         SuggestionRow(
                             suggestion = suggestion,
                             showTimes = page == 0,
@@ -183,6 +200,7 @@ internal fun FoodLibrary(
                     }
                 }
             }
+        }
         }
     }
 }
@@ -306,7 +324,7 @@ private fun SearchResults(
         contentPadding = PaddingValues(horizontal = 22.dp, vertical = 8.dp),
     ) {
         items(results, key = { it.id }) { entry ->
-            Column {
+            Column(Modifier.animateItem(fadeInSpec = listFade, placementSpec = listPlacement, fadeOutSpec = listFade)) {
                 ResultRow(
                     entry = entry,
                     onClick = {
@@ -363,3 +381,7 @@ private fun ResultRow(entry: FoodEntry, onClick: () -> Unit, onReuse: () -> Unit
         }
     }
 }
+
+/** 清單列進出與挪位的節奏。比今日頁紀錄列（400ms）快：這裡是邊打字邊變，慢了會跟不上手指。 */
+private val listFade = tween<Float>(220)
+private val listPlacement = tween<IntOffset>(220)

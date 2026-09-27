@@ -1,5 +1,13 @@
 package com.watson.nutrilog.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -234,7 +242,18 @@ private fun WeeklyContent(
     onOpenApi: () -> Unit,
 ) {
     val hasData = stats == null || stats.loggedDaysCount > 0 || stats.totalActiveCaloriesBurned > 0
-    if (stats != null && hasData) {
+    // 包成一個子項、間距自己給：統計那塊是展開出來的，收合時高度 0 的它仍然會被
+    // 外層 spacedBy 算一格間距（見 CLAUDE.md〈打字時底下那一區〉那條）。
+    Column {
+    // 統計算好時展開淡入，不要在「載入中」那條線上面突然冒出一整塊
+    AnimatedVisibility(
+        visible = stats != null && hasData,
+        enter = expandVertically(tween(260)) + fadeIn(tween(220, delayMillis = 60)),
+        exit = fadeOut(tween(150)) + shrinkVertically(tween(220)),
+    ) {
+    val shownStats = rememberLastNonNull(stats)
+    Column(Modifier.padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    shownStats?.let { stats ->
         val c = stats.comparison
         StatsBlock(
             loggedDays = stats.loggedDaysCount,
@@ -254,6 +273,8 @@ private fun WeeklyContent(
         )
         Hairline()
     }
+    }
+    }
     ReportBody(
         state = state,
         hasData = hasData,
@@ -271,6 +292,7 @@ private fun WeeklyContent(
         Hairline()
         RegenerateRow(report.generatedAt, report.model, onGenerate)
     }
+    }
 }
 
 @Composable
@@ -281,7 +303,18 @@ private fun MonthlyContent(
     onOpenApi: () -> Unit,
 ) {
     val hasData = stats == null || stats.loggedDaysCount > 0 || stats.totalActiveCaloriesBurned > 0
-    if (stats != null && hasData) {
+    // 包成一個子項、間距自己給：統計那塊是展開出來的，收合時高度 0 的它仍然會被
+    // 外層 spacedBy 算一格間距（見 CLAUDE.md〈打字時底下那一區〉那條）。
+    Column {
+    // 統計算好時展開淡入，不要在「載入中」那條線上面突然冒出一整塊
+    AnimatedVisibility(
+        visible = stats != null && hasData,
+        enter = expandVertically(tween(260)) + fadeIn(tween(220, delayMillis = 60)),
+        exit = fadeOut(tween(150)) + shrinkVertically(tween(220)),
+    ) {
+    val shownStats = rememberLastNonNull(stats)
+    Column(Modifier.padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    shownStats?.let { stats ->
         val c = stats.comparison
         StatsBlock(
             loggedDays = stats.loggedDaysCount,
@@ -301,6 +334,8 @@ private fun MonthlyContent(
         )
         Hairline()
     }
+    }
+    }
     ReportBody(
         state = state,
         hasData = hasData,
@@ -313,6 +348,7 @@ private fun MonthlyContent(
         MarkdownBody(report.markdownContent)
         Hairline()
         RegenerateRow(report.generatedAt, report.model, onGenerate)
+    }
     }
 }
 
@@ -333,6 +369,15 @@ private fun <T> ReportBody(
     onOpenApi: () -> Unit,
     ready: @Composable (T) -> Unit,
 ) {
+    // 載入中 → 完成／空的／產生中 之間交叉淡換，高度跟著長。key 只看是哪一種狀態：
+    // 套用建議之後 Ready 會換一個新物件，那時候不該重播一次淡入。
+    AnimatedContent(
+        targetState = state,
+        contentKey = { it::class },
+        transitionSpec = { fadeIn(tween(220, delayMillis = 60)) togetherWith fadeOut(tween(150)) },
+        label = "reportState",
+    ) { state ->
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
     when (state) {
         ReportUiState.Loading -> IndeterminateRule(Modifier.padding(top = 12.dp))
         ReportUiState.Empty -> {
@@ -357,6 +402,8 @@ private fun <T> ReportBody(
             StampButton(label = stringResource(R.string.retry), onClick = onGenerate)
         }
         is ReportUiState.Ready -> ready(state.report)
+    }
+    }
     }
 }
 

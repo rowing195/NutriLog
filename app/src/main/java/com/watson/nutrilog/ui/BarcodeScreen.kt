@@ -1,5 +1,10 @@
 package com.watson.nutrilog.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.draw.clip
@@ -87,6 +92,14 @@ fun BarcodeScreen(
                 }
             }
 
+            // 查詢中 → 找到／找不到 交叉淡換，高度跟著長，不是一幀整塊換掉。
+            // 找到的商品用條碼當 key：換查另一個商品時也要換一次，而不是原地改字。
+            AnimatedContent(
+                targetState = state,
+                contentKey = { if (it is BarcodeState.Found) it.product.barcode else it::class },
+                transitionSpec = { fadeIn(tween(220, delayMillis = 60)) togetherWith fadeOut(tween(150)) },
+                label = "barcodeState",
+            ) { state ->
             when (state) {
                 BarcodeState.Idle -> Unit
 
@@ -113,6 +126,7 @@ fun BarcodeScreen(
                 )
 
                 is BarcodeState.Found -> FoundCard(state, onUseProduct)
+            }
             }
         }
     }

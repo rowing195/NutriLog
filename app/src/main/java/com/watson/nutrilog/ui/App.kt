@@ -81,17 +81,6 @@ fun NutriLogApp(viewModel: NutriViewModel) {
         ActivityResultContracts.PickVisualMedia()
     ) { uri -> photoToConfirm = uri }
 
-    photoToConfirm?.let { uri ->
-        PhotoConfirmationDialog(
-            uri = uri,
-            onDismiss = { photoToConfirm = null },
-            onConfirm = { note ->
-                photoToConfirm = null
-                viewModel.analyzePhoto(uri, note)
-            },
-        )
-    }
-
     // 先取得照片，缺金鑰時才能在失敗面板換供應商後重試同一張。
     val startCamera = {
         val uri = newPhotoUri(context)
@@ -503,6 +492,20 @@ fun NutriLogApp(viewModel: NutriViewModel) {
     }
     }
     }
+
+    // 確認照片畫在所有畫面的最上層，才蓋得住整頁（見 PhotoConfirmationDialog）。
+    // 按了取消或送出之後 photoToConfirm 馬上變回 null，退場那幾幀要畫最後一張。
+    PhotoConfirmationDialog(
+        visible = photoToConfirm != null,
+        uri = rememberLastNonNull(photoToConfirm),
+        onDismiss = { photoToConfirm = null },
+        onConfirm = { note ->
+            photoToConfirm?.let { uri ->
+                photoToConfirm = null
+                viewModel.analyzePhoto(uri, note)
+            }
+        },
+    )
     }
 }
 
@@ -513,9 +516,9 @@ fun NutriLogApp(viewModel: NutriViewModel) {
  * 深色模式下 Activity 的白色 `windowBackground` 會從縫裡透出來（見 CLAUDE.md
  * 那一節）—— 不透明的紙由下往上蓋沒有半透明那一段，那個坑順手就沒了。
  */
-private const val COVER_MS = 320
+internal const val COVER_MS = 320
 private const val BODY_FADE_MS = 180
-private val CoverEasing = CubicBezierEasing(0.32f, 0f, 0.18f, 1f)
+internal val CoverEasing = CubicBezierEasing(0.32f, 0f, 0.18f, 1f)
 
 /** 紙剛起步時的不透明度，以及走到幾成就完全實心。 */
 private const val SHEET_ALPHA_FROM = 0.5f

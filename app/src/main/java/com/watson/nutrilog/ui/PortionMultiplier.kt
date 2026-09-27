@@ -88,7 +88,8 @@ fun PortionMultiplierBar(
     }
 
     Row(
-        modifier = modifier.fillMaxWidth().alpha(if (enabled) 1f else 0.38f),
+        // 取消勾選時整排是慢慢淡下去的，跟名稱變淡同一個節奏
+        modifier = modifier.fillMaxWidth().alpha(feedbackFloat(if (enabled) 1f else 0.38f, "portionEnabled")),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -105,8 +106,8 @@ fun PortionMultiplierBar(
             Box(
                 Modifier
                     .clip(NutriFieldShape)
-                    .background(if (active) scheme.surfaceContainerLowest else scheme.surfaceContainerLow)
-                    .border(1.dp, if (active) scheme.onSurface else NutrientColors.FieldBorder, NutriFieldShape)
+                    .background(feedbackColor(if (active) scheme.surfaceContainerLowest else scheme.surfaceContainerLow, "portionFill"))
+                    .border(1.dp, feedbackColor(if (active) scheme.onSurface else NutrientColors.FieldBorder, "portionBorder"), NutriFieldShape)
                     .clickable(enabled = enabled, onClick = onTapValue),
             ) {
                 Box(
@@ -125,11 +126,14 @@ fun PortionMultiplierBar(
                         shown.ifEmpty { "—" },
                         compact,
                         // 正在填、或不是 1 份就上朱紅：後者是「你動過它」的提示，跟聚焦同色
-                        numberColor = when {
-                            shown.isEmpty() -> scheme.outline.copy(alpha = 0.6f)
-                            active || multiplier != 1.0 -> NutrientColors.Accent
-                            else -> scheme.onSurface
-                        },
+                        numberColor = feedbackColor(
+                            when {
+                                shown.isEmpty() -> scheme.outline.copy(alpha = 0.6f)
+                                active || multiplier != 1.0 -> NutrientColors.Accent
+                                else -> scheme.onSurface
+                            },
+                            "portionValue",
+                        ),
                         unitColor = scheme.onSurfaceVariant,
                     )
                 }
@@ -138,8 +142,8 @@ fun PortionMultiplierBar(
                     Box(
                         Modifier
                             .fillMaxWidth()
-                            .height(if (active) 3.dp else 2.dp)
-                            .background(if (active) NutrientColors.Accent else scheme.onSurface)
+                            .height(feedbackDp(if (active) 3.dp else 2.dp, "portionRuleHeight"))
+                            .background(feedbackColor(if (active) NutrientColors.Accent else scheme.onSurface, "portionRule"))
                     )
                 }
             }

@@ -1,5 +1,20 @@
 package com.watson.nutrilog.ui
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.draw.blur
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -17,7 +32,6 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -125,6 +139,38 @@ fun Meal.shortLabel(): String = stringResource(
         Meal.SNACK -> R.string.meal_snack_short
     }
 )
+
+/**
+ * 狀態切換的短漸變：聚焦、勾選、圈選、開關、啟用。
+ *
+ * 以前這些全是同一幀直接換色，點下去的那一下看起來像「跳」而不是「變」。
+ * 150ms 夠短，不會讓人覺得點了還要等；又夠長，看得出是從哪個狀態變過去的。
+ * 全 app 共用同一個長度 —— 各元件各調各的，同一個畫面裡會有快有慢。
+ */
+internal const val FEEDBACK_MS = 150
+
+@Composable
+internal fun feedbackColor(target: Color, label: String): Color =
+    animateColorAsState(target, tween(FEEDBACK_MS), label = label).value
+
+@Composable
+internal fun feedbackFloat(target: Float, label: String): Float =
+    animateFloatAsState(target, tween(FEEDBACK_MS), label = label).value
+
+@Composable
+internal fun feedbackDp(target: Dp, label: String): Dp =
+    animateDpAsState(target, tween(FEEDBACK_MS), label = label).value
+
+/**
+ * 最後一個不是 null 的值。覆蓋層退場的那段動畫裡，呼叫端通常已經把資料清成 null 了
+ * （例如匯入確認按了取消），面板卻還要再畫幾幀 —— 那幾幀就畫最後一次的內容。
+ */
+@Composable
+fun <T : Any> rememberLastNonNull(value: T?): T? {
+    val last = remember { mutableStateOf(value) }
+    SideEffect { if (value != null) last.value = value }
+    return value ?: last.value
+}
 
 /** 顯示用的數字：整數不拖小數點，其他保留一位。營養素再精確也沒有意義。 */
 fun Double.fmt(): String =
@@ -299,24 +345,34 @@ fun NutriTextField(
     val scheme = MaterialTheme.colorScheme
     var focused by remember { mutableStateOf(false) }
 
-    val borderColor = when {
-        !enabled -> scheme.outlineVariant
-        isError -> NutrientColors.Over
-        focused -> scheme.onSurface
-        else -> NutrientColors.FieldBorder
-    }
-    val ruleColor = when {
-        !enabled -> NutrientColors.FieldBorder
-        isError -> NutrientColors.Over
-        focused -> NutrientColors.Accent
-        else -> scheme.onSurface
-    }
-    val containerColor = when {
-        !enabled -> scheme.surfaceVariant
-        isError -> NutrientColors.Over.copy(alpha = 0.05f)
-        focused -> scheme.surfaceContainerLowest
-        else -> scheme.surfaceContainerLow
-    }
+    val borderColor = feedbackColor(
+        when {
+            !enabled -> scheme.outlineVariant
+            isError -> NutrientColors.Over
+            focused -> scheme.onSurface
+            else -> NutrientColors.FieldBorder
+        },
+        "fieldBorder",
+    )
+    val ruleColor = feedbackColor(
+        when {
+            !enabled -> NutrientColors.FieldBorder
+            isError -> NutrientColors.Over
+            focused -> NutrientColors.Accent
+            else -> scheme.onSurface
+        },
+        "fieldRule",
+    )
+    val containerColor = feedbackColor(
+        when {
+            !enabled -> scheme.surfaceVariant
+            isError -> NutrientColors.Over.copy(alpha = 0.05f)
+            focused -> scheme.surfaceContainerLowest
+            else -> scheme.surfaceContainerLow
+        },
+        "fieldContainer",
+    )
+    val ruleHeight = feedbackDp(if (focused || isError) 3.dp else 2.dp, "fieldRuleHeight")
 
     val resolvedStyle = (textStyle ?: MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp))
         .let { if (numeric) it.numeric() else it }
@@ -382,7 +438,7 @@ fun NutriTextField(
                     // 靜止 2dp、聚焦 3dp。規線是絕對定位在底部的，改高度不會推到
                     // 上面的內容。靜止時全部都是 3px 全黑，疊四五個欄位（設定頁）
                     // 會變成一排黑槓，像舊式報表 —— 那才是「古板」的來源。
-                    .height(if (focused || isError) 3.dp else 2.dp)
+                    .height(ruleHeight)
                     .background(ruleColor)
             )
         }
@@ -899,18 +955,29 @@ fun IndeterminateRule(modifier: Modifier = Modifier) {
 @Composable
 fun SquareCheck(checked: Boolean, modifier: Modifier = Modifier) {
     val scheme = MaterialTheme.colorScheme
+    // 勾號從小長到原尺寸、同時淡入：讀起來是「打上去」，而不是憑空出現
+    val mark = feedbackFloat(if (checked) 1f else 0f, "checkMark")
     Box(
         modifier
             .size(20.dp)
-            .background(if (checked) scheme.onSurface else Color.Transparent, RoundedCornerShape(2.dp))
+            .background(
+                feedbackColor(if (checked) scheme.onSurface else Color.Transparent, "checkFill"),
+                RoundedCornerShape(2.dp),
+            )
             .border(
                 1.5.dp,
-                if (checked) scheme.onSurface else NutrientColors.FieldBorder,
+                feedbackColor(if (checked) scheme.onSurface else NutrientColors.FieldBorder, "checkBorder"),
                 RoundedCornerShape(2.dp),
             ),
         contentAlignment = Alignment.Center,
     ) {
-        if (checked) CheckMark(scheme.inverseOnSurface, size = 12.dp)
+        Box(
+            Modifier.graphicsLayer {
+                alpha = mark
+                scaleX = 0.6f + 0.4f * mark
+                scaleY = 0.6f + 0.4f * mark
+            }
+        ) { CheckMark(scheme.inverseOnSurface, size = 12.dp) }
     }
 }
 
@@ -982,27 +1049,30 @@ fun StampButton(
         fill.alpha == 0f -> scheme.onSurface
         else -> scheme.inverseOnSurface
     }
-    val labelColor = if (enabled) onFill else scheme.outline
+    // 實心章 ↔ 外框章之間是漸變的：名稱一填好，章就從外框慢慢「印」上去
+    val labelColor = feedbackColor(if (enabled) onFill else scheme.outline, "stampLabel")
+    val fillColor = feedbackColor(if (enabled) fill else Color.Transparent, "stampFill")
+    val frameColor = feedbackColor(
+        when {
+            !enabled -> NutrientColors.FieldBorder
+            destructive -> scheme.error
+            else -> scheme.onSurfaceVariant
+        },
+        "stampFrame",
+    )
     androidx.compose.foundation.layout.Column(modifier) {
         Box(
             Modifier
                 .fillMaxWidth()
                 .height(54.dp)
-                .background(if (enabled) fill else Color.Transparent)
+                .background(fillColor)
                 .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
                 .padding(4.dp)
         ) {
             Row(
                 Modifier
                     .fillMaxSize()
-                    .border(
-                        1.dp,
-                        when {
-                            !enabled -> NutrientColors.FieldBorder
-                            destructive -> scheme.error
-                            else -> scheme.onSurfaceVariant
-                        },
-                    ),
+                    .border(1.dp, frameColor),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -1216,6 +1286,8 @@ fun BallotRow(
     ) {
         labels.forEachIndexed { index, label ->
             val active = index == selectedIndex
+            // 換選項時，舊的那個圈退掉、新的那個圈填上，兩邊同時漸變
+            val dot = feedbackFloat(if (active) 1f else 0f, "ballotDot")
             Row(
                 Modifier
                     .clickable { onSelect(index) }
@@ -1227,28 +1299,27 @@ fun BallotRow(
                     Modifier
                         .size(16.dp)
                         .clip(CircleShape)
-                        .background(if (active) scheme.onSurface else Color.Transparent)
+                        .background(feedbackColor(if (active) scheme.onSurface else Color.Transparent, "ballotFill"))
                         .border(
                             1.5.dp,
-                            if (active) scheme.onSurface else NutrientColors.FieldBorder,
+                            feedbackColor(if (active) scheme.onSurface else NutrientColors.FieldBorder, "ballotBorder"),
                             CircleShape,
                         ),
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (active) {
-                        Box(
-                            Modifier
-                                .size(5.dp)
-                                .clip(CircleShape)
-                                .background(scheme.inverseOnSurface)
-                        )
-                    }
+                    Box(
+                        Modifier
+                            .size(5.dp)
+                            .graphicsLayer { alpha = dot; scaleX = dot; scaleY = dot }
+                            .clip(CircleShape)
+                            .background(scheme.inverseOnSurface)
+                    )
                 }
                 Text(
                     label,
                     style = MaterialTheme.typography.bodyLarge.copy(fontSize = 14.sp),
                     fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
-                    color = if (active) scheme.onSurface else scheme.onSurfaceVariant,
+                    color = feedbackColor(if (active) scheme.onSurface else scheme.onSurfaceVariant, "ballotLabel"),
                 )
             }
         }
@@ -1270,16 +1341,22 @@ fun NutriSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
         animationSpec = tween(160),
         label = "switchKnob",
     )
+    // 底色跟滑塊走同一段時間：以前滑塊在滑、底色卻是瞬間翻的，兩件事對不上
+    val track = animateColorAsState(
+        if (checked) scheme.onSurface else Color.Transparent, tween(160), label = "switchTrack",
+    ).value
+    val border = animateColorAsState(
+        if (checked) scheme.onSurface else NutrientColors.FieldBorder, tween(160), label = "switchBorder",
+    ).value
+    val knob = animateColorAsState(
+        if (checked) scheme.inverseOnSurface else NutrientColors.FieldBorder, tween(160), label = "switchKnobColor",
+    ).value
     Box(
         Modifier
             .size(width = 46.dp, height = 26.dp)
             .clip(RoundedCornerShape(3.dp))
-            .background(if (checked) scheme.onSurface else Color.Transparent)
-            .border(
-                1.5.dp,
-                if (checked) scheme.onSurface else NutrientColors.FieldBorder,
-                RoundedCornerShape(3.dp),
-            )
+            .background(track)
+            .border(1.5.dp, border, RoundedCornerShape(3.dp))
             .clickable { onCheckedChange(!checked) },
     ) {
         Box(
@@ -1290,7 +1367,7 @@ fun NutriSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
                 .clip(RoundedCornerShape(2.dp))
                 // 兩個狀態都是實心塊。關的時候如果畫成空心框，會變成「空框裡套一個
                 // 空框」，看不出哪個是軌道哪個是滑塊。
-                .background(if (checked) scheme.inverseOnSurface else NutrientColors.FieldBorder)
+                .background(knob)
         )
     }
 }
@@ -1326,14 +1403,15 @@ fun NutriTabs(
                 Text(
                     label,
                     style = MaterialTheme.typography.titleSmall.copy(letterSpacing = 3.sp),
-                    color = if (active) scheme.onSurface else scheme.onSurfaceVariant,
+                    color = feedbackColor(if (active) scheme.onSurface else scheme.onSurfaceVariant, "tabLabel"),
                     modifier = Modifier.padding(top = 12.dp, bottom = 7.dp),
                 )
+                // 底線在兩個分頁之間交叉淡換，跟底下清單滑過去同時發生
                 Box(
                     Modifier
                         .fillMaxWidth()
                         .height(3.dp)
-                        .background(if (active) scheme.onSurface else Color.Transparent)
+                        .background(feedbackColor(if (active) scheme.onSurface else Color.Transparent, "tabRule"))
                 )
             }
         }
@@ -1364,9 +1442,16 @@ fun TextAction(
  * 自己拼而不是用 M3 的 `AlertDialog`：它是圓角 28dp 的容器、按鈕在右下角並排，
  * 整個是 Material 的長相。這裡沿用頁面的語言 —— 方角紙面、2px 重規線壓頂、
  * 破壞性動作用印章（暖紅底），取消退成純文字。
+ *
+ * **也不用系統的 `Dialog` 視窗**，改畫在 [NutriOverlay] 裡：另一個 window 不在 Compose
+ * 主題管得到的範圍，開的瞬間只有系統預設的淡入，跟全 app 的轉場不是同一套；而且它模糊
+ * 不了後面那一頁。所以 [visible] 由呼叫端一直傳著，關掉時才看得到退場動畫 ——
+ * 呼叫端**必須是疊在畫面上的那一層**（接在 Scaffold 後面、父層是 Box），不能放進
+ * Column 裡，不然它蓋不住整個畫面。後面那一頁的模糊用 [overlayBlur]。
  */
 @Composable
 fun NutriDialog(
+    visible: Boolean,
     title: String,
     message: String,
     confirmLabel: String,
@@ -1376,7 +1461,7 @@ fun NutriDialog(
     onDismiss: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
-    Dialog(onDismissRequest = onDismiss) {
+    NutriOverlay(visible = visible, onDismiss = onDismiss) {
         Column(
             Modifier
                 .fillMaxWidth()
@@ -1428,6 +1513,84 @@ fun NutriDialog(
             }
         }
     }
+}
+
+/**
+ * 浮在畫面上的面板（確認、身型計算、今日頁的運動與飲水明細）共用的那一層：
+ * 0.32 的壓暗、淡入淡出、點外面或按返回就關。
+ *
+ * 不做方向性的位移：這些面板沒有從哪個角落開出來，淡入就是它們的全部。
+ * 0.32 這層壓暗不能拿掉 —— 後面那頁的模糊（[overlayBlur]）只在 API 31+ 有效，
+ * minSdk 是 26，舊機器上就只剩它在講「後面暫時停用了」。
+ *
+ * 面板裡有輸入框的話（身型計算），`imePadding` 讓它在鍵盤升起時跟著讓開。
+ */
+@Composable
+fun NutriOverlay(visible: Boolean, onDismiss: () -> Unit, content: @Composable BoxScope.() -> Unit) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(tween(180)),
+        exit = fadeOut(tween(170)),
+    ) {
+        // 顯示時才登記返回鍵：比畫面自己的晚登記，就一定先輪到它。登記在外面的話，
+        // 編輯表單開著數字鍵盤時按垃圾桶，返回鍵會先去收鍵盤而不是關掉確認框。
+        BackHandler(enabled = visible, onBack = onDismiss)
+        val scheme = MaterialTheme.colorScheme
+        Box(Modifier.fillMaxSize()) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(scheme.scrim.copy(alpha = 0.32f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onDismiss,
+                    )
+            )
+            Box(
+                Modifier
+                    .align(Alignment.Center)
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+                    .imePadding()
+                    .padding(horizontal = 24.dp),
+                content = content,
+            )
+        }
+    }
+}
+
+/**
+ * 設定頁那種 `spacedBy(12)` 欄裡「就地展開」的一段：展開時往下長、內容淡入，收起反過來。
+ *
+ * **呼叫端要把它和上面那個元件包進同一個沒有 spacedBy 的 Column**：直接把
+ * AnimatedVisibility 放進 spacedBy 欄的話，收合時高度 0 的它仍然會被算一格間距
+ * （見 CLAUDE.md〈打字時底下那一區〉那條）。上方那 12dp 由這裡補回來，收合時跟著收掉；
+ * 內容之間也照 12dp 排，跟外層一致。
+ */
+@Composable
+internal fun ColumnScope.Reveal(visible: Boolean, content: @Composable ColumnScope.() -> Unit) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = expandVertically(tween(REVEAL_MS)) + fadeIn(tween(REVEAL_MS, delayMillis = 60)),
+        exit = fadeOut(tween(120)) + shrinkVertically(tween(REVEAL_MS)),
+    ) {
+        Column(
+            Modifier.padding(top = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            content = content,
+        )
+    }
+}
+
+/** [Reveal] 展開與收起的時間。 */
+private const val REVEAL_MS = 240
+
+/** 覆蓋層開著時，後面那一頁跟著模糊。和「記一筆」選單同一個強度與速度。 */
+@Composable
+fun Modifier.overlayBlur(active: Boolean): Modifier {
+    val radius by animateDpAsState(if (active) 16.dp else 0.dp, tween(220), label = "overlayBlur")
+    return blur(radius)
 }
 
 val PillShape = CircleShape

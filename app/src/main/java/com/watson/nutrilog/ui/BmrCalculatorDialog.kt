@@ -27,8 +27,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.watson.nutrilog.R
 import com.watson.nutrilog.data.ActivityLevel
 import com.watson.nutrilog.data.BmrCalculator
@@ -50,6 +48,20 @@ import com.watson.nutrilog.ui.theme.numeric
  */
 @Composable
 fun BmrCalculatorDialog(
+    visible: Boolean,
+    initialSettings: NutriSettings,
+    onApply: (NutriSettings) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    // 畫在 NutriOverlay 裡而不是系統 Dialog，理由同 NutriDialog。面板在關掉時整個離開組合，
+    // 所以下面那些 remember 每次打開都會從目前的設定重新帶一次，不會留著上次打到一半的值。
+    NutriOverlay(visible = visible, onDismiss = onDismiss) {
+        BmrPanel(initialSettings, onApply, onDismiss)
+    }
+}
+
+@Composable
+private fun BmrPanel(
     initialSettings: NutriSettings,
     onApply: (NutriSettings) -> Unit,
     onDismiss: () -> Unit,
@@ -78,133 +90,132 @@ fun BmrCalculatorDialog(
         )
     }
 
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            // 左右的留白由 NutriOverlay 給（24dp），這裡只補上下，面板才不會貼到狀態列
+            .padding(vertical = 24.dp)
+            // 浮在遮罩上的面板用 surfaceContainerLow，方角 —— 這套版面沒有圓角容器
+            .background(scheme.surfaceContainerLow),
+    ) {
         Column(
             Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 24.dp)
-                // 浮在遮罩上的面板用 surfaceContainerLow，方角 —— 這套版面沒有圓角容器
-                .background(scheme.surfaceContainerLow),
+                .weight(1f, fill = false)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Column(
-                Modifier
-                    .weight(1f, fill = false)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(stringResource(R.string.bmr_title), style = MaterialTheme.typography.titleMedium)
-                Rule()
-
-                SectionLabel(stringResource(R.string.bmr_gender))
-                BallotRow(
-                    labels = listOf(
-                        stringResource(R.string.bmr_gender_male),
-                        stringResource(R.string.bmr_gender_female),
-                    ),
-                    selectedIndex = if (gender == Gender.MALE) 0 else 1,
-                    onSelect = { gender = if (it == 0) Gender.MALE else Gender.FEMALE },
-                )
-
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    NutriTextField(
-                        value = ageText,
-                        onValueChange = { ageText = it.filter(Char::isDigit).take(3) },
-                        label = stringResource(R.string.bmr_age) + "（" + stringResource(R.string.bmr_age_unit) + "）",
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        numeric = true,
-                        modifier = Modifier.weight(1f),
-                    )
-                    NutriTextField(
-                        value = heightText,
-                        onValueChange = { heightText = it.filter { c -> c.isDigit() || c == '.' }.take(5) },
-                        label = stringResource(R.string.bmr_height) + "（cm）",
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        numeric = true,
-                        modifier = Modifier.weight(1f),
-                    )
-                    NutriTextField(
-                        value = weightText,
-                        onValueChange = { weightText = it.filter { c -> c.isDigit() || c == '.' }.take(5) },
-                        label = stringResource(R.string.bmr_weight) + "（kg）",
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        numeric = true,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-
-                SectionLabel(stringResource(R.string.bmr_activity))
-                // 五個選項各帶一句頻率說明，橫排放不下，所以直排；圓圈仍然是「單選」的形狀
-                RadioList(
-                    options = listOf(
-                        ActivityLevel.SEDENTARY to stringResource(R.string.bmr_act_sedentary),
-                        ActivityLevel.LIGHT to stringResource(R.string.bmr_act_light),
-                        ActivityLevel.MODERATE to stringResource(R.string.bmr_act_moderate),
-                        ActivityLevel.HEAVY to stringResource(R.string.bmr_act_heavy),
-                        ActivityLevel.VERY_HEAVY to stringResource(R.string.bmr_act_very_heavy),
-                    ),
-                    selected = activity,
-                    onSelect = { activity = it },
-                )
-
-                SectionLabel(stringResource(R.string.bmr_goal))
-                BallotRow(
-                    labels = listOf(
-                        stringResource(R.string.bmr_goal_lose),
-                        stringResource(R.string.bmr_goal_maintain),
-                        stringResource(R.string.bmr_goal_gain),
-                    ),
-                    selectedIndex = DietGoal.entries.indexOf(goal),
-                    onSelect = { goal = DietGoal.entries[it] },
-                )
-
-                Hairline()
-                PlanSummary(plan)
-                // 交給手錶量的時候「活動量」那一欄不再影響熱量，只影響蛋白質 ——
-                // 不講的話使用者會一直換活動量卻看不懂為什麼每日消耗不動。
-                if (initialSettings.readExerciseCalories) {
-                    Text(
-                        stringResource(R.string.bmr_watch_base_note),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = scheme.onSurfaceVariant,
-                    )
-                }
-            }
-
+            Text(stringResource(R.string.bmr_title), style = MaterialTheme.typography.titleMedium)
             Rule()
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                StampButton(
-                    label = stringResource(R.string.bmr_apply),
-                    onClick = {
-                        onApply(
-                            initialSettings.copy(
-                                profileGender = gender,
-                                profileAge = age,
-                                profileHeightCm = height,
-                                profileWeightKg = weight,
-                                profileActivity = activity,
-                                profileGoal = goal,
-                                calorieTarget = plan.targetCalories,
-                                proteinTargetG = plan.proteinG,
-                                fatTargetG = plan.fatG,
-                                carbsTargetG = plan.carbsG,
-                            )
-                        )
-                    },
-                    // 章預設撐滿整行，不給 weight 的話「取消」會被擠到看不見
+
+            SectionLabel(stringResource(R.string.bmr_gender))
+            BallotRow(
+                labels = listOf(
+                    stringResource(R.string.bmr_gender_male),
+                    stringResource(R.string.bmr_gender_female),
+                ),
+                selectedIndex = if (gender == Gender.MALE) 0 else 1,
+                onSelect = { gender = if (it == 0) Gender.MALE else Gender.FEMALE },
+            )
+
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                NutriTextField(
+                    value = ageText,
+                    onValueChange = { ageText = it.filter(Char::isDigit).take(3) },
+                    label = stringResource(R.string.bmr_age) + "（" + stringResource(R.string.bmr_age_unit) + "）",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    numeric = true,
                     modifier = Modifier.weight(1f),
                 )
-                TextAction(
-                    label = stringResource(R.string.cancel),
-                    onClick = onDismiss,
-                    modifier = Modifier.padding(start = 20.dp),
+                NutriTextField(
+                    value = heightText,
+                    onValueChange = { heightText = it.filter { c -> c.isDigit() || c == '.' }.take(5) },
+                    label = stringResource(R.string.bmr_height) + "（cm）",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    numeric = true,
+                    modifier = Modifier.weight(1f),
+                )
+                NutriTextField(
+                    value = weightText,
+                    onValueChange = { weightText = it.filter { c -> c.isDigit() || c == '.' }.take(5) },
+                    label = stringResource(R.string.bmr_weight) + "（kg）",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    numeric = true,
+                    modifier = Modifier.weight(1f),
                 )
             }
+
+            SectionLabel(stringResource(R.string.bmr_activity))
+            // 五個選項各帶一句頻率說明，橫排放不下，所以直排；圓圈仍然是「單選」的形狀
+            RadioList(
+                options = listOf(
+                    ActivityLevel.SEDENTARY to stringResource(R.string.bmr_act_sedentary),
+                    ActivityLevel.LIGHT to stringResource(R.string.bmr_act_light),
+                    ActivityLevel.MODERATE to stringResource(R.string.bmr_act_moderate),
+                    ActivityLevel.HEAVY to stringResource(R.string.bmr_act_heavy),
+                    ActivityLevel.VERY_HEAVY to stringResource(R.string.bmr_act_very_heavy),
+                ),
+                selected = activity,
+                onSelect = { activity = it },
+            )
+
+            SectionLabel(stringResource(R.string.bmr_goal))
+            BallotRow(
+                labels = listOf(
+                    stringResource(R.string.bmr_goal_lose),
+                    stringResource(R.string.bmr_goal_maintain),
+                    stringResource(R.string.bmr_goal_gain),
+                ),
+                selectedIndex = DietGoal.entries.indexOf(goal),
+                onSelect = { goal = DietGoal.entries[it] },
+            )
+
+            Hairline()
+            PlanSummary(plan)
+            // 交給手錶量的時候「活動量」那一欄不再影響熱量，只影響蛋白質 ——
+            // 不講的話使用者會一直換活動量卻看不懂為什麼每日消耗不動。
+            if (initialSettings.readExerciseCalories) {
+                Text(
+                    stringResource(R.string.bmr_watch_base_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        Rule()
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            StampButton(
+                label = stringResource(R.string.bmr_apply),
+                onClick = {
+                    onApply(
+                        initialSettings.copy(
+                            profileGender = gender,
+                            profileAge = age,
+                            profileHeightCm = height,
+                            profileWeightKg = weight,
+                            profileActivity = activity,
+                            profileGoal = goal,
+                            calorieTarget = plan.targetCalories,
+                            proteinTargetG = plan.proteinG,
+                            fatTargetG = plan.fatG,
+                            carbsTargetG = plan.carbsG,
+                        )
+                    )
+                },
+                // 章預設撐滿整行，不給 weight 的話「取消」會被擠到看不見
+                modifier = Modifier.weight(1f),
+            )
+            TextAction(
+                label = stringResource(R.string.cancel),
+                onClick = onDismiss,
+                modifier = Modifier.padding(start = 20.dp),
+            )
         }
     }
 }

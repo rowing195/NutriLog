@@ -20,7 +20,12 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.updateTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -92,6 +97,15 @@ fun ReviewScreen(
             )
         },
     ) { inner ->
+        // 辨識中 → 結果／失敗 換的時候交叉淡換，不要整頁一幀就換掉。
+        // contentKey 用「是哪一種畫面」而不是 state 本身：勾選、改份數都會換一個新的 Ready，
+        // 拿 state 當 key 的話每按一下就重播一次淡入，而且清單自己記的狀態會被丟掉。
+        AnimatedContent(
+            targetState = state,
+            contentKey = { it.reviewKind() },
+            transitionSpec = { fadeIn(tween(220, delayMillis = 60)) togetherWith fadeOut(tween(150)) },
+            label = "reviewState",
+        ) { state ->
         when (state) {
             AnalysisState.Analyzing -> Column(
                 Modifier
@@ -176,6 +190,7 @@ fun ReviewScreen(
                     )
                 }
         }
+        }
     }
 
         // 失敗才升上來。狀態一變（重試成功、或換了一次新的辨識）rememberSaveable 的
@@ -190,6 +205,13 @@ fun ReviewScreen(
             )
         }
     }
+}
+
+/** 確認畫面現在是哪一種：辨識中、失敗、沒認出東西、有結果。換種類才播轉場。 */
+private fun AnalysisState.reviewKind(): Int = when (this) {
+    AnalysisState.Analyzing -> 0
+    is AnalysisState.Failed -> 1
+    is AnalysisState.Ready -> if (items.isEmpty()) 2 else 3
 }
 
 @Composable
@@ -342,7 +364,7 @@ private fun ItemRow(
                     food.name,
                     style = MaterialTheme.typography.titleMedium,
                     // 沒勾的那幾項壓淡，勾選的狀態才看得出是兩群東西
-                    color = if (item.selected) scheme.onSurface else scheme.onSurfaceVariant,
+                    color = feedbackColor(if (item.selected) scheme.onSurface else scheme.onSurfaceVariant, "reviewName"),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -373,7 +395,7 @@ private fun ItemRow(
             Text(
                 food.calories.fmtInt(),
                 style = MaterialTheme.typography.titleMedium.copy(fontSize = 20.sp).numeric(),
-                color = if (item.selected) scheme.onSurface else scheme.outline,
+                color = feedbackColor(if (item.selected) scheme.onSurface else scheme.outline, "reviewKcal"),
             )
         }
         // **取消勾選時份數這一排照樣留著**，只是變淡、點不動。以前是整排收掉，

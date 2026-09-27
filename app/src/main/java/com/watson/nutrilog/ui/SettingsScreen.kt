@@ -1,5 +1,10 @@
 package com.watson.nutrilog.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.activity.compose.BackHandler
@@ -314,7 +319,9 @@ fun SettingsDetailScreen(
     onBack: () -> Unit,
 ) {
     Scaffold(
-        modifier = Modifier.dismissKeyboardOnTap(),
+        modifier = Modifier
+            .dismissKeyboardOnTap()
+            .overlayBlur(importPreview != null || showBmrCalculator),
         topBar = {
             ScreenTopBar(
                 title = stringResource(page.titleRes()),
@@ -362,20 +369,24 @@ fun SettingsDetailScreen(
         }
     }
 
-    importPreview?.let { preview ->
-        NutriDialog(
-            title = stringResource(R.string.import_confirm_title),
-            message = importSummary(preview),
-            confirmLabel = stringResource(R.string.import_confirm),
-            cancelLabel = stringResource(R.string.cancel),
-            onConfirm = onConfirmImport,
-            onDismiss = onCancelImport,
-        )
-    }
+    // 按了確認或取消之後 importPreview 馬上變回 null，退場那幾幀要畫最後一次的內容
+    val shownPreview = rememberLastNonNull(importPreview)
+    NutriDialog(
+        visible = importPreview != null,
+        title = stringResource(R.string.import_confirm_title),
+        message = shownPreview?.let { importSummary(it) }.orEmpty(),
+        confirmLabel = stringResource(R.string.import_confirm),
+        cancelLabel = stringResource(R.string.cancel),
+        onConfirm = onConfirmImport,
+        onDismiss = onCancelImport,
+    )
 
-    if (showBmrCalculator) {
-        BmrCalculatorDialog(initialSettings = settings, onApply = onApplyBmr, onDismiss = onCloseBmr)
-    }
+    BmrCalculatorDialog(
+        visible = showBmrCalculator,
+        initialSettings = settings,
+        onApply = onApplyBmr,
+        onDismiss = onCloseBmr,
+    )
 }
 
 @Composable
@@ -641,13 +652,17 @@ private fun HealthSection(
     )
     Hairline()
     val writeOn = settings.healthConnectSyncEnabled && writeAuthorized
+    // 打開寫入之後底下那段（上次同步、立即同步、結果）是展開出來的，不是一幀冒出來。
+    // 跟開關包成同一個子項、間距自己補：直接放 AnimatedVisibility 的話，收合時高度 0
+    // 的它仍然會被外層 spacedBy 算一格間距（見 CLAUDE.md〈打字時底下那一區〉那條）。
+    Column {
     SwitchRow(
         title = stringResource(R.string.health_write_title),
         help = stringResource(R.string.health_write_help),
         checked = writeOn,
         onCheckedChange = onSetWrite,
     )
-    if (writeOn) {
+    Reveal(writeOn) {
         Hairline()
         // **時間在自己一行，不要和章撠在同一個 Row裡**（同 Drive 那顆「立即備份」）。
         //
@@ -672,8 +687,11 @@ private fun HealthSection(
             color = Color.Transparent,
         )
     }
-    if (busy) IndeterminateRule()
-    result?.let {
+    Reveal(busy) { IndeterminateRule() }
+    // 同步完那句話淡入。退場那幾幀要畫最後一次的結果，不然字會先消失、框才收
+    val shownResult = rememberLastNonNull(result)
+    Reveal(result != null) {
+    shownResult?.let {
         Text(
             withNumerals(
                 when (it) {
@@ -687,6 +705,8 @@ private fun HealthSection(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
+    }
+    }
 
     Rule(Modifier.padding(top = 14.dp, bottom = 10.dp))
     SectionLabel(stringResource(R.string.health_diag_title))
@@ -695,13 +715,17 @@ private fun HealthSection(
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+    // 診斷表讀完時往下展開，理由同上面那段
+    Column {
     StampButton(
         label = stringResource(R.string.health_diag_run),
         onClick = onRunDiagnostics,
         color = Color.Transparent,
         modifier = Modifier.padding(top = 10.dp),
     )
-    diagnostics?.let { DiagnosticsReport(it) }
+    val shownDiagnostics = rememberLastNonNull(diagnostics)
+    Reveal(diagnostics != null) { shownDiagnostics?.let { DiagnosticsReport(it) } }
+    }
 }
 
 /**
@@ -855,6 +879,8 @@ private fun AiSection(
     // 搜尋的選擇擺在這裡而不是藏在某一家的子頁裡：它跟「用哪一家」是同一個決定的
     // 兩半，分開放的話使用者得先猜「這個開關屬於誰」，而它其實兩家都影響。
     SectionLabel(stringResource(R.string.settings_web_search))
+    // 圈選與底下那句說明包成同一個子項，說明是就地展開的（見 Reveal）
+    Column {
     BallotRow(
         labels = SearchMode.entries.map { stringResource(it.labelRes()) },
         selectedIndex = SearchMode.entries.indexOf(settings.searchMode),
@@ -865,16 +891,23 @@ private fun AiSection(
     // 讓他一眼對得上是哪一列。
     //
     // 兩條路的限制完全不同，只在選到的時候講，不然三段說明擠在一起沒人讀
-    if (settings.searchMode != SearchMode.OFF) {
-        Text(
-            stringResource(
-                if (settings.searchMode == SearchMode.OPENROUTER)
-                    R.string.settings_search_openrouter_note
-                else R.string.settings_search_tavily_note
-            ),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.outline,
-        )
+    //
+    // 從「關閉」選到其他兩個時說明往下展開；在兩家之間換時說明交叉淡換。
+    // 收起那段動畫裡模式已經是 OFF 了，要畫最後一個不是 OFF 的那句。
+    val shownMode = rememberLastNonNull(settings.searchMode.takeIf { it != SearchMode.OFF })
+    Reveal(settings.searchMode != SearchMode.OFF) {
+        Crossfade(targetState = shownMode, animationSpec = tween(180), label = "searchNote") { mode ->
+            Text(
+                stringResource(
+                    if (mode == SearchMode.OPENROUTER)
+                        R.string.settings_search_openrouter_note
+                    else R.string.settings_search_tavily_note
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline,
+            )
+        }
+    }
     }
 
     Hairline(Modifier.padding(vertical = 10.dp))
@@ -1032,12 +1065,21 @@ private fun DriveSection(
     onBackupNow: () -> Unit,
     onDisconnectDrive: () -> Unit,
 ) {
+    // 整段包成一個子項、間距自己給：連結前後的內容交叉淡換、高度跟著長，
+    // 備份中那條線與結果訊息是就地展開的（見 Reveal）。
+    Column {
     Text(
         stringResource(R.string.drive_help),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    if (!settings.driveBackupEnabled) {
+    AnimatedContent(
+        targetState = settings.driveBackupEnabled,
+        transitionSpec = { fadeIn(tween(220, delayMillis = 60)) togetherWith fadeOut(tween(150)) },
+        label = "driveLinked",
+    ) { linked ->
+    Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    if (!linked) {
         // 還沒連結時這是整頁的主要動作，所以是實心墨章，跟匯出同一個長相。
         StampButton(
             label = stringResource(R.string.drive_connect),
@@ -1078,18 +1120,21 @@ private fun DriveSection(
             modifier = Modifier.padding(top = 8.dp),
         )
     }
+    }
+    }
     // 轉圈的圓形在這個滿是規線的版面上很突兀，用規線自己的語彙表達等待
-    if (driveBusy) {
+    Reveal(driveBusy) {
         IndeterminateRule(Modifier.padding(top = 4.dp))
     }
-    driveMessage?.let {
+    val shownMessage = rememberLastNonNull(driveMessage)
+    Reveal(driveMessage != null) {
         Text(
-            withNumerals(it),
+            withNumerals(shownMessage.orEmpty()),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.primary,
         )
     }
-
+    }
 }
 
 @Composable
@@ -1135,19 +1180,23 @@ private fun DataSection(
     )
     // 同樣是章，只有底色退一階：形狀相同才讀得出「這兩個是一對」，
     // 深灰負責講「這一顆是反方向的那個」。
+    // 和底下那行結果包成同一個子項，結果是就地展開的（見 Reveal）。
+    Column {
     StampButton(
         label = stringResource(R.string.import_csv),
         onClick = onImportCsv,
         color = NutrientColors.StampSecondary,
         modifier = Modifier.padding(top = 8.dp),
     )
-    dataMessage?.let {
+    val shownMessage = rememberLastNonNull(dataMessage)
+    Reveal(dataMessage != null) {
         Text(
-            withNumerals(it),
+            withNumerals(shownMessage.orEmpty()),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(top = 4.dp),
         )
+    }
     }
 }
 

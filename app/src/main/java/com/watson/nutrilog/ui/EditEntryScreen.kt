@@ -22,7 +22,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.updateTransition
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -184,6 +191,7 @@ fun EditEntryScreen(
     }
 
     Scaffold(
+        modifier = Modifier.overlayBlur(confirmDelete),
         topBar = {
             ScreenTopBar(
                 title = stringResource(
@@ -361,13 +369,22 @@ fun EditEntryScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = scheme.onSurfaceVariant,
                 )
-                // 同一個 chevron 轉九十度當展開記號，不另外拿一組上下箭頭圖示
-                Box(Modifier.rotate(if (showAdvanced) 90f else -90f)) {
+                // 同一個 chevron 轉九十度當展開記號，不另外拿一組上下箭頭圖示。
+                // 轉動和底下展開走同一段時間，看得出兩件事是同一個動作。
+                val chevron by animateFloatAsState(
+                    if (showAdvanced) 90f else -90f, tween(ADVANCED_MS), label = "advancedChevron",
+                )
+                Box(Modifier.rotate(chevron)) {
                     ChevronMark(scheme.outline, pointsLeft = true, size = 14.dp)
                 }
             }
 
-            if (showAdvanced) {
+            // 展開時往下長出來、收起時縮回去，底下的儲存鈕跟著滑，不會一下子跳走
+            AnimatedVisibility(
+                visible = showAdvanced,
+                enter = expandVertically(tween(ADVANCED_MS)) + fadeIn(tween(ADVANCED_MS, delayMillis = 60)),
+                exit = fadeOut(tween(120)) + shrinkVertically(tween(ADVANCED_MS)),
+            ) {
                 // 進階四項沒有專屬色也不是主角，維持 2×2 的等大方格就好 ——
                 // 核心那四個才需要「熱量比較大」的階層。
                 Column(
@@ -400,17 +417,16 @@ fun EditEntryScreen(
         }
     }
 
-    if (confirmDelete && onDelete != null) {
-        NutriDialog(
-            title = stringResource(R.string.delete_title),
-            message = stringResource(R.string.delete_message, draft.name),
-            confirmLabel = stringResource(R.string.delete),
-            cancelLabel = stringResource(R.string.cancel),
-            destructive = true,
-            onConfirm = { confirmDelete = false; onDelete() },
-            onDismiss = { confirmDelete = false },
-        )
-    }
+    NutriDialog(
+        visible = confirmDelete && onDelete != null,
+        title = stringResource(R.string.delete_title),
+        message = stringResource(R.string.delete_message, draft.name),
+        confirmLabel = stringResource(R.string.delete),
+        cancelLabel = stringResource(R.string.cancel),
+        destructive = true,
+        onConfirm = { confirmDelete = false; onDelete?.invoke() },
+        onDismiss = { confirmDelete = false },
+    )
 }
 
 private data class NumberCellSpec(
@@ -436,10 +452,11 @@ private fun NumberCell(
     Box(
         modifier
             .clip(NutriFieldShape)
-            .background(if (active) scheme.surfaceContainerLowest else scheme.surfaceContainerLow)
+            // 點進來、換到別格時是短漸變，跟輸入框（NutriTextField）同一個節奏
+            .background(feedbackColor(if (active) scheme.surfaceContainerLowest else scheme.surfaceContainerLow, "cellFill"))
             .border(
                 1.dp,
-                if (active) scheme.onSurface else NutrientColors.FieldBorder,
+                feedbackColor(if (active) scheme.onSurface else NutrientColors.FieldBorder, "cellBorder"),
                 NutriFieldShape,
             )
             .clickable(onClick = onClick)
@@ -479,11 +496,14 @@ private fun NumberCell(
                     // 只縮字級、不動 lineHeight —— 這樣填進數字時格子的高度不會跳。
                     if (value.isBlank()) it.copy(fontSize = it.fontSize * 0.55f) else it
                 },
-                color = when {
-                    value.isBlank() -> scheme.outline.copy(alpha = 0.6f)
-                    active -> NutrientColors.Accent
-                    else -> scheme.onSurface
-                },
+                color = feedbackColor(
+                    when {
+                        value.isBlank() -> scheme.outline.copy(alpha = 0.6f)
+                        active -> NutrientColors.Accent
+                        else -> scheme.onSurface
+                    },
+                    "cellValue",
+                ),
                 maxLines = 1,
             )
             Text(
@@ -503,8 +523,8 @@ private fun NumberCell(
             Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .height(if (active) 3.dp else 2.dp)
-                .background(if (active) NutrientColors.Accent else scheme.onSurface)
+                .height(feedbackDp(if (active) 3.dp else 2.dp, "cellRuleHeight"))
+                .background(feedbackColor(if (active) NutrientColors.Accent else scheme.onSurface, "cellRule"))
         )
     }
 }
@@ -569,3 +589,6 @@ private fun fieldLabel(field: NumField): String = stringResource(
         NumField.MULTIPLIER -> R.string.portion_multiplier_label
     }
 )
+
+/** 進階營養素展開與收起的時間，箭頭轉動也用同一個。 */
+private const val ADVANCED_MS = 220
