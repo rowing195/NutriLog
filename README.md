@@ -674,6 +674,8 @@ APK 產出於 `app/build/outputs/apk/debug/app-debug.apk`。
 
 若本地無 `keystore.properties`，Gradle 將自動退回 debug 簽章以確保可順利編譯。
 
+正式簽章的 `release.jks` 與 `keystore.properties` 的四個值備份在 KeePassXC 資料庫的「NutriLog 簽章金鑰」項目，這把金鑰只有本專案使用。GitHub Secrets 裡的值無法取回，換電腦時請從 KeePassXC 取出 `release.jks` 放回專案根目錄，並照項目內容重建 `keystore.properties`。
+
 ### 使用
 
 安裝至已連線的實機或模擬器：
