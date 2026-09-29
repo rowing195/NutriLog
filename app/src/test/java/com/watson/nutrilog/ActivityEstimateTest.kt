@@ -114,6 +114,27 @@ class ActivityEstimateTest {
         assertEquals(1, result.workoutSessions.size)
     }
 
+    /**
+     * 只有運動時戴的人，全日活動大卡是不採用的 —— 那它也不能擋掉步數。
+     *
+     * 實際遇到：今天沒運動、走了 12,000 步，健康連線裡有一點活動大卡，結果步數被當成
+     * 「已經有活動大卡了」整段丟掉，場次又是 0，兩邊都不算，目標只加 +0。
+     */
+    @Test
+    fun `只有運動時戴時，全日活動大卡不能擋掉步數`() {
+        val result = chooseActivity(
+            activeKcal = 30.0,
+            steps = 12_000L,
+            wearMode = WatchWearMode.WORKOUT_ONLY,
+            weightKg = 64.0,
+            movementAllowance = 129.6,
+        )
+        // 12,000 × 64 × 0.0005 = 384，扣掉額度剩 254.4
+        assertEquals(ActivitySource.STEPS, result.source)
+        assertEquals(254.4, result.calories, 0.001)
+        assertEquals(254.4, result.stepCalories, 0.001)
+    }
+
     @Test
     fun `活動大卡是 0、又沒填體重，就什麼都算不出來`() {
         val result = chooseActivity(

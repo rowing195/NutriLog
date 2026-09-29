@@ -194,14 +194,18 @@ fun chooseActivity(
     val workout = (workoutKcal ?: 0.0).coerceAtLeast(0.0)
     val active = (activeKcal ?: 0.0).coerceAtLeast(0.0)
 
-    // **步數只在沒有活動大卡時才算。** 兩者估的是同一件事（一整天的走動），
-    // 永遠是二選一、不能相加。三星不寫活動大卡，所以實際上每天都走步數這條；
-    // 別的手機真的寫了的話，那個數字本身已經含日常走動，再加就重複。
+    // **步數只在活動大卡沒被採用時才算。** 兩者估的是同一件事（一整天的走動），
+    // 永遠是二選一、不能相加：整天配戴時活動大卡本身已經含日常走動，再加就重複。
+    //
+    // 只有運動時戴的話活動大卡本來就不採用（見下面的 measured），它也就不能擋掉步數。
+    // 曾經只看「有沒有活動大卡」：健康連線裡有一點活動大卡、當天又沒運動時，
+    // 步數被丟掉、場次是 0，兩邊都不算，走了 12,000 步還是 +0。
     //
     // 運動場次裡的步數要扣掉：跑步那三十分鐘的步已經算在場次熱量裡了。
     val workoutSteps = workoutSessions.sumOf { it.steps }.coerceAtLeast(0L)
     val dailySteps = (steps - workoutSteps).coerceAtLeast(0L)
-    val stepKcal = if (active > 0.0) 0.0 else stepsToCalories(dailySteps, weightKg)
+    val activeUsed = wearMode == WatchWearMode.ALL_DAY && active > 0.0
+    val stepKcal = if (activeUsed) 0.0 else stepsToCalories(dailySteps, weightKg)
     // 只算超出久坐基準的那一段，理由見 [dailyMovementAllowance]。
     val stepSurplus = (stepKcal - movementAllowance).coerceAtLeast(0.0)
 
