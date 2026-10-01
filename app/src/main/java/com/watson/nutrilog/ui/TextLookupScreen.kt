@@ -52,8 +52,8 @@ import java.time.LocalDate
  * 「這不是常吃的那個嗎」，而不是想打字給 AI 猜。所以常吃清單佔畫面主體，
  * 點了就直接帶進表單；真的找不到才往下用文字描述、交給 AI 估算。
  *
- * **兩條路共用同一個輸入框，而且程式內搜尋不是一個動作。** 打字就即時篩常吃／最近
- * （純記憶體，見 [filterByQuery]），找得到直接點那一列；篩到空的時候，底下那顆章
+ * **兩條路共用同一個輸入框，而且程式內搜尋不是一個動作。** 打字就即時篩吃過的所有品項
+ * （純記憶體，見 [libraryLists]），找得到直接點那一列；篩到空的時候，底下那顆章
  * 就是出路。
  *
  * 一個框同時服務兩件事，代價是使用者為了讓 AI 估得準會打得很細（「手沖藝妓黑咖啡」），
@@ -84,6 +84,7 @@ fun TextLookupScreen(
     targetDate: LocalDate,
     frequent: List<FoodSuggestion>,
     recent: List<FoodSuggestion>,
+    allFoods: List<FoodSuggestion>,
     onReuseSuggestion: (FoodSuggestion) -> Unit,
     onLookup: (String, Boolean) -> Unit,
     searchAvailable: Boolean,
@@ -94,8 +95,9 @@ fun TextLookupScreen(
     val focusManager = LocalFocusManager.current
     val submit = { useSearch: Boolean -> if (query.isNotBlank()) onLookup(query, useSearch) }
 
-    val shownFrequent = remember(query, frequent) { frequent.filterByQuery(query) }
-    val shownRecent = remember(query, recent) { recent.filterByQuery(query) }
+    val (shownFrequent, shownRecent) = remember(query, frequent, recent, allFoods) {
+        libraryLists(query, frequent, recent, allFoods)
+    }
     val hasMatch = shownFrequent.isNotEmpty() || shownRecent.isNotEmpty()
 
     // **「鍵盤收完了沒」問系統，不要自己數毫秒。** 說明文字要等整區沉到定位才長出來

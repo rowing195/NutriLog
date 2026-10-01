@@ -392,6 +392,9 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         private set
     var recentFoods by mutableStateOf<List<FoodSuggestion>>(emptyList())
         private set
+    /** 吃過的所有品項，新到舊。常吃頁打字搜尋時篩的是這一份，見 [libraryLists]。 */
+    var allFoods by mutableStateOf<List<FoodSuggestion>>(emptyList())
+        private set
 
     /** 匯出結果訊息。顯示完就該清掉，離開設定頁時一併清。 */
     /** 匯出與匯入共用一行結果訊息：它們在畫面上是同一區，兩行訊息會分不清是誰的。 */
@@ -492,7 +495,10 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
             ).collect { frequentFoods = it }
         }
         viewModelScope.launch {
-            dao.observeRecentFoods(LIBRARY_LIMIT).collect { recentFoods = it }
+            dao.observeAllFoods().collect {
+                allFoods = it
+                recentFoods = it.take(LIBRARY_LIMIT)
+            }
         }
         // 邊打邊搜。debounce 是為了不要每按一個鍵就查一次 ——
         // 查詢本身很快，但每次都重建 Flow、重繪整份清單並不值得。
@@ -2062,8 +2068,8 @@ fun FoodSuggestion.matchScore(query: String): Double {
  * 排序用 [sortedByDescending]，它是穩定的 —— 同分的維持原本的順序，
  * 所以整串命中的那幾筆仍然照「常吃」的次數／「最近」的日期排。
  *
- * **這是純記憶體篩選，不查資料庫**，所以不需要 debounce：常吃與最近整份都已經在
- * [NutriViewModel] 裡（各最多 LIBRARY_LIMIT 筆），打一個字就能立刻收斂。
+ * **這是純記憶體篩選，不查資料庫**，所以不需要 debounce：要篩的整份品項都已經在
+ * [NutriViewModel] 裡，打一個字就能立刻收斂。
  */
 fun List<FoodSuggestion>.filterByQuery(query: String): List<FoodSuggestion> {
     if (query.isBlank()) return this
@@ -2071,6 +2077,29 @@ fun List<FoodSuggestion>.filterByQuery(query: String): List<FoodSuggestion> {
         .filter { it.second >= NEAR_MATCH_THRESHOLD }
         .sortedByDescending { it.second }
         .map { it.first }
+}
+
+/**
+ * 常吃頁兩個分頁實際要畫的清單：(常吃, 最近)。
+ *
+ * 沒打字時是兩份精選（常吃只看近 90 天，兩份各最多 LIBRARY_LIMIT 種），給「不打字直接點」用。
+ * **一打字就改篩 [all]，也就是全部歷史。** 曾經是拿精選來篩，結果吃過的品項一超過那個數量，
+ * 舊的就再也搜不到 —— 右上角的搜尋（直接查資料庫）找得到，這裡卻叫使用者去問 AI。
+ *
+ * 打字時「常吃」依全部歷史的次數排，所以那一列顯示的次數會比沒打字時多：
+ * 沒打字時講的是近 90 天，打字時講的是全部。
+ *
+ * [all] 要是新到舊（[com.watson.nutrilog.data.db.NutriDao.observeAllFoods] 就是）：
+ * 兩次排序都是穩定的，次數相同、分數相同的就靠這個順序把最近吃的排前面。
+ */
+fun libraryLists(
+    query: String,
+    frequent: List<FoodSuggestion>,
+    recent: List<FoodSuggestion>,
+    all: List<FoodSuggestion>,
+): Pair<List<FoodSuggestion>, List<FoodSuggestion>> {
+    if (query.isBlank()) return frequent to recent
+    return all.sortedByDescending { it.times }.filterByQuery(query) to all.filterByQuery(query)
 }
 
 /**

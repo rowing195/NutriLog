@@ -37,7 +37,11 @@ interface NutriDao {
      *
      * 多關鍵字 AND 用靜態 SQL 寫不出來（關鍵字數量不固定），而動態拼 SQL
      * 要自己處理跳脫，風險不成比例 —— 這裡的資料量是幾千筆，
-     * 縮到 300 筆之後在記憶體裡過濾是微秒等級的事。
+     * 在記憶體裡過濾是微秒等級的事。
+     *
+     * **不設筆數上限。** 曾經是 LIMIT 300，結果第一個關鍵字一常見（「飯」、「珍奶 大杯」
+     * 的「珍奶」），幾年前的紀錄就被最近那 300 筆擠出去 —— 而且是在 AND 過濾**之前**
+     * 截斷的，第二個關鍵字明明對得上也救不回來。
      *
      * 沒有為 name 建索引：全表掃 LIKE 在這個量級只要毫秒，
      * 為它動 schema 就得升 version 加 migration，不划算。
@@ -47,7 +51,6 @@ interface NutriDao {
         SELECT * FROM food_entries
         WHERE name LIKE '%' || :token || '%' OR servingText LIKE '%' || :token || '%'
         ORDER BY date DESC, loggedAt DESC
-        LIMIT 300
         """
     )
     fun searchEntries(token: String): Flow<List<FoodEntry>>
@@ -79,7 +82,12 @@ interface NutriDao {
     )
     fun observeFrequentFoods(since: String, limit: Int): Flow<List<FoodSuggestion>>
 
-    /** 最近吃過的品項。同樣的分組方式，但改依最後一次的時間排序，且不限期間。 */
+    /**
+     * 吃過的**所有**品項，依最後一次的時間排序。同樣的分組方式，不限期間也不限筆數。
+     *
+     * 「最近」分頁取它的前幾筆；常吃頁打字搜尋時則篩整份 —— 只篩前幾筆的話，
+     * 吃過的品項一多，舊的就再也搜不到（見 [com.watson.nutrilog.ui.libraryLists]）。
+     */
     @Query(
         """
         SELECT name, servingText,
@@ -90,10 +98,9 @@ interface NutriDao {
         FROM food_entries
         GROUP BY name, servingText
         ORDER BY lastLoggedAt DESC
-        LIMIT :limit
         """
     )
-    fun observeRecentFoods(limit: Int): Flow<List<FoodSuggestion>>
+    fun observeAllFoods(): Flow<List<FoodSuggestion>>
 
     /**
      * 某段日期區間的每日合計，月曆用。

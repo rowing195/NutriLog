@@ -331,6 +331,7 @@ fun NutriLogApp(viewModel: NutriViewModel) {
                 targetDate = viewModel.selectedDate,
                 frequent = viewModel.frequentFoods,
                 recent = viewModel.recentFoods,
+                allFoods = viewModel.allFoods,
                 onReuseSuggestion = viewModel::reuse,
                 onLookup = viewModel::analyzeText,
                 // 沒選搜尋來源的話「AI 查」那顆按不下去，helper 會講去哪裡選

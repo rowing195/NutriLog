@@ -2,6 +2,7 @@ package com.watson.nutrilog
 
 import com.watson.nutrilog.data.db.FoodSuggestion
 import com.watson.nutrilog.ui.filterByQuery
+import com.watson.nutrilog.ui.libraryLists
 import com.watson.nutrilog.ui.matchScore
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -17,7 +18,7 @@ import org.junit.Test
  */
 class FoodLibraryMatchTest {
 
-    private fun food(name: String, serving: String = "") = FoodSuggestion(
+    private fun food(name: String, serving: String = "", times: Int = 1) = FoodSuggestion(
         name = name,
         servingText = serving,
         calories = 0.0,
@@ -28,7 +29,7 @@ class FoodLibraryMatchTest {
         sodiumMg = null,
         fiberG = null,
         satFatG = null,
-        times = 1,
+        times = times,
         lastDate = "2026-09-09",
         lastLoggedAt = 0L,
     )
@@ -100,5 +101,43 @@ class FoodLibraryMatchTest {
     fun `filtering drops the unrelated and puts the closest first`() {
         val list = listOf(food("美式咖啡"), food("咖哩飯"), food("黑咖啡"))
         assertEquals(listOf(food("黑咖啡"), food("美式咖啡")), list.filterByQuery("黑咖啡"))
+    }
+
+    /**
+     * 精選清單（常吃／最近各 60 種）裝不下的舊品項，打字時兩頁都要找得到。
+     * 曾經是拿精選來篩：吃過的東西一多，舊的就只剩右上角的搜尋找得到。
+     */
+    @Test
+    fun `searching reaches items that fell out of the curated lists`() {
+        val all = List(100) { food("品項 $it") } + food("牛肉麵")
+        val curated = all.take(60)
+
+        val (frequent, recent) = libraryLists("牛肉麵", curated, curated, all)
+
+        assertEquals(listOf(food("牛肉麵")), frequent)
+        assertEquals(listOf(food("牛肉麵")), recent)
+    }
+
+    @Test
+    fun `blank query shows the curated lists as they are`() {
+        val frequent = listOf(food("黑咖啡", times = 9))
+        val recent = listOf(food("咖哩飯"))
+        val all = recent + frequent + food("牛肉麵")
+
+        assertEquals(frequent to recent, libraryLists("  ", frequent, recent, all))
+    }
+
+    /** [all] 是新到舊；「常吃」改照次數排，次數一樣的仍然是最近吃的在前。 */
+    @Test
+    fun `while searching the frequent tab orders by times and the recent tab by recency`() {
+        val newest = food("雞肉飯", times = 1)
+        val big = food("雞肉飯", "大碗", times = 5)
+        val small = food("雞肉飯", "小碗", times = 5)
+        val all = listOf(newest, big, small)
+
+        val (frequent, recent) = libraryLists("雞肉飯", emptyList(), emptyList(), all)
+
+        assertEquals(listOf(big, small, newest), frequent)
+        assertEquals(all, recent)
     }
 }

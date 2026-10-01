@@ -289,13 +289,20 @@ private fun SuggestionRow(
 @Composable
 private fun suggestionStats(suggestion: FoodSuggestion, showTimes: Boolean): String {
     val last = runCatching { LocalDate.parse(suggestion.lastDate) }.getOrNull()
-    val lastLabel = last?.let { it.monthValue.toString() + "/" + it.dayOfMonth } ?: suggestion.lastDate
+    val lastLabel = last?.shortLabel() ?: suggestion.lastDate
     return if (showTimes) {
         stringResource(R.string.search_stats_frequent, suggestion.times, lastLabel)
     } else {
         stringResource(R.string.search_stats_recent, lastLabel)
     }
 }
+
+/**
+ * 「3/14」；不是今年的才加年份（「2024/3/14」）。兩個搜尋都找得到幾年前的東西，
+ * 只寫月日的話分不出是今年還是兩年前。
+ */
+private fun LocalDate.shortLabel(today: LocalDate = LocalDate.now()): String =
+    if (year == today.year) "$monthValue/$dayOfMonth" else "$year/$monthValue/$dayOfMonth"
 
 /** 逐筆搜尋結果，日期新到舊。點一列跳到那天，右側「＋」照這筆再記一筆。 */
 @Composable
@@ -349,7 +356,7 @@ private fun ResultRow(entry: FoodEntry, onClick: () -> Unit, onReuse: () -> Unit
     ) {
         Column(Modifier.weight(1f)) {
             val date = runCatching { LocalDate.parse(entry.date) }.getOrNull()
-            val dateLabel = date?.let { it.monthValue.toString() + "/" + it.dayOfMonth } ?: entry.date
+            val dateLabel = date?.shortLabel() ?: entry.date
             Text(
                 dateLabel + " " + entry.mealType.label() + " · " + entry.name,
                 style = MaterialTheme.typography.titleMedium,
