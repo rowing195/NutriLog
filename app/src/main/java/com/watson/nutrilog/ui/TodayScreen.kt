@@ -148,6 +148,8 @@ fun TodayScreen(
     onOpenHistory: () -> Unit,
     onOpenSearch: () -> Unit,
     onOpenSettings: () -> Unit,
+    /** GitHub 上有新版而且使用者還沒在關於頁看過：設定圖示上亮一個紅點。 */
+    showUpdateDot: Boolean,
     /** 今日頁是不是目前的畫面。換頁那 320ms 裡它還在（正被紙蓋住），但已經不是了。 */
     isCurrent: Boolean,
     /** 每一天從健康連線讀到的活動消耗，見 NutriViewModel.activeCaloriesMap。 */
@@ -347,6 +349,7 @@ fun TodayScreen(
                     onOpenSearch = onOpenSearch,
                     onOpenHistory = onOpenHistory,
                     onOpenSettings = onOpenSettings,
+                    showUpdateDot = showUpdateDot,
                 )
                 WeekStrip(
                     pagerState = weekPagerState,
@@ -497,6 +500,7 @@ private fun HeaderRow(
     onOpenSearch: () -> Unit,
     onOpenHistory: () -> Unit,
     onOpenSettings: () -> Unit,
+    showUpdateDot: Boolean,
 ) {
     val scheme = MaterialTheme.colorScheme
     Column(Modifier.padding(horizontal = 22.dp)) {
@@ -568,7 +572,7 @@ private fun HeaderRow(
             }
             HeaderIcon(onClick = onOpenSearch) { SearchMark(scheme.onSurface) }
             HeaderIcon(onClick = onOpenHistory) { CalendarMark(scheme.onSurfaceVariant) }
-            HeaderIcon(onClick = onOpenSettings) {
+            HeaderIcon(onClick = onOpenSettings, dot = showUpdateDot) {
                 SlidersMark(scheme.onSurfaceVariant, background = scheme.background)
             }
         }
@@ -576,15 +580,36 @@ private fun HeaderRow(
     }
 }
 
-/** 報頭上的圖示不加框（一排框會把報頭壓死），但可點區要墊到 44dp。 */
+/**
+ * 報頭上的圖示不加框（一排框會把報頭壓死），但可點區要墊到 44dp。
+ *
+ * [dot]：右上角一顆朱紅點，「這裡有東西要看」（目前只有設定圖示用，表示有新版）。
+ * 朱紅在這套色票裡就是「看這裡」（同聚焦）。外圈墊一圈紙色，壓在圖示的線上也分得開。
+ */
 @Composable
-private fun HeaderIcon(onClick: () -> Unit, content: @Composable () -> Unit) {
+private fun HeaderIcon(onClick: () -> Unit, dot: Boolean = false, content: @Composable () -> Unit) {
+    val updateDesc = stringResource(R.string.update_dot_desc)
     Box(
         Modifier
             .size(44.dp)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) { content() }
+    ) {
+        content()
+        if (dot) {
+            Box(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 7.dp, end = 6.dp)
+                    .size(10.dp)
+                    .background(MaterialTheme.colorScheme.background, CircleShape)
+                    .padding(2.dp)
+                    .background(NutrientColors.Accent, CircleShape)
+                    // 畫出來的點沒有文字節點，讀螢幕的人（與 tools/ui.ps1）要靠這個才知道它在
+                    .semantics { contentDescription = updateDesc },
+            )
+        }
+    }
 }
 
 /**

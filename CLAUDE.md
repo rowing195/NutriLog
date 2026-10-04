@@ -1231,7 +1231,8 @@ Tavily 免費層回的就是清洗過的頁面正文，這是兩者的根本差�
 
 ## Google Drive 備份：授權、範圍、與那支精靈
 
-雲端備份是**選配**：不連結的話 app 完全不碰網路，也不會排任何背景工作。連結之後
+雲端備份是**選配**：不連結的話完全不碰 Drive，也不會排備份的背景工作
+（每天的檢查更新是另一個排程，見〈檢查更新〉那節）。連結之後
 每天備份一次到 Drive 主頁的 `NutriLog/`，一天一個日期檔、只留最近 30 天
 （`DriveBackup.namesToPrune`，有測試守著 —— 刪錯了使用者不會馬上發現，等到要還原
 才發現備份不見就來不及了）。
@@ -1635,6 +1636,38 @@ Room 的 migration 是 4→5（`food_entries` 加一欄 ＋ 建 `daily_water`）
 **驗「已產生」那個狀態不要真的打 API。** 自己寫一份 `WeeklyReport` 的 JSON，
 `adb shell "run-as com.watson.nutrilog sh -c 'cat > files/weekly_reports/<週日>.json'" < seed.json`
 塞進去再開畫面，驗完 `rm` 掉。
+
+## 檢查更新：GitHub Releases ＋ 報頭的紅點
+
+設定 → 關於可以手動檢查，另外每天自動查一次（`UpdateCheckWorker`，預設開，關於頁有開關）。
+查的是 `api.github.com/repos/rowing195/NutriLog/releases/latest`：repo 公開、**不帶 token**
+（每小時 60 次，遠遠用不完；帶 token 就得把金鑰編進 APK）。查到新版只存起來、**不發通知**，
+今日頁右上角的設定圖示亮一個朱紅點（朱紅＝「看這裡」，和聚焦同一個意思），
+設定選單「關於」那列寫「2.2.7 · 有新版 2.2.8」，關於頁有一顆章開那一版的 release 頁。
+
+四件會咬人的事：
+
+- **檢查結果不放在 `NutriSettings` 裡**，存在同一個 DataStore 的另一個 key（`updateStatusFlow`），
+  寫入用 `editUpdateStatus` 在同一個 transaction 裡讀改寫。`NutriSettings` 是整包 JSON、
+  ViewModel 存的是它手上那一份 —— 背景剛查完寫進去的同時使用者在改設定，新版就被整包蓋掉了。
+  **以後再有背景工作要寫的狀態，一樣不要塞進 `NutriSettings`。**
+- **本機建置比不了版號。** 版號只有推 tag 時才會被 CI 覆寫，本機是「1.0-debug」。
+  `isNewerRelease` 對它回 `null`，畫面講「這是開發版，最新正式版是 vX」、不亮紅點 ——
+  拿它硬比的話永遠是舊的，紅點關不掉。
+- **紅點「看過了」是關於頁真的把新版顯示出來時才記**（`markUpdateSeen`，由關於頁的
+  `LaunchedEffect` 呼叫），不是在點進去那一刻判斷：背景檢查可能剛好在使用者站在關於頁時查完。
+  記的是那一版的 tag，下一個新版出來會再亮。
+- **它和 Drive 備份是兩個獨立的排程**，沒連 Drive 的人也要知道有新版。不像備份那樣對齊凌晨、
+  也沒有初始延遲：排程當下先跑一次剛好（更新完第一次開 app 就查）。每次開 app 用 KEEP 補排。
+
+**在模擬器上驗「有新版」那條路**要兩個準備，兩個都要驗完還原：
+
+- debug 版有 `versionNameSuffix = "-debug"`，比不了版號。暫時把那行註解掉，
+  `./gradlew assembleDebug -PappVersionName=2.2.6 -PappVersionCode=2` 建一顆假裝是舊版的，
+  建完立刻 `git checkout app/build.gradle.kts`。換回正常版本時要 `adb install -r -d`（版號倒退）。
+- 週期性工作**不能提早強制執行**：`cmd jobscheduler run -f` 會被 WorkManager 以「executed before
+  schedule」擋掉。要讓它馬上跑，就 force-stop 之後刪掉 `no_backup/androidx.work.workdb*`
+  （不在 `databases/`），下次開 app 會重新排、立刻跑一次。
 
 ## App 圖示：切換 activity-alias，不是換資源
 

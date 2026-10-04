@@ -24,7 +24,14 @@ import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.CommonStatusCodes
 import com.watson.nutrilog.data.DriveAuth
 import com.watson.nutrilog.data.SettingsStore
+import com.watson.nutrilog.data.UpdateChecker
+import com.watson.nutrilog.data.UpdateStatus
+import com.watson.nutrilog.data.isNewerRelease
+import com.watson.nutrilog.data.net.GitHubReleaseClient
 import com.watson.nutrilog.work.BackupWorker
+import com.watson.nutrilog.work.UpdateCheckWorker
+import com.watson.nutrilog.BuildConfig
+import java.io.IOException
 import com.watson.nutrilog.data.db.CachedProduct
 import com.watson.nutrilog.data.db.DayTotal
 import com.watson.nutrilog.data.db.EntrySource
@@ -418,6 +425,26 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     var driveBusy by mutableStateOf(false)
         private set
 
+    /** 上一次到 GitHub 查新版的結果，背景檢查與關於頁那顆按鈕都會更新它。 */
+    var updateStatus by mutableStateOf(UpdateStatus())
+        private set
+
+    /** 正在查。擋住連按，畫面上那條進度線也看它。 */
+    var updateChecking by mutableStateOf(false)
+        private set
+
+    /** 手動檢查失敗的原因。只有失敗才有值：查到了的結果直接看 [updateStatus]。 */
+    var updateMessage by mutableStateOf<String?>(null)
+        private set
+
+    /** GitHub 上有比裝著的這一版新的正式版。本機建置（「1.0-debug」）比不了，永遠是 false。 */
+    val updateAvailable: Boolean
+        get() = isNewerRelease(updateStatus.latestTag, BuildConfig.VERSION_NAME) == true
+
+    /** 今日頁設定圖示上的紅點：有新版，而且使用者還沒在關於頁看過這一版。 */
+    val showUpdateDot: Boolean
+        get() = updateAvailable && updateStatus.seenTag != updateStatus.latestTag
+
     /**
      * 需要使用者同意時，要由 Activity 送出去的同意畫面。
      *
@@ -463,6 +490,15 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
             if (settingsStore.current().driveBackupEnabled) {
                 BackupWorker.schedule(getApplication())
             }
+        }
+        // 同上：排程會被「強制停止」清掉，所以每次啟動補排一次（KEEP，不會重算週期）。
+        viewModelScope.launch {
+            if (settingsStore.current().autoUpdateCheck) {
+                UpdateCheckWorker.schedule(getApplication())
+            }
+        }
+        viewModelScope.launch {
+            settingsStore.updateStatusFlow.collect { updateStatus = it }
         }
         // 換月份就換一條 Flow，和換日期同樣的道理。
         //
@@ -531,6 +567,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     fun backToToday() {
         dataMessage = null
         driveMessage = null
+        updateMessage = null
         importPreview = null
         pendingMeal = null
         screen = Screen.Today
@@ -1856,6 +1893,44 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         // 先更新 UI 再落地，避免打字或拉 slider 時卡頓
         settings = newSettings
         viewModelScope.launch { settingsStore.save(newSettings) }
+    }
+
+    // --- 檢查更新 ---
+
+    /** 關於頁那顆按鈕。 */
+    fun checkForUpdate() {
+        if (updateChecking) return
+        updateChecking = true
+        updateMessage = null
+        viewModelScope.launch {
+            UpdateChecker(getApplication()).check().onFailure { cause ->
+                updateMessage = getApplication<Application>().getString(
+                    when (cause) {
+                        is IOException -> R.string.update_error_network
+                        is GitHubReleaseClient.RateLimited -> R.string.update_error_rate_limited
+                        else -> R.string.update_error_other
+                    }
+                )
+            }
+            updateChecking = false
+        }
+    }
+
+    /**
+     * 關於頁把「有新版」顯示出來了，就算看過這一版，報頭的紅點收掉；下一個新版出來才會再亮。
+     *
+     * 由關於頁在**真的顯示出來的時候**呼叫，而不是在點進去那一刻判斷：背景檢查可能剛好
+     * 在使用者站在關於頁時查完，那時候他已經看到了，回今日頁不該再亮一次。
+     */
+    fun markUpdateSeen() {
+        if (!showUpdateDot) return
+        viewModelScope.launch { settingsStore.editUpdateStatus { it.copy(seenTag = it.latestTag) } }
+    }
+
+    fun setAutoUpdateCheck(enabled: Boolean) {
+        if (enabled == settings.autoUpdateCheck) return
+        updateSettings(settings.copy(autoUpdateCheck = enabled))
+        if (enabled) UpdateCheckWorker.schedule(getApplication()) else UpdateCheckWorker.cancel(getApplication())
     }
 
     private fun guessMeal(): Meal {

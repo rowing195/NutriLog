@@ -297,13 +297,6 @@ private fun suggestionStats(suggestion: FoodSuggestion, showTimes: Boolean): Str
     }
 }
 
-/**
- * 「3/14」；不是今年的才加年份（「2024/3/14」）。兩個搜尋都找得到幾年前的東西，
- * 只寫月日的話分不出是今年還是兩年前。
- */
-private fun LocalDate.shortLabel(today: LocalDate = LocalDate.now()): String =
-    if (year == today.year) "$monthValue/$dayOfMonth" else "$year/$monthValue/$dayOfMonth"
-
 /** 逐筆搜尋結果，日期新到舊。點一列跳到那天，右側「＋」照這筆再記一筆。 */
 @Composable
 private fun SearchResults(

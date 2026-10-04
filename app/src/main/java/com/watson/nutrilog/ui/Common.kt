@@ -195,6 +195,13 @@ fun severityTint(value: Double, target: Int): Color? = when (overSeverity(value,
     OverSeverity.NORMAL -> null
 }
 
+/**
+ * 「3/14」；不是今年的才加年份（「2024/3/14」）。兩個搜尋都找得到幾年前的東西、
+ * 新版的發佈日也可能跨年，只寫月日的話分不出是今年還是兩年前。
+ */
+internal fun LocalDate.shortLabel(today: LocalDate = LocalDate.now()): String =
+    if (year == today.year) "$monthValue/$dayOfMonth" else "$year/$monthValue/$dayOfMonth"
+
 /** 「今天 8月19日（週三）」。有「今天／昨天」就不必自己數日期。 */
 fun LocalDate.displayLabel(today: LocalDate = LocalDate.now()): String {
     val prefix = when (this) {

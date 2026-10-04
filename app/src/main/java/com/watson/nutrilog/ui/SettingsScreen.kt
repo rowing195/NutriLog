@@ -50,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.colorResource
@@ -68,7 +69,9 @@ import com.watson.nutrilog.data.ActivitySource
 import com.watson.nutrilog.data.HealthDiagnostics
 import com.watson.nutrilog.data.RecordOrigins
 import com.watson.nutrilog.data.NutriSettings
+import com.watson.nutrilog.data.UpdateStatus
 import com.watson.nutrilog.data.WatchWearMode
+import com.watson.nutrilog.data.isNewerRelease
 import androidx.compose.foundation.layout.size
 import com.watson.nutrilog.ui.theme.NutrientColors
 import com.watson.nutrilog.ui.theme.numeric
@@ -90,6 +93,8 @@ fun SettingsMenuScreen(
     healthSupported: Boolean,
     healthReadOn: Boolean,
     healthWriteOn: Boolean,
+    /** GitHub 上比裝著的這一版新的版號（不含 v）；沒有新版是 null。 */
+    newVersion: String?,
     onOpen: (SettingsPage) -> Unit,
     onClose: () -> Unit,
 ) {
@@ -177,7 +182,7 @@ fun SettingsMenuScreen(
                 Column {
                     MenuRow(
                         title = stringResource(page.titleRes()),
-                        summary = page.summary(settings, healthSummary),
+                        summary = page.summary(settings, healthSummary, newVersion),
                         // 退場途中不接點擊：那幾百毫秒裡畫面還在，點下去會在
                         // 關閉的路上又開一個子頁。
                         onClick = { if (!closing) onOpen(page) },
@@ -264,7 +269,7 @@ private fun SettingsPage.titleRes(): Int = when (this) {
 }
 
 @Composable
-private fun SettingsPage.summary(settings: NutriSettings, healthSummary: String): String = when (this) {
+private fun SettingsPage.summary(settings: NutriSettings, healthSummary: String, newVersion: String?): String = when (this) {
     SettingsPage.APPEARANCE -> settings.darkMode.label()
     SettingsPage.TARGETS ->
         settings.calorieTarget.toString() + " " + stringResource(R.string.unit_kcal)
@@ -274,7 +279,9 @@ private fun SettingsPage.summary(settings: NutriSettings, healthSummary: String)
         if (settings.driveBackupEnabled) R.string.drive_summary_on else R.string.drive_summary_off
     )
     SettingsPage.DATA -> stringResource(R.string.settings_data_summary)
-    SettingsPage.ABOUT -> BuildConfig.VERSION_NAME
+    SettingsPage.ABOUT ->
+        if (newVersion == null) BuildConfig.VERSION_NAME
+        else stringResource(R.string.about_summary_update, BuildConfig.VERSION_NAME, newVersion)
 }
 
 /**
@@ -316,6 +323,13 @@ fun SettingsDetailScreen(
     onSetWearMode: (WatchWearMode) -> Unit,
     onSetEatBack: (Int) -> Unit,
     onCloseBmr: () -> Unit,
+    updateStatus: UpdateStatus,
+    updateAvailable: Boolean,
+    updateChecking: Boolean,
+    updateMessage: String?,
+    onCheckUpdate: () -> Unit,
+    onSetAutoUpdate: (Boolean) -> Unit,
+    onUpdateSeen: () -> Unit,
     onBack: () -> Unit,
 ) {
     Scaffold(
@@ -363,7 +377,10 @@ fun SettingsDetailScreen(
                     settings, driveMessage, driveBusy, onConnectDrive, onBackupNow, onDisconnectDrive,
                 )
                 SettingsPage.DATA -> DataSection(dataMessage, onExportCsv, onImportCsv)
-                SettingsPage.ABOUT -> AboutSection()
+                SettingsPage.ABOUT -> AboutSection(
+                    settings, updateStatus, updateAvailable, updateChecking, updateMessage,
+                    onCheckUpdate, onSetAutoUpdate, onUpdateSeen,
+                )
             }
             }
         }
@@ -826,7 +843,7 @@ private fun sourceName(source: ActivitySource): String = stringResource(
 )
 
 @Composable
-private fun SwitchRow(title: String, help: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+private fun SwitchRow(title: String, help: String? = null, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -835,11 +852,13 @@ private fun SwitchRow(title: String, help: String, checked: Boolean, onCheckedCh
         // 開關固定 46dp 寬，左邊文字要自己留出間距，不然會貼到它身上（同每日目標頁那一列）
         Column(Modifier.weight(1f).padding(end = 16.dp)) {
             Text(title)
-            Text(
-                help,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if (help != null) {
+                Text(
+                    help,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
         NutriSwitch(checked = checked, onCheckedChange = onCheckedChange)
     }
@@ -1138,12 +1157,104 @@ private fun DriveSection(
 }
 
 @Composable
-private fun AboutSection() {
+private fun AboutSection(
+    settings: NutriSettings,
+    status: UpdateStatus,
+    updateAvailable: Boolean,
+    checking: Boolean,
+    message: String?,
+    onCheck: () -> Unit,
+    onSetAuto: (Boolean) -> Unit,
+    onSeen: () -> Unit,
+) {
+    val uriHandler = LocalUriHandler.current
+    // 「有新版」顯示出來了就算看過：報頭的紅點收掉。綁 latestTag，下一個新版會再觸發一次。
+    LaunchedEffect(status.latestTag, updateAvailable) {
+        if (updateAvailable) onSeen()
+    }
     AboutRow(stringResource(R.string.about_version), BuildConfig.VERSION_NAME)
     Hairline()
     // 建置編號就是 versionCode（CI 的 run number）。版本號可能重複 —— 收回重發的版本
     // 名字一模一樣 —— 這個數字不會，回報問題時靠它分得出是哪一次建置。
     AboutRow(stringResource(R.string.about_build), BuildConfig.VERSION_CODE.toString())
+    Hairline()
+
+    // 檢查更新那一段包成一個子項、間距自己給（同 DriveSection）：進度線與錯誤訊息是
+    // 就地展開的，收起來時節點還在，交給外層的 spacedBy 會多出空白。
+    Column {
+    Column(Modifier.padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        updateStatusText(status, updateAvailable)?.let {
+            Text(withNumerals(it), style = MaterialTheme.typography.bodyMedium)
+        }
+        if (updateAvailable) {
+            // 有新版時這是整頁唯一的主要動作，所以是實心章。
+            // 開的是 release 頁而不是 APK：先看得到這一版改了什麼，再自己點下載。
+            StampButton(
+                label = stringResource(R.string.update_download, status.latestTag),
+                onClick = { uriHandler.openUri(status.url) },
+            )
+        }
+        // 空心章，同雲端備份的「立即備份」：每天已經自動查了，這顆只是「現在就查一次」。
+        StampButton(
+            label = stringResource(if (updateAvailable) R.string.update_recheck else R.string.update_check),
+            onClick = onCheck,
+            color = Color.Transparent,
+        )
+    }
+    // 轉圈的圓形在這個滿是規線的版面上很突兀，用規線自己的語彙表達等待
+    Reveal(checking) {
+        IndeterminateRule(Modifier.padding(top = 12.dp))
+    }
+    val shownMessage = rememberLastNonNull(message)
+    Reveal(message != null) {
+        Text(
+            shownMessage.orEmpty(),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(top = 12.dp),
+        )
+    }
+
+    Hairline(Modifier.padding(top = 20.dp, bottom = 16.dp))
+    SwitchRow(
+        title = stringResource(R.string.update_auto),
+        checked = settings.autoUpdateCheck,
+        onCheckedChange = onSetAuto,
+    )
+    }
+}
+
+/**
+ * 關於頁那一行講什麼。還沒查過就不講 —— 那顆「檢查更新」本身就說明了一切。
+ *
+ * 比不了版號（本機建置「1.0-debug」）時**不要說「已經是最新版」也不要說「有新版」**，
+ * 兩個都可能是錯的；照實講這是開發版、最新正式版是哪一版。
+ */
+@Composable
+private fun updateStatusText(status: UpdateStatus, updateAvailable: Boolean): String? {
+    if (status.checkedAt <= 0) return null
+    if (status.latestTag.isBlank()) return stringResource(R.string.update_no_release)
+    return when {
+        updateAvailable -> stringResource(
+            R.string.update_available,
+            status.latestTag,
+            runCatching {
+                java.time.Instant.parse(status.publishedAt).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+            }.getOrNull()?.shortLabel() ?: status.publishedAt.take(10),
+        )
+        isNewerRelease(status.latestTag, BuildConfig.VERSION_NAME) == null ->
+            stringResource(R.string.update_dev_build, BuildConfig.VERSION_NAME, status.latestTag)
+        else -> stringResource(R.string.update_latest, checkedLabel(status.checkedAt))
+    }
+}
+
+/** 「今天 09:12」或「10/3 09:12」。 */
+@Composable
+private fun checkedLabel(millis: Long): String {
+    val moment = java.time.Instant.ofEpochMilli(millis).atZone(java.time.ZoneId.systemDefault()).toLocalDateTime()
+    val day = moment.toLocalDate()
+    val dayLabel = if (day == java.time.LocalDate.now()) stringResource(R.string.update_today) else day.shortLabel()
+    return dayLabel + " " + "%02d:%02d".format(moment.hour, moment.minute)
 }
 
 @Composable

@@ -289,6 +289,7 @@ fun NutriLogApp(viewModel: NutriViewModel) {
             onOpenHistory = viewModel::openHistory,
             onOpenSearch = viewModel::openSearch,
             onOpenSettings = { viewModel.goTo(Screen.Settings) },
+            showUpdateDot = viewModel.showUpdateDot,
             isCurrent = viewModel.screen == Screen.Today,
             activeCaloriesMap = viewModel.activeCaloriesMap,
             dailyTargets = viewModel.dailyTargetMap,
@@ -428,6 +429,7 @@ fun NutriLogApp(viewModel: NutriViewModel) {
                 healthSupported = viewModel.isHealthConnectSupported,
                 healthReadOn = viewModel.settings.readExerciseCalories && viewModel.healthReadAuthorized,
                 healthWriteOn = viewModel.settings.healthConnectSyncEnabled && viewModel.healthWriteAuthorized,
+                newVersion = viewModel.updateStatus.latestTag.removePrefix("v").takeIf { viewModel.updateAvailable },
                 onOpen = viewModel::openSettingsPage,
                 onClose = viewModel::backToToday,
             )
@@ -473,6 +475,13 @@ fun NutriLogApp(viewModel: NutriViewModel) {
                 onSetWearMode = viewModel::setWatchWearMode,
                 onSetEatBack = viewModel::setExerciseEatBack,
                 onCloseBmr = viewModel::closeBmrCalculator,
+                updateStatus = viewModel.updateStatus,
+                updateAvailable = viewModel.updateAvailable,
+                updateChecking = viewModel.updateChecking,
+                updateMessage = viewModel.updateMessage,
+                onCheckUpdate = viewModel::checkForUpdate,
+                onSetAutoUpdate = viewModel::setAutoUpdateCheck,
+                onUpdateSeen = viewModel::markUpdateSeen,
                 onBack = { viewModel.goTo(Screen.Settings) },
             )
         }

@@ -45,7 +45,7 @@ data class NutriSettings(
     val darkMode: DarkModePreference = DarkModePreference.SYSTEM,
     /** 桌面圖示用哪一款。實際切換的是 manifest 裡的 activity-alias，見 [AppIconSwitcher]。 */
     val appIcon: AppIcon = AppIcon.DEFAULT,
-    /** 每天自動備份到 Drive。關著的時候完全不碰網路，也不會排任何背景工作。 */
+    /** 每天自動備份到 Drive。關著的時候完全不碰 Drive，也不會排備份的背景工作。 */
     val driveBackupEnabled: Boolean = false,
     /** 備份到哪個 Google 帳號。空字串代表還沒授權過。只拿來顯示，授權本身不靠它。 */
     val driveAccount: String = "",
@@ -96,6 +96,11 @@ data class NutriSettings(
      * 營養師的普遍建議是活動量設低一點、運動熱量只回補 25–50%。
      */
     val exerciseEatBackPercent: Int = 50,
+    /**
+     * 每天到 GitHub 查一次有沒有新版（見 [UpdateChecker]）。**預設開**：這個 app 不在商店上，
+     * 沒有人會通知使用者有新版。關掉之後只剩關於頁那顆手動檢查。
+     */
+    val autoUpdateCheck: Boolean = true,
 ) {
     companion object {
         // 模型會改朝換代，所以設定頁可以改。注意 gemini-2.0-flash 已經下架，別填。
@@ -276,8 +281,30 @@ class SettingsStore(context: Context) {
             .onFailure { Log.w(TAG, "設定解析失敗，改用預設值", it) }
             .getOrDefault(NutriSettings())
 
+    /**
+     * 檢查更新的結果。**和設定分開存**（另一個 key）：它是背景工作寫的狀態，不是使用者
+     * 設的值。塞進同一包 JSON 的話，背景剛查完寫進去的同時使用者在改設定，
+     * [save] 會拿手上那份舊的整包蓋回去，查到的新版就不見了。
+     */
+    val updateStatusFlow: Flow<UpdateStatus> = store.data.map { decodeStatus(it[KEY_UPDATE_STATUS]) }
+
+    /** 讀、改、寫在同一個 transaction 裡，背景工作與手動檢查同時寫也不會互蓋。 */
+    suspend fun editUpdateStatus(transform: (UpdateStatus) -> UpdateStatus): UpdateStatus {
+        var result = UpdateStatus()
+        store.edit { prefs ->
+            result = transform(decodeStatus(prefs[KEY_UPDATE_STATUS]))
+            prefs[KEY_UPDATE_STATUS] = json.encodeToString(UpdateStatus.serializer(), result)
+        }
+        return result
+    }
+
+    private fun decodeStatus(raw: String?): UpdateStatus =
+        if (raw.isNullOrBlank()) UpdateStatus()
+        else runCatching { json.decodeFromString(UpdateStatus.serializer(), raw) }.getOrDefault(UpdateStatus())
+
     private companion object {
         const val TAG = "SettingsStore"
         val KEY_SETTINGS = stringPreferencesKey("settings_json")
+        val KEY_UPDATE_STATUS = stringPreferencesKey("update_status_json")
     }
 }

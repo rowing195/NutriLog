@@ -56,6 +56,7 @@
     - [依身型計算每日目標](#依身型計算每日目標)
     - [AI 週報／月報](#ai-週報月報)
     - [App 圖示](#app-圖示)
+    - [檢查更新](#檢查更新)
     - [匯出／匯入 CSV](#匯出匯入-csv)
     - [Google Drive 雲端備份](#google-drive-雲端備份)
 - [設定：選單加子頁，三把 key](#設定選單加子頁三把-key)
@@ -77,7 +78,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 **Why NutriLog?** 市面上的飲食紀錄 app 幾乎都要你先開帳號、再把三餐上傳到別人的伺服器。
 這支不用：沒有後端、沒有帳號，紀錄全部躺在你自己的手機裡。
 
-- 🔒 **沒有後端、沒有帳號** — 對外連線只有你主動觸發的那幾種：AI 辨識（Gemini／OpenRouter）、「AI 查」的網路搜尋（Tavily）、條碼查詢（Open Food Facts），以及選配的 Google Drive 每日備份。
+- 🔒 **沒有後端、沒有帳號** — 對外連線只有你主動觸發的那幾種：AI 辨識（Gemini／OpenRouter）、「AI 查」的網路搜尋（Tavily）、條碼查詢（Open Food Facts）、選配的 Google Drive 每日備份，以及每天一次到 GitHub 查有沒有新版（可關）。
 - 🍱 **四條輸入路徑** — 自己填數字、拍照或打一句話交給 AI 估（Gemini 或 OpenRouter）、掃商品條碼查 Open Food Facts。
 - 🔎 **先搜自己吃過的，容錯** — 中文沒有空白可拆詞，改用單字＋相鄰兩字加權比對：「烤肉」找得到「煎烤豬肉排／五花肉」，而「咖啡」不會撈到咖哩飯。
 - 🌐 **需要的時候才上網查** —— 打了店名就按「AI 查」，它先去找該店公布的官方營養標示再算；平常按「AI 估」就好。**要不要查是你按的，不是模型猜的。**
@@ -91,6 +92,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 - 💧 **喝的也算數** — 今日頁營養素底下一排加減鍵（一次 50 ml）記白開水，而飲料的水量跟著那一筆紀錄走：AI 估飲料時會一併給出容量，喝完就自動進當天的飲水量。
 - 🗒️ **AI 週報／月報** — 每週每月的統計是本機算的、隨時看得到；要不要花一次 AI 呼叫請它寫成報告，由你按下去決定，不會自動送出。
 - 🎨 **換 app 圖示** — 設定 → 外觀可以從八款內建圖示裡挑一款，桌面上的圖示跟著換。
+- 🔔 **有新版會告訴你** — 每天到 GitHub 查一次，有新版時今日頁右上角的設定亮一個紅點，關於頁一鍵開那一版的下載頁。
 - 📅 **看得出空白** — 月曆式歷史讓「哪幾天忘了記」一眼就有形狀，清單做不到這件事。
 - 📤 **CSV 匯出／匯入** — 完整備份的格式：本地匯出與 Drive 每日備份用的都是同一份 CSV，數字照存的值原樣寫，換手機可以無損接回。
 - 🔑 **不需要相機權限** — 拍照交給系統相機、掃碼交給 Play 服務。Manifest 只有 `INTERNET` 與 Health 連線的讀寫權限，後者要你在系統畫面同意才會生效。
@@ -104,9 +106,9 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 | ⚙️ | **架構** | <ul><li>單一 activity-scoped `NutriViewModel` 串起所有畫面狀態與導航</li><li>`sealed interface Screen` + `when` 分派，刻意不引入複雜導航函式庫</li><li>畫面本身無狀態，只吃資料與 lambda</li></ul> |
 | 🔩 | **程式品質** | <ul><li>KDoc 寫繁體中文，解釋「為什麼」而不是「做了什麼」</li><li>版本統一收在 `gradle/libs.versions.toml`</li><li>Compose BOM 管理所有 compose 函式庫版號</li></ul> |
 | 📄 | **文件** | <ul><li>README（本檔）＋ `CLAUDE.md`（環境與慣例）</li><li>踩過的坑與設計考量寫在原地註解裡，不另開 wiki</li></ul> |
-| 🔌 | **整合** | <ul><li>Google Gemini（照片／文字結構化輸出辨識）</li><li>OpenRouter（另一家供應商，照片與文字可各自切換）</li><li>Tavily（「AI 查」的網路搜尋來源）</li><li>Google Drive（每日自動備份，僅 <code>drive.file</code> 範圍）</li><li>Open Food Facts（條碼營養資訊查詢）</li><li>Health Connect（讀運動消耗，選配寫入飲食）</li><li>Play 服務 Code Scanner（免相機權限掃描 UI）</li><li>GitHub Actions 推 tag 自動發佈 Release APK</li></ul> |
+| 🔌 | **整合** | <ul><li>Google Gemini（照片／文字結構化輸出辨識）</li><li>OpenRouter（另一家供應商，照片與文字可各自切換）</li><li>Tavily（「AI 查」的網路搜尋來源）</li><li>Google Drive（每日自動備份，僅 <code>drive.file</code> 範圍）</li><li>Open Food Facts（條碼營養資訊查詢）</li><li>Health Connect（讀運動消耗，選配寫入飲食）</li><li>GitHub Releases API（檢查新版，不帶 token）</li><li>Play 服務 Code Scanner（免相機權限掃描 UI）</li><li>GitHub Actions 推 tag 自動發佈 Release APK</li></ul> |
 | 🧩 | **模組化** | <ul><li>`data/db` Room、`data/net` 外部 API、`ui` 畫面、`ui/theme` 色票與字階</li><li>`PortionMultiplier` 份數縮放與無損還原演算法</li><li>`CsvExport` / `CsvImport` 是純函式、不碰 Android API</li><li>`BmrCalculator`、`ActivityEstimate` 與兩支 `*Aggregator` 同樣是純計算，測試不必開模擬器</li><li>`DriveClient` 手寫 REST，不引官方 Drive client 函式庫</li></ul> |
-| 🧪 | **測試** | <ul><li>JUnit 單元測試 14 支共 98 條（`NutrientScalingTest`、`PortionInputTest`、`CsvRoundTripTest`、`WaterCsvTest`、`DriveBackupPruneTest`、`BackupScheduleTest`、`BackedUpProfileTest`、`FoodLibraryMatchTest`、`ActivityEstimateTest`、`CalorieTargetTest`、`BmrCalculatorTest`、`HydrationRecordTest`、`ImageLimitTest`、`PhotoPromptTest`）驗證份數縮放與兩位小數輸入、CSV 匯出／匯入來回一致、雲端備份保留規則、食物庫模糊比對、兩種手錶配戴方式各採用哪種活動資料與步數只算超出久坐的部分、運動熱量的回補比例、備份白名單不含金鑰與身型目標的營養素配比、飲水的兩個來源在 CSV 來回之後仍然分得開、寫進 Health 連線的飲水紀錄、照片大小上限與烹調備註</li><li>`tools/ui.ps1` 提供依元件文字定位的手動 UI 自動化驗證</li><li>核心回歸清單：新增→編輯→刪除、換日滑動無跳躍、force-stop 狀態持久化、一次滑動剛好只換一天／一週／一個月</li></ul> |
+| 🧪 | **測試** | <ul><li>JUnit 單元測試 15 支共 107 條（`NutrientScalingTest`、`PortionInputTest`、`CsvRoundTripTest`、`WaterCsvTest`、`DriveBackupPruneTest`、`BackupScheduleTest`、`BackedUpProfileTest`、`FoodLibraryMatchTest`、`ActivityEstimateTest`、`CalorieTargetTest`、`BmrCalculatorTest`、`HydrationRecordTest`、`ImageLimitTest`、`PhotoPromptTest`、`UpdateCheckTest`）驗證份數縮放與兩位小數輸入、新版判斷（比數字不比字串、本機建置不比）、CSV 匯出／匯入來回一致、雲端備份保留規則、食物庫模糊比對、兩種手錶配戴方式各採用哪種活動資料與步數只算超出久坐的部分、運動熱量的回補比例、備份白名單不含金鑰與身型目標的營養素配比、飲水的兩個來源在 CSV 來回之後仍然分得開、寫進 Health 連線的飲水紀錄、照片大小上限與烹調備註</li><li>`tools/ui.ps1` 提供依元件文字定位的手動 UI 自動化驗證</li><li>核心回歸清單：新增→編輯→刪除、換日滑動無跳躍、force-stop 狀態持久化、一次滑動剛好只換一天／一週／一個月</li></ul> |
 | ⚡️ | **效能** | <ul><li>每日／每月合計由 SQL `GROUP BY` 算，不把明細撈進記憶體</li><li>相片長邊壓到 1024 px 才送出，節省流量與辨識延遲</li><li>全 app 共用一個 `OkHttpClient` 連線池</li><li>條碼結果存 Room 本機快取</li></ul> |
 | 🛡️ | **安全** | <ul><li>不宣告相機與儲存權限；除了 `INTERNET` 只有 Health 連線的讀寫權限，要使用者在系統畫面同意才生效</li><li>三家的 API key（Gemini／OpenRouter／Tavily）都存 DataStore，**不編進 APK**</li><li>key 一律走 header（Gemini 是 `x-goog-api-key`，其餘是 `Authorization: Bearer`）而非 query string</li><li>`keystore.properties` 與 `release.jks` 都在 gitignore</li></ul> |
 | 📦 | **相依** | <ul><li>Room、DataStore、OkHttp、kotlinx-serialization、WorkManager、play-services-code-scanner、play-services-auth、androidx.health.connect</li><li>刻意不用 Retrofit —— 五個外部服務各自只用到一兩支端點，手寫 OkHttp 維持最精簡依賴</li></ul> |
@@ -142,6 +144,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
     │       │   │   │   ├── MonthlyAggregator.kt
     │       │   │   │   ├── MonthlyReportStore.kt
     │       │   │   │   ├── SettingsStore.kt
+    │       │   │   │   ├── UpdateChecker.kt
     │       │   │   │   ├── WeeklyAggregator.kt
     │       │   │   │   ├── WeeklyReportStore.kt
     │       │   │   │   ├── db/
@@ -157,13 +160,15 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
     │       │   │   │       ├── AiPrompts.kt
     │       │   │   │       ├── DriveClient.kt
     │       │   │   │       ├── GeminiClient.kt
+    │       │   │   │       ├── GitHubReleaseClient.kt
     │       │   │   │       ├── ImageCompressor.kt
     │       │   │   │       ├── OpenFoodFactsClient.kt
     │       │   │   │       ├── OpenRouterClient.kt
     │       │   │   │       ├── SharedHttp.kt
     │       │   │   │       └── TavilyClient.kt
     │       │   │   ├── work/
-    │       │   │   │   └── BackupWorker.kt
+    │       │   │   │   ├── BackupWorker.kt
+    │       │   │   │   └── UpdateCheckWorker.kt
     │       │   │   └── ui/
     │       │   │       ├── App.kt
     │       │   │       ├── BarcodeScreen.kt
@@ -217,6 +222,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
     │               ├── NutrientScalingTest.kt
     │               ├── PhotoPromptTest.kt
     │               ├── PortionInputTest.kt
+    │               ├── UpdateCheckTest.kt
     │               └── WaterCsvTest.kt
     ├── design/
     │   ├── Budget.dc.html
@@ -356,7 +362,11 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/SettingsStore.kt'>SettingsStore.kt</a></b></td>
-					<td style='padding: 8px;'>使用者設定與每日目標。用 DataStore Preferences 儲存單份無關聯之輕量偏好設定。</td>
+					<td style='padding: 8px;'>使用者設定與每日目標。用 DataStore Preferences 儲存單份無關聯之輕量偏好設定。<br>- 檢查更新的結果存在同一個 DataStore 的另一個 key：背景工作寫的狀態不能和整包設定擠在一起，不然會被互相蓋掉。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/UpdateChecker.kt'>UpdateChecker.kt</a></b></td>
+					<td style='padding: 8px;'>到 GitHub 查一次新版並存起來，關於頁的按鈕與每天的背景檢查共用。<br>- 版號逐段比數字（2.2.10 比 2.2.9 新）；本機建置「1.0-debug」比不了，不說有新版。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/WeeklyAggregator.kt'>WeeklyAggregator.kt</a></b></td>
@@ -449,6 +459,10 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/net/SharedHttp.kt'>SharedHttp.kt</a></b></td>
 					<td style='padding: 8px;'>全 app 共用之 `OkHttpClient` 單例，維持高效連線池與執行緒管理。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/net/GitHubReleaseClient.kt'>GitHubReleaseClient.kt</a></b></td>
+					<td style='padding: 8px;'>查 GitHub 上最新的正式版（`releases/latest`，會略過 draft 與 prerelease）。<br>- 不帶 token：公開 repo 每小時 60 次，一天查一次用不完。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/net/OpenRouterClient.kt'>OpenRouterClient.kt</a></b></td>
@@ -544,7 +558,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/SettingsScreen.kt'>SettingsScreen.kt</a></b></td>
-					<td style='padding: 8px;'>設定的選單與七個子頁：外觀（深淺模式、App 圖示）、每日目標（含依身型計算、進階營養素開關、運動熱量回補）、Health 連線、API 管理（三把 key、各條路走哪一家、模型攤開圈選而不用下拉選單）、雲端備份、本地資料管理（CSV 匯出／匯入）、關於。</td>
+					<td style='padding: 8px;'>設定的選單與七個子頁：外觀（深淺模式、App 圖示）、每日目標（含依身型計算、進階營養素開關、運動熱量回補）、Health 連線、API 管理（三把 key、各條路走哪一家、模型攤開圈選而不用下拉選單）、雲端備份、本地資料管理（CSV 匯出／匯入）、關於（版本、檢查更新、每天自動檢查的開關）。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/BmrCalculatorDialog.kt'>BmrCalculatorDialog.kt</a></b></td>
@@ -593,6 +607,10 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/work/BackupWorker.kt'>BackupWorker.kt</a></b></td>
 					<td style='padding: 8px;'>每日一次的 Drive 備份排程（WorkManager）。<br>- 選用 WorkManager 而非 AlarmManager：Doze 與重新開機後仍可靠。<br>- 網路類失敗一律 retry；僅「需重新授權」回 failure，因背景無畫面可詢問使用者。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/work/UpdateCheckWorker.kt'>UpdateCheckWorker.kt</a></b></td>
+					<td style='padding: 8px;'>每天到 GitHub 查一次新版（WorkManager），和 Drive 備份是兩個獨立的排程。<br>- 查到新版只存起來、不發通知，今日頁右上角的設定圖示亮紅點。<br>- 只有連線問題才 retry；被限流就等明天。</td>
 				</tr>
 			</table>
 		</blockquote>
@@ -665,6 +683,10 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/test/java/com/watson/nutrilog/PhotoPromptTest.kt'>PhotoPromptTest.kt</a></b></td>
 					<td style='padding: 8px;'>照片確認頁的烹調備註：不填也能直接辨識，填了就完整接在照片指示後面。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/test/java/com/watson/nutrilog/UpdateCheckTest.kt'>UpdateCheckTest.kt</a></b></td>
+					<td style='padding: 8px;'>檢查更新：版號逐段比數字、本機建置與奇怪的 tag 比不了、GitHub 回應只取需要的三欄。</td>
 				</tr>
 			</table>
 		</blockquote>
@@ -859,6 +881,11 @@ Windows 平台可使用隨附腳本：
 [`PhotoPromptTest.kt`](app/src/test/java/com/watson/nutrilog/PhotoPromptTest.kt)
 - 照片確認頁的烹調備註不填也能直接辨識，填了就完整接在照片指示後面
 
+[`UpdateCheckTest.kt`](app/src/test/java/com/watson/nutrilog/UpdateCheckTest.kt)
+- 版號逐段比數字不比字串：v2.2.10 比 2.2.9 新、v2.10.0 比 2.9.9 新，少一段當成 0
+- 本機建置（「1.0-debug」）與不是版號形狀的 tag 比不了，不能說有新版
+- GitHub 回應只取 tag、release 頁網址、發佈時間三欄；沒有 tag 就當作沒有正式版
+
 UI 部分使用 [`tools/ui.ps1`](tools/ui.ps1) 依元件文字進行模擬器自動化操作：
 
 ```powershell
@@ -1048,6 +1075,16 @@ OpenRouter 的模型也分兩欄（拍照一欄、文字一欄）。不做成一
   圖示換成任意圖片，理由見[設計決策](#換-app-圖示為什麼只能選內建的)。
 - **從 v1.18.1 以前的版本更新上來時，桌面上原本那顆圖示可能會失效**，要從 app 抽屜
   重新拉一次到桌面。app 抽屜裡的入口、飲食紀錄與設定都不受影響。
+
+### 檢查更新
+
+- **設定 → 關於 → 檢查更新**：到 GitHub 查最新的正式版。有新版時寫「有新版 v2.2.8（10/5 發佈）」，
+  底下一顆章「前往下載 v2.2.8」用瀏覽器開那一版的 release 頁（看得到更新內容，再自己點 APK）。
+- **每天自動查一次**（關於頁的開關，預設開），和 Drive 備份無關，沒連雲端備份也會查。
+  查到新版**不發通知**：今日頁右上角的設定圖示亮一個紅點，設定選單「關於」那列寫「2.2.7 · 有新版 2.2.8」。
+  在關於頁看過之後紅點就收掉，下一個新版出來才會再亮。
+- 自己從原始碼建的 debug 版（版號「1.0-debug」）比不了版號，只會講「這是開發版，最新正式版是 vX」，不亮紅點。
+- 不需要任何新權限，也不帶 token（公開 repo 每小時 60 次，一天查一次用不完）。
 
 ### 匯出／匯入 CSV
 
@@ -1337,6 +1374,16 @@ POST https://api.tavily.com/search
 - `max_results = 3`、每筆正文截到 1500 字元；`search_depth` 維持 `basic`（理由見
   [issue #11](https://github.com/rowing195/NutriLog/issues/11)）。
 - 失敗一律回 `null` 不拋例外：它只是輔助，不該因為搜尋壞掉讓整條辨識失敗。
+
+### GitHub Releases
+
+```
+GET https://api.github.com/repos/rowing195/NutriLog/releases/latest
+```
+
+- 檢查更新用。公開 repo、**不帶 token**：每小時 60 次，每天一次加上偶爾手動按遠遠用不完；帶 token 反而得把金鑰編進 APK。
+- `releases/latest` 本身就略過 draft 與 prerelease。只取 `tag_name`、`html_url`、`published_at` 三欄。
+- 一個正式版都沒有時回 404，那不是錯誤；403／429 是被限流，背景檢查不重試、等明天。
 
 ### Health Connect（裝置端，非 HTTP）
 
