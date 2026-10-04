@@ -57,7 +57,6 @@ import kotlinx.coroutines.sync.withLock
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.YearMonth
-import kotlin.math.roundToInt
 import androidx.compose.runtime.mutableStateMapOf
 import com.watson.nutrilog.data.ActivitySource
 import com.watson.nutrilog.data.DailyActivity
@@ -278,7 +277,7 @@ data class EntryDraft(
     }
 
     fun scaleFromBase(base: EntryDraft, multiplier: Double): EntryDraft {
-        val mult = (multiplier * 10.0).roundToInt() / 10.0
+        val mult = multiplier.roundTo2()
         if (mult == 1.0) {
             return copy(
                 servingText = base.servingText,
@@ -848,7 +847,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateAnalysisMultiplier(index: Int, multiplier: Double) {
         val current = analysisState as? AnalysisState.Ready ?: return
-        val clamped = (multiplier.coerceIn(0.1, MAX_PORTION_MULTIPLIER) * 10.0).roundToInt() / 10.0
+        val clamped = clampPortion(multiplier)
         analysisState = AnalysisState.Ready(
             current.items.mapIndexed { i, item ->
                 if (i == index) item.copy(multiplier = clamped) else item
@@ -1939,7 +1938,7 @@ fun CachedProduct.defaultGrams(): Double =
 /** 依照倍率等比縮放食物營養素。 */
 fun DetectedFood.scale(multiplier: Double): DetectedFood {
     if (multiplier == 1.0) return this
-    val mult = (multiplier * 10.0).roundToInt() / 10.0
+    val mult = multiplier.roundTo2()
     return copy(
         servingText = scaleServingText(servingText, mult),
         calories = Math.round(calories * mult).toDouble(),
@@ -1957,7 +1956,10 @@ fun DetectedFood.scale(multiplier: Double): DetectedFood {
 /** 智慧份量文字縮放：數值（如 200g, 700ml, 1 碗）等比縮放，無數值則附加倍數標記。 */
 fun scaleServingText(text: String, multiplier: Double): String {
     val trimmed = text.trim()
-    val mult = (multiplier * 10.0).roundToInt() / 10.0
+    // 份量數字用**沒收斂過的倍率**去乘，四捨五入只做在乘出來的結果上：反推基準時傳進來的是
+    // 1 ÷ 倍率（1 ÷ 0.75 = 1.333…），先收成 1.33 的話「187.5 g」會反推成 249.38 g 而不是 250 g。
+    // 收斂過的那一份只拿來判斷「是不是 1 倍」與寫進「(1.5x)」這種標記。
+    val mult = multiplier.roundTo2()
     if (trimmed.isEmpty()) {
         return if (mult == 1.0) "" else "${mult.asInputValue()} 份"
     }
@@ -1972,7 +1974,8 @@ fun scaleServingText(text: String, multiplier: Double): String {
             sb.append(trimmed.substring(lastIndex, match.range.first))
             val origVal = match.value.toDoubleOrNull()
             if (origVal != null && origVal > 0) {
-                val scaled = (origVal * mult).roundTo1()
+                // 留兩位：份數可以是 0.25，「1 碗」要變成 0.25 碗而不是 0.3 碗
+                val scaled = (origVal * multiplier).roundTo2()
                 sb.append(scaled.asInputValue())
             } else {
                 sb.append(match.value)
@@ -1988,6 +1991,9 @@ fun scaleServingText(text: String, multiplier: Double): String {
 }
 
 fun Double.roundTo1(): Double = Math.round(this * 10.0) / 10.0
+
+/** 份數倍率與份量文字用的精度（0.25 份）。營養素仍然是 [roundTo1]。 */
+fun Double.roundTo2(): Double = Math.round(this * 100.0) / 100.0
 
 fun Double.asInputValue(): String =
     if (this % 1.0 == 0.0) toLong().toString() else toString()

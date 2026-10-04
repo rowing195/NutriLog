@@ -27,25 +27,29 @@ import androidx.compose.ui.unit.sp
 import com.watson.nutrilog.R
 import com.watson.nutrilog.ui.theme.numeric
 import com.watson.nutrilog.ui.theme.NutrientColors
-import kotlin.math.roundToInt
 
 internal const val MAX_PORTION_MULTIPLIER = 99.0
 
-/** 收斂到 0.1～99、一位小數。步進與手動輸入共用，兩邊的上下限才不會漂。 */
+/**
+ * 收斂到 0.01～99、兩位小數。步進與手動輸入共用，兩邊的上下限才不會漂。
+ *
+ * 兩位小數是為了 0.25、0.75 這種四分之一份；下限跟著是 0.01，打得進去的值
+ * 離開格子時就不會再被改掉。
+ */
 internal fun clampPortion(value: Double): Double =
-    (value.coerceIn(0.1, MAX_PORTION_MULTIPLIER) * 10).roundToInt() / 10.0
+    value.coerceIn(0.01, MAX_PORTION_MULTIPLIER).roundTo2()
 
 /**
- * 份數格收不收這一下按鍵：整數最多兩位、小數最多一位。超過的那一下直接無效，
+ * 份數格收不收這一下按鍵：整數最多兩位、小數最多兩位。超過的那一下直接無效，
  * 不讓人先看到 150 再在離開時跳回 99 —— 那讀起來像是數字自己變了。
  */
 internal fun acceptsPortionText(text: String): Boolean = PORTION_TEXT.matches(text)
 
-private val PORTION_TEXT = Regex("""\d{0,2}(\.\d?)?""")
+private val PORTION_TEXT = Regex("""\d{0,2}(\.\d{0,2})?""")
 
 /**
  * 離開份數格時的倍率。空白（或只剩小數點）等於沒填，維持原本的倍率；
- * 0 收到下限 0.1。
+ * 0 收到下限 0.01。
  */
 internal fun typedPortion(text: String, current: Double): Double =
     text.toDoubleOrNull()?.let(::clampPortion) ?: current
@@ -82,7 +86,7 @@ fun PortionMultiplierBar(
     fun applyStep(delta: Double) {
         // 正在打字時按步進鍵，以打到一半的那個數字為準再加減 —— 打了 2 再按 +1
         // 要得到 3，而不是拿舊的倍率去加。浮點累加會跑出 1.7000000000000002，
-        // clampPortion 每一步都收斂到一位小數。
+        // clampPortion 每一步都收斂到兩位小數。
         val base = typing?.let { typedPortion(it, multiplier) } ?: multiplier
         onMultiplierChange(clampPortion(base + delta))
     }
@@ -114,11 +118,11 @@ fun PortionMultiplierBar(
                     Modifier.padding(horizontal = 8.dp, vertical = if (compact) 3.dp else 5.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    // **寬度固定在「99.9 份」**（最寬的值）：用那串字本身撐出寬度，再把真正的
+                    // **寬度固定在「99.99 份」**（最寬的值）：用那串字本身撐出寬度，再把真正的
                     // 數字疊在正中間。寬度跟著字型與系統字體大小一起縮放，不寫死 dp；
                     // 打字時也不會一個字一個字地變寬。它看不見，也不能讓讀螢幕的人聽見。
                     Box(Modifier.clearAndSetSemantics { }) {
-                        PortionValue("99.9", compact, Color.Transparent, Color.Transparent)
+                        PortionValue("99.99", compact, Color.Transparent, Color.Transparent)
                     }
                     val shown = typing ?: formatMultiplierValue(multiplier)
                     PortionValue(
@@ -202,7 +206,4 @@ private fun StepKey(text: String, size: Dp, enabled: Boolean, onClick: () -> Uni
     }
 }
 
-internal fun formatMultiplierValue(multiplier: Double): String {
-    val rounded = (multiplier * 10).roundToInt() / 10.0
-    return if (rounded % 1.0 == 0.0) rounded.toInt().toString() else rounded.toString()
-}
+internal fun formatMultiplierValue(multiplier: Double): String = multiplier.roundTo2().asInputValue()

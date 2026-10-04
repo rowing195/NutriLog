@@ -35,8 +35,12 @@ class PortionInputTest {
         assertEquals("99", type("1", "9", "9", "9"))
     }
 
-    @Test fun secondDecimalDigitIsIgnored() {
-        assertEquals("1.2", type("1", "1", ".", "2", "5"))
+    @Test fun quarterPortionCanBeTyped() {
+        assertEquals("0.25", type("1", ".", "2", "5"))
+    }
+
+    @Test fun thirdDecimalDigitIsIgnored() {
+        assertEquals("1.25", type("1", "1", ".", "2", "5", "7"))
     }
 
     @Test fun backspaceCanEmptyTheField() {
@@ -44,8 +48,8 @@ class PortionInputTest {
     }
 
     @Test fun acceptedShapes() {
-        listOf("", "0", "7", "12", "99", "0.", "1.", "1.5", "99.9").forEach { assertTrue(it, acceptsPortionText(it)) }
-        listOf("100", "1.25", "1..", "..", "-1").forEach { assertFalse(it, acceptsPortionText(it)) }
+        listOf("", "0", "7", "12", "99", "0.", "1.", "1.5", "1.25", "99.99").forEach { assertTrue(it, acceptsPortionText(it)) }
+        listOf("100", "1.255", "1..", "..", "-1").forEach { assertFalse(it, acceptsPortionText(it)) }
     }
 
     @Test fun leavingWithBlankKeepsTheOldMultiplier() {
@@ -54,20 +58,26 @@ class PortionInputTest {
     }
 
     @Test fun leavingWithZeroGoesToTheLowerLimit() {
-        assertEquals(0.1, typedPortion("0", 2.0), 0.0)
-        assertEquals(0.1, typedPortion("0.", 2.0), 0.0)
+        assertEquals(0.01, typedPortion("0", 2.0), 0.0)
+        assertEquals(0.01, typedPortion("0.", 2.0), 0.0)
     }
 
     @Test fun leavingWithAValueUsesIt() {
         assertEquals(2.5, typedPortion("2.5", 1.0), 0.0)
+        assertEquals(0.25, typedPortion("0.25", 1.0), 0.0)
+        assertEquals(0.05, typedPortion("0.05", 1.0), 0.0)
         assertEquals(99.0, typedPortion("99", 1.0), 0.0)
         assertEquals(12.0, typedPortion("12.", 1.0), 0.0)
     }
 
-    @Test fun clampKeepsLimitsAndOneDecimal() {
-        assertEquals(0.1, clampPortion(0.0), 0.0)
+    @Test fun clampKeepsLimitsAndTwoDecimals() {
+        assertEquals(0.01, clampPortion(0.0), 0.0)
         assertEquals(99.0, clampPortion(150.0), 0.0)
         // 浮點累加的尾巴要收掉
         assertEquals(1.7, clampPortion(1.6 + 0.1), 0.0)
+        assertEquals(0.35, clampPortion(0.25 + 0.1), 0.0)
+        // 從 0.25 往下按 −0.1 兩次：停在下限，不會變成負的
+        assertEquals(0.05, clampPortion(0.15 - 0.1), 0.0)
+        assertEquals(0.01, clampPortion(0.05 - 0.1), 0.0)
     }
 }

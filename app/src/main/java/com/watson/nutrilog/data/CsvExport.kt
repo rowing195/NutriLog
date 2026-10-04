@@ -130,10 +130,20 @@ object CsvExport {
         }
     }
 
+    /**
+     * 存的是多少就寫多少，不四捨五入。營養素格可以打 0.25 g、份數可以是 0.25 份；
+     * 曾經一律寫一位小數（`%.1f`），0.25 匯出變 0.3，還原回來就跟當初記的不一樣了 ——
+     * 份數錯了的話，之後再改份數連營養素都會換算錯。
+     *
+     * 不會寫出浮點尾巴（30.800000000000004）：進資料庫的數字不是使用者打的字串，
+     * 就是縮放時已經收斂過的值（roundTo1、clampPortion）。
+     */
     private fun num(value: Double?): String = when {
         value == null -> ""
-        value % 1.0 == 0.0 -> value.toLong().toString()
-        else -> String.format(java.util.Locale.US, "%.1f", value)
+        // 手改過的 CSV 寫「NaN」也會被匯入（toDoubleOrNull 認得），BigDecimal 接不住它。
+        // 照字面寫出去，不讓整份匯出因為一格失敗。
+        !value.isFinite() -> value.toString()
+        else -> java.math.BigDecimal.valueOf(value).stripTrailingZeros().toPlainString()
     }
 
     private fun mealLabel(raw: String): String = when (raw) {

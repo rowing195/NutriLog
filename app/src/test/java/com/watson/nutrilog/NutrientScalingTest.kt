@@ -35,6 +35,42 @@ class NutrientScalingTest {
         assertEquals("", scaleServingText("", 1.0))
     }
 
+    /** 份數可以到兩位小數，份量文字也要跟著留兩位：「1 碗」× 0.25 是 0.25 碗，不是 0.3 碗。 */
+    @Test
+    fun `scaleServingText keeps quarter portions exact`() {
+        assertEquals("0.25 碗", scaleServingText("1 碗", 0.25))
+        assertEquals("0.75 碗 (187.5g)", scaleServingText("1 碗 (250g)", 0.75))
+        assertEquals("0.25 份", scaleServingText("", 0.25))
+        assertEquals("半碗 (0.25x)", scaleServingText("半碗", 0.25))
+    }
+
+    /**
+     * 重開一筆 0.75 份的紀錄時，份量文字要反推回 1 份。反推傳進去的是 1 ÷ 0.75 = 1.333…，
+     * 先把它收成 1.33 的話 187.5 g 會變成 249.38 g。
+     */
+    @Test
+    fun `reopening a three quarter portion derives the original serving text`() {
+        val saved = FoodEntry(
+            id = 7L,
+            date = "2026-10-04",
+            loggedAt = 1000L,
+            meal = "LUNCH",
+            name = "雞肉飯",
+            servingText = "0.75 碗 (187.5g)",
+            calories = 473.0,
+            proteinG = 23.1,
+            fatG = 8.3,
+            carbsG = 20.6,
+            portionMultiplier = 0.75,
+        )
+        val draft = EntryDraft.of(saved)
+
+        val base = draft.deriveBase(draft.portionMultiplier)
+
+        assertEquals("1 碗 (250g)", base.servingText)
+        assertEquals("0.25 碗 (62.5g)", draft.scaleFromBase(base, 0.25).servingText)
+    }
+
     @Test
     fun `scale on DetectedFood scales calories to integer and macros to 1 decimal place`() {
         val base = DetectedFood(

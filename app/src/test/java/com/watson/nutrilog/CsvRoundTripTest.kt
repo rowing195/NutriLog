@@ -57,6 +57,21 @@ class CsvRoundTripTest {
         assertEquals(original, parsed.entries.single().copy(id = original.id))
     }
 
+    /**
+     * 份數可以到兩位小數、營養素格的小數位數不限。曾經一律寫一位，0.25 會變 0.3 ——
+     * 份數錯了的話，還原後再改份數就換算錯。
+     */
+    @Test
+    fun `decimals beyond one place survive the round trip`() {
+        val original = entry(portionMultiplier = 0.25).copy(proteinG = 0.25, fatG = 1.125)
+        val csv = CsvExport.build(listOf(original), zone)
+        val back = CsvImport.parse(csv, zone).entries.single()
+
+        assertEquals(original, back.copy(id = original.id))
+        // 整數照舊不帶小數點，一位小數也不補 0
+        assertTrue(csv, csv.contains(",630,") && csv.contains(",27.5,"))
+    }
+
     @Test
     fun `missing extended nutrients stay null instead of becoming zero`() {
         val parsed = CsvImport.parse(CsvExport.build(listOf(entry(sugarG = null)), zone), zone)
