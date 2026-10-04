@@ -47,9 +47,15 @@
     - [四種輸入方式](#四種輸入方式)
     - [常吃頁：一個框，兩條路](#常吃頁一個框兩條路)
     - [查網路：一顆章 AI 估、一顆章 AI 查](#查網路一顆章-ai-估一顆章-ai-查)
-    - [兩家 AI 供應商：路由只管文字](#兩家-ai-供應商路由只管文字)
+    - [兩家 AI 供應商：拍照與文字各選各的](#兩家-ai-供應商拍照與文字各選各的)
     - [歷史（月曆）](#歷史月曆)
     - [搜尋與個人食物庫](#搜尋與個人食物庫)
+    - [辨識失敗：換一家再試](#辨識失敗換一家再試)
+    - [飲水：手動加減與飲料自動帶入](#飲水手動加減與飲料自動帶入)
+    - [健康連線：運動消耗加進當天的額度](#健康連線運動消耗加進當天的額度)
+    - [依身型計算每日目標](#依身型計算每日目標)
+    - [AI 週報／月報](#ai-週報月報)
+    - [App 圖示](#app-圖示)
     - [匯出／匯入 CSV](#匯出匯入-csv)
     - [Google Drive 雲端備份](#google-drive-雲端備份)
 - [設定：選單加子頁，三把 key](#設定選單加子頁三把-key)
@@ -71,22 +77,23 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 **Why NutriLog?** 市面上的飲食紀錄 app 幾乎都要你先開帳號、再把三餐上傳到別人的伺服器。
 這支不用：沒有後端、沒有帳號，紀錄全部躺在你自己的手機裡。
 
-- 🔒 **完全離線** — 唯一的對外連線是影像辨識與條碼查詢兩支公開 API，兩者都是你主動觸發才會發生。
-- 🍱 **四條輸入路徑** — 自己填數字、拍照或打一句話交給 Gemini 估、掃商品條碼查 Open Food Facts。
+- 🔒 **沒有後端、沒有帳號** — 對外連線只有你主動觸發的那幾種：AI 辨識（Gemini／OpenRouter）、「AI 查」的網路搜尋（Tavily）、條碼查詢（Open Food Facts），以及選配的 Google Drive 每日備份。
+- 🍱 **四條輸入路徑** — 自己填數字、拍照或打一句話交給 AI 估（Gemini 或 OpenRouter）、掃商品條碼查 Open Food Facts。
 - 🔎 **先搜自己吃過的，容錯** — 中文沒有空白可拆詞，改用單字＋相鄰兩字加權比對：「烤肉」找得到「煎烤豬肉排／五花肉」，而「咖啡」不會撈到咖哩飯。
 - 🌐 **需要的時候才上網查** —— 打了店名就按「AI 查」，它先去找該店公布的官方營養標示再算；平常按「AI 估」就好。**要不要查是你按的，不是模型猜的。**
-- 🔢 **五段雙速份數縮放** — 支援 `±1` 與 `±0.1` 步進，自動縮放公克/毫升/份量文字與所有營養素，具備基準持久化無損還原。
+- 🔢 **五段雙速份數縮放** — 支援 `±1` 與 `±0.1` 步進，也可以直接打字（最多兩位小數，0.25 份打得進去），自動縮放公克/毫升/份量文字與所有營養素，具備基準持久化無損還原。
 - 📰 **「紙與墨」出版物排版美學** — 內嵌 jf open 粉圓中文與 Neucha 手寫數字、自繪精準向量圖示、形狀即層級，無任何預設 Material 容器與色塊。
 - 🔁 **辨識失敗就地換一家** — 失敗時面板從底下升上來：選供應商、挑模型、按重試，不用跑一趟設定頁再回來。選完的值就是設定裡的值。
 - ✅ **AI 的數字一律要你點頭** — 模型給的是估算值，一定先經過確認畫面才入庫。
 - ⌚ **手錶動得多就能多吃一點** — 連上健康連線之後，運動消耗會加進**當天的目標**（不是從吃掉的裡面扣），今日頁、週長條、月曆判斷超標時全部改用加上運動後的額度。預設只回補一半，因為手錶估的熱量普遍偏高。
-- 🧮 **依身型算目標** — 填身高體重與活動量，用 Mifflin-St Jeor 算出基礎代謝、每日消耗與建議的三大營養素。**蛋白質跟著活動量走**，久坐的人不會拿到運動員的數字。
+- 🧮 **依身型算目標** — 填身高體重與活動量，用 Mifflin-St Jeor 算出基礎代謝、每日消耗與建議的三大營養素。**蛋白質只看體態目標**（減脂 1.6、維持 1.4、增肌 1.8 g/kg），活動量只影響熱量。
+- 📏 **改目標不會改寫過去** — 每天的目標會留一份快照，改了熱量目標之後，以前的日子還是照當時的標準判斷超標。
 - 💧 **喝的也算數** — 今日頁營養素底下一排加減鍵（一次 50 ml）記白開水，而飲料的水量跟著那一筆紀錄走：AI 估飲料時會一併給出容量，喝完就自動進當天的飲水量。
 - 🗒️ **AI 週報／月報** — 每週每月的統計是本機算的、隨時看得到；要不要花一次 AI 呼叫請它寫成報告，由你按下去決定，不會自動送出。
-- 🎨 **換 app 圖示** — 設定 → 外觀可以從七款內建圖示裡挑一款，桌面上的圖示跟著換。
+- 🎨 **換 app 圖示** — 設定 → 外觀可以從八款內建圖示裡挑一款，桌面上的圖示跟著換。
 - 📅 **看得出空白** — 月曆式歷史讓「哪幾天忘了記」一眼就有形狀，清單做不到這件事。
-- 📤 **CSV 匯出** — 唯一能把資料帶出手機的路徑，定位是完整備份，預設全部匯出。
-- 🔑 **權限只有一個** — Manifest 裡只有 `INTERNET`，相機在系統相機與 Play 服務中執行，連相機權限都不需要。
+- 📤 **CSV 匯出／匯入** — 完整備份的格式：本地匯出與 Drive 每日備份用的都是同一份 CSV，數字照存的值原樣寫，換手機可以無損接回。
+- 🔑 **不需要相機權限** — 拍照交給系統相機、掃碼交給 Play 服務。Manifest 只有 `INTERNET` 與 Health 連線的讀寫權限，後者要你在系統畫面同意才會生效。
 
 ---
 
@@ -99,10 +106,10 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 | 📄 | **文件** | <ul><li>README（本檔）＋ `CLAUDE.md`（環境與慣例）</li><li>踩過的坑與設計考量寫在原地註解裡，不另開 wiki</li></ul> |
 | 🔌 | **整合** | <ul><li>Google Gemini（照片／文字結構化輸出辨識）</li><li>OpenRouter（另一家供應商，照片與文字可各自切換）</li><li>Tavily（「AI 查」的網路搜尋來源）</li><li>Google Drive（每日自動備份，僅 <code>drive.file</code> 範圍）</li><li>Open Food Facts（條碼營養資訊查詢）</li><li>Health Connect（讀運動消耗，選配寫入飲食）</li><li>Play 服務 Code Scanner（免相機權限掃描 UI）</li><li>GitHub Actions 推 tag 自動發佈 Release APK</li></ul> |
 | 🧩 | **模組化** | <ul><li>`data/db` Room、`data/net` 外部 API、`ui` 畫面、`ui/theme` 色票與字階</li><li>`PortionMultiplier` 份數縮放與無損還原演算法</li><li>`CsvExport` / `CsvImport` 是純函式、不碰 Android API</li><li>`BmrCalculator`、`ActivityEstimate` 與兩支 `*Aggregator` 同樣是純計算，測試不必開模擬器</li><li>`DriveClient` 手寫 REST，不引官方 Drive client 函式庫</li></ul> |
-| 🧪 | **測試** | <ul><li>JUnit 單元測試套件共 70 條（`NutrientScalingTest`、`CsvRoundTripTest`、`DriveBackupPruneTest`、`FoodLibraryMatchTest`、`BackupScheduleTest`、`ActivityEstimateTest`、`BackedUpProfileTest`、`BmrCalculatorTest`、`CalorieTargetTest`、`WaterCsvTest`）驗證份數縮放無損計算、CSV 匯出／匯入來回一致、雲端備份保留規則、食物庫模糊比對、兩種手錶配戴方式各採用哪種活動資料、運動熱量的回補比例、備份白名單不含金鑰與身型目標的營養素配比、飲水的兩個來源在 CSV 來回之後仍然分得開</li><li>`tools/ui.ps1` 提供依元件文字定位的手動 UI 自動化驗證</li><li>核心回歸清單：新增→編輯→刪除、換日滑動無跳躍、force-stop 狀態持久化、一次滑動剛好只換一天／一週／一個月</li></ul> |
+| 🧪 | **測試** | <ul><li>JUnit 單元測試 14 支共 98 條（`NutrientScalingTest`、`PortionInputTest`、`CsvRoundTripTest`、`WaterCsvTest`、`DriveBackupPruneTest`、`BackupScheduleTest`、`BackedUpProfileTest`、`FoodLibraryMatchTest`、`ActivityEstimateTest`、`CalorieTargetTest`、`BmrCalculatorTest`、`HydrationRecordTest`、`ImageLimitTest`、`PhotoPromptTest`）驗證份數縮放與兩位小數輸入、CSV 匯出／匯入來回一致、雲端備份保留規則、食物庫模糊比對、兩種手錶配戴方式各採用哪種活動資料與步數只算超出久坐的部分、運動熱量的回補比例、備份白名單不含金鑰與身型目標的營養素配比、飲水的兩個來源在 CSV 來回之後仍然分得開、寫進 Health 連線的飲水紀錄、照片大小上限與烹調備註</li><li>`tools/ui.ps1` 提供依元件文字定位的手動 UI 自動化驗證</li><li>核心回歸清單：新增→編輯→刪除、換日滑動無跳躍、force-stop 狀態持久化、一次滑動剛好只換一天／一週／一個月</li></ul> |
 | ⚡️ | **效能** | <ul><li>每日／每月合計由 SQL `GROUP BY` 算，不把明細撈進記憶體</li><li>相片長邊壓到 1024 px 才送出，節省流量與辨識延遲</li><li>全 app 共用一個 `OkHttpClient` 連線池</li><li>條碼結果存 Room 本機快取</li></ul> |
-| 🛡️ | **安全** | <ul><li>只有 `INTERNET` 權限</li><li>三家的 API key（Gemini／OpenRouter／Tavily）都存 DataStore，**不編進 APK**</li><li>key 走 `x-goog-api-key` header 而非 query string</li><li>`keystore.properties` 與 `release.jks` 都在 gitignore</li></ul> |
-| 📦 | **相依** | <ul><li>Room、DataStore、OkHttp、kotlinx-serialization、play-services-code-scanner、androidx.health.connect</li><li>刻意不用 Retrofit —— 只有兩支端點，手寫維持最精簡依賴</li></ul> |
+| 🛡️ | **安全** | <ul><li>不宣告相機與儲存權限；除了 `INTERNET` 只有 Health 連線的讀寫權限，要使用者在系統畫面同意才生效</li><li>三家的 API key（Gemini／OpenRouter／Tavily）都存 DataStore，**不編進 APK**</li><li>key 一律走 header（Gemini 是 `x-goog-api-key`，其餘是 `Authorization: Bearer`）而非 query string</li><li>`keystore.properties` 與 `release.jks` 都在 gitignore</li></ul> |
+| 📦 | **相依** | <ul><li>Room、DataStore、OkHttp、kotlinx-serialization、WorkManager、play-services-code-scanner、play-services-auth、androidx.health.connect</li><li>刻意不用 Retrofit —— 五個外部服務各自只用到一兩支端點，手寫 OkHttp 維持最精簡依賴</li></ul> |
 | 🚀 | **擴充性** | <ul><li>Room 關聯式儲存，`date` 建立索引優化查詢</li><li>新增 `NutriSettings` 欄位一律給預設值，舊資料靠預設值相容</li><li>新增 Room 欄位提供清楚 migration 升級路徑</li></ul> |
 
 ---
@@ -140,6 +147,8 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
     │       │   │   │   ├── db/
     │       │   │   │   │   ├── CachedProduct.kt
     │       │   │   │   │   ├── DailyHealthMetric.kt
+    │       │   │   │   │   ├── DailyTarget.kt
+    │       │   │   │   │   ├── DailyWater.kt
     │       │   │   │   │   ├── FoodEntry.kt
     │       │   │   │   │   ├── FoodSuggestion.kt
     │       │   │   │   │   ├── NutriDao.kt
@@ -163,41 +172,58 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
     │       │   │       ├── EditEntryScreen.kt
     │       │   │       ├── ExerciseDetailSheet.kt
     │       │   │       ├── HistoryScreen.kt
+    │       │   │       ├── NumberKeypad.kt
     │       │   │       ├── NutriViewModel.kt
+    │       │   │       ├── PhotoConfirmationDialog.kt
     │       │   │       ├── PortionMultiplier.kt
+    │       │   │       ├── ProviderSwitchSheet.kt
     │       │   │       ├── ReportScreen.kt
     │       │   │       ├── ReviewScreen.kt
     │       │   │       ├── SearchScreen.kt
     │       │   │       ├── SettingsScreen.kt
     │       │   │       ├── TextLookupScreen.kt
     │       │   │       ├── TodayScreen.kt
+    │       │   │       ├── WaterDetailSheet.kt
     │       │   │       └── theme/
     │       │   │           └── Theme.kt
     │       │   └── res/
+    │       │       ├── drawable/
     │       │       ├── font/
     │       │       │   ├── jf_open_huninn.ttf
     │       │       │   └── neucha.ttf
+    │       │       ├── mipmap-*/
     │       │       ├── values/
     │       │       │   ├── colors.xml
+    │       │       │   ├── ic_launcher_background.xml
     │       │       │   ├── strings.xml
     │       │       │   └── themes.xml
-    │       │       └── values-night/
-    │       │           └── colors.xml
+    │       │       ├── values-night/
+    │       │       │   └── colors.xml
+    │       │       └── xml/
+    │       ├── debug/
+    │       │   └── res/values/strings.xml
     │       └── test/
     │           └── java/com/watson/nutrilog/
     │               ├── ActivityEstimateTest.kt
-    │               ├── CalorieTargetTest.kt
-    │               ├── WaterCsvTest.kt
     │               ├── BackedUpProfileTest.kt
     │               ├── BackupScheduleTest.kt
     │               ├── BmrCalculatorTest.kt
+    │               ├── CalorieTargetTest.kt
     │               ├── CsvRoundTripTest.kt
     │               ├── DriveBackupPruneTest.kt
     │               ├── FoodLibraryMatchTest.kt
-    │               └── NutrientScalingTest.kt
+    │               ├── HydrationRecordTest.kt
+    │               ├── ImageLimitTest.kt
+    │               ├── NutrientScalingTest.kt
+    │               ├── PhotoPromptTest.kt
+    │               ├── PortionInputTest.kt
+    │               └── WaterCsvTest.kt
     ├── design/
-    │   ├── canvas.json
+    │   ├── Budget.dc.html
+    │   ├── Journal.dc.html
     │   ├── Main.dc.html
+    │   ├── Refined.dc.html
+    │   ├── canvas.json
     │   └── v2/
     ├── gradle/
     │   ├── libs.versions.toml
@@ -209,7 +235,9 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
     │   └── ui.ps1
     ├── build.gradle.kts
     ├── settings.gradle.kts
+    ├── AGENTS.md
     ├── CLAUDE.md
+    ├── LICENSE
     └── README.md
 ```
 
@@ -241,6 +269,10 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/CLAUDE.md'>CLAUDE.md</a></b></td>
 					<td style='padding: 8px;'>這台機器的環境設定與專案慣例：建置指令、模擬器規則、配色與「紙與墨」版面語言、回歸清單。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/AGENTS.md'>AGENTS.md</a></b></td>
+					<td style='padding: 8px;'>給 Codex 的摘要：本機 Android SDK、模擬器路徑與驗證流程。詳細內容以 `CLAUDE.md` 為準，這裡不整份複製。</td>
 				</tr>
 			</table>
 		</blockquote>
@@ -280,7 +312,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 			</thead>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/ActivityEstimate.kt'>ActivityEstimate.kt</a></b></td>
-					<td style='padding: 8px;'>把健康連線回報的東西換算成「今天動掉多少大卡」。<br>- 只認活動消耗與運動場次，要用哪一種看手錶配戴方式。<br>- 讀不到就回 NONE 並附原因，不生猜測值（總消耗扣基礎代謝、步數換算都已移除）。<br>- 純計算，有測試涵蓋。</td>
+					<td style='padding: 8px;'>把健康連線回報的東西換算成「今天動掉多少大卡」。<br>- 活動消耗、運動場次、步數三種來源，要用哪一種看手錶配戴方式：活動消耗有被採用（整天配戴）時步數不參與。<br>- 步數只算**超出久坐基準**的那一段，運動場次裡的步數先扣掉，不然同一批熱量會算兩次。<br>- 讀不到就回 NONE 並附原因，「讀不到」和「讀到了但沒超出」分開講；不拿總消耗扣基礎代謝生猜測值。<br>- 純計算，有測試涵蓋。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/AppIconSwitcher.kt'>AppIconSwitcher.kt</a></b></td>
@@ -292,7 +324,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/BmrCalculator.kt'>BmrCalculator.kt</a></b></td>
-					<td style='padding: 8px;'>Mifflin-St Jeor 基礎代謝與每日目標、三大營養素、各餐配比。<br>- 蛋白質跟著活動量走（1.0–1.8 g/kg，減脂與增肌各 +0.2、封頂 2.0）。<br>- 碳水固定 55%、脂肪吃差額，脂肪守住 20% 下限。<br>- 算出來的只是建議，按「套用」才寫進設定。</td>
+					<td style='padding: 8px;'>Mifflin-St Jeor 基礎代謝與每日目標、三大營養素、各餐配比。<br>- 蛋白質只看體態目標（減脂 1.6、維持 1.4、增肌 1.8 g/kg），不受活動量與手錶設定影響。<br>- 有在讀運動消耗時，熱量的底退到久坐係數，運動由手錶另外補。<br>- 碳水固定 55%、脂肪吃差額，脂肪守住 20% 下限。<br>- 算出來的只是建議，按「套用」才寫進設定。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/CsvExport.kt'>CsvExport.kt</a></b></td>
@@ -355,6 +387,14 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 					<td style='padding: 8px;'>每日運動消耗的本機快取（migration 2→3 新增）。<br>- 週長條與月曆一打開就要用，不能等健康連線慢慢回。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/db/DailyTarget.kt'>DailyTarget.kt</a></b></td>
+					<td style='padding: 8px;'>每一天當時的四格目標快照（migration 3→4 新增）。<br>- 過去的日子用過去的標準判斷超標：今天每次設定變動都覆寫，過去的碰都不碰。<br>- 沒有快照的日子退回目前的設定，舊紀錄的行為和以前一樣。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/db/DailyWater.kt'>DailyWater.kt</a></b></td>
+					<td style='padding: 8px;'>每天手動加減的飲水量（migration 4→5 新增）。<br>- 和飲料自己帶的水（`FoodEntry.waterMl`）分開存：白開水不在紀錄清單長出 0 大卡的列，飲料刪掉水量也跟著消失。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/db/FoodEntry.kt'>FoodEntry.kt</a></b></td>
 					<td style='padding: 8px;'>一筆吃下去的飲食紀錄實體，包含份數倍率 `portionMultiplier`、延伸四項營養素與全天合計 `Totals`。日期以本地 YYYY-MM-DD 字串儲存。</td>
 				</tr>
@@ -372,7 +412,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/db/NutriDatabase.kt'>NutriDatabase.kt</a></b></td>
-					<td style='padding: 8px;'>Room 資料庫單例與 Migrations。</td>
+					<td style='padding: 8px;'>Room 資料庫單例與 Migrations（目前第 5 版，1→2 到 4→5 四段）。</td>
 				</tr>
 			</table>
 		</blockquote>
@@ -404,7 +444,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/net/ImageCompressor.kt'>ImageCompressor.kt</a></b></td>
-					<td style='padding: 8px;'>將原始照片等比例縮放到長邊 1024 px 並壓為 base64 JPEG，大幅降低頻寬與延遲。</td>
+					<td style='padding: 8px;'>將原始照片等比例縮放到長邊 1024 px 並壓為 base64 JPEG，大幅降低頻寬與延遲。<br>- 解碼前先只讀檔頭檢查大小上限（2.5 億畫素、30 MB），擋掉會把記憶體撐爆的檔案。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/net/SharedHttp.kt'>SharedHttp.kt</a></b></td>
@@ -412,7 +452,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/net/OpenRouterClient.kt'>OpenRouterClient.kt</a></b></td>
-					<td style='padding: 8px;'>文字辨識的另一家供應商（**只做文字**，拍照永遠走 Gemini）。<br>- 以**強制函式呼叫**（`tool_choice`）鎖住 JSON，而不是 `response_format` —— 想用的免費模型不支援後者。<br>- 錯誤碼比 Gemini 多一種：**402 是餘額不足**（免費模型也需要帳號裡有額度）。</td>
+					<td style='padding: 8px;'>另一家供應商，拍照、文字辨識與報告都能選它。<br>- 拍照用 OpenAI 格式的 `image_url`（data URI）把圖片帶進去；拍照的模型另外一欄，沒填就直接擋下來，不拿文字那個純文字模型去送圖片。<br>- 以**強制函式呼叫**（`tool_choice`）鎖住 JSON，而不是 `response_format` —— 想用的免費模型不支援後者。<br>- 錯誤碼比 Gemini 多一種：**402 是餘額不足**（免費模型也需要帳號裡有額度）。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/net/TavilyClient.kt'>TavilyClient.kt</a></b></td>
@@ -452,11 +492,23 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/PortionMultiplier.kt'>PortionMultiplier.kt</a></b></td>
-					<td style='padding: 8px;'>五段純數字雙速步進列（`±1` 與 `±0.1` 圓章按鍵），中間顯示倍率與襯線數字，支援基線對齊與無損還原。</td>
+					<td style='padding: 8px;'>五段純數字雙速步進列（`±1` 與 `±0.1` 圓章按鍵），中間那格可以直接打字（0.01～99、最多兩位小數），支援無損還原。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/EditEntryScreen.kt'>EditEntryScreen.kt</a></b></td>
-					<td style='padding: 8px;'>共用飲食編輯表單：2×2 核心營養素網格、自繪圓章數字鍵盤（避免擋住儲存鈕）、份數縮放步進列、折疊進階營養素與熱量交叉檢驗。</td>
+					<td style='padding: 8px;'>共用飲食編輯表單：熱量滿版一格＋三大營養素橫排三格＋水量、自繪圓章數字鍵盤（避免擋住儲存鈕）、份數縮放步進列、折疊進階營養素與熱量交叉檢驗。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/NumberKeypad.kt'>NumberKeypad.kt</a></b></td>
+					<td style='padding: 8px;'>自繪數字鍵盤，編輯表單與 AI 確認頁共用。<br>- 從螢幕底下推上來，上面的表單同時跟著變矮；收起時原路退回。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/PhotoConfirmationDialog.kt'>PhotoConfirmationDialog.kt</a></b></td>
+					<td style='padding: 8px;'>拍完或選完照片後的確認頁：先看一眼照片、可以加一句烹調備註（例如「水煮、沒加油」），按送出才去辨識。<br>- 太大的照片（超過 2.5 億畫素或 30 MB）在這裡就擋下來，不會解碼到一半閃退。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/ProviderSwitchSheet.kt'>ProviderSwitchSheet.kt</a></b></td>
+					<td style='padding: 8px;'>辨識失敗時從底下升上來的面板：換一家、換個模型，再按重試。<br>- 改的就是設定裡的那幾個欄位，拍照與文字各改各的。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/ReportScreen.kt'>ReportScreen.kt</a></b></td>
@@ -468,15 +520,19 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/SearchScreen.kt'>SearchScreen.kt</a></b></td>
-					<td style='padding: 8px;'>搜尋與個人食物庫（90 天常吃／最近兩頁切換，即時多關鍵字全文搜尋，點擊直接進入編輯表單）。</td>
+					<td style='padding: 8px;'>搜尋與個人食物庫（90 天常吃／最近兩頁切換，即時多關鍵字全文搜尋，不限筆數、幾年前的紀錄也找得到，點擊直接進入編輯表單）。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/TextLookupScreen.kt'>TextLookupScreen.kt</a></b></td>
-					<td style='padding: 8px;'>常吃食物快捷與自然語言文字描述 AI 辨識合成頁面。</td>
+					<td style='padding: 8px;'>常吃食物快捷與自然語言文字描述 AI 辨識合成頁面。<br>- 沒打字時列常吃／最近各 60 種，一打字就改篩所有吃過的品項。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/ExerciseDetailSheet.kt'>ExerciseDetailSheet.kt</a></b></td>
-					<td style='padding: 8px;'>今日頁「運動 +350 ›」點開的明細。<br>- 講清楚數字的來源（全日活動消耗與單場運動涵蓋範圍不同）。<br>- 列出吃了、動了、淨攝取，以及今天的目標是怎麼加出來的。</td>
+					<td style='padding: 8px;'>今日頁「運動 +350 ›」點開的明細。<br>- 講清楚數字的來源（全日活動消耗、單場運動與步數涵蓋範圍不同）。<br>- 走路那一列就算加進目標的是 0 也會列出來，回答「我明明有走，為什麼是 +0」。<br>- 列出吃了、動了、淨攝取，以及今天的目標是怎麼加出來的。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/WaterDetailSheet.kt'>WaterDetailSheet.kt</a></b></td>
+					<td style='padding: 8px;'>今日頁點飲水量打開的明細：這個數字是哪幾杯飲料、再加上手動按了多少。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/HistoryScreen.kt'>HistoryScreen.kt</a></b></td>
@@ -488,7 +544,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/SettingsScreen.kt'>SettingsScreen.kt</a></b></td>
-					<td style='padding: 8px;'>外觀模式（系統/淺色/深色）、Gemini API Key 與模型攤開圈選（刻意不用下拉選單）、每日營養目標數字欄位、進階營養素開關與 CSV 備份匯出。</td>
+					<td style='padding: 8px;'>設定的選單與七個子頁：外觀（深淺模式、App 圖示）、每日目標（含依身型計算、進階營養素開關、運動熱量回補）、Health 連線、API 管理（三把 key、各條路走哪一家、模型攤開圈選而不用下拉選單）、雲端備份、本地資料管理（CSV 匯出／匯入）、關於。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/BmrCalculatorDialog.kt'>BmrCalculatorDialog.kt</a></b></td>
@@ -556,11 +612,19 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 			</thead>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/test/java/com/watson/nutrilog/NutrientScalingTest.kt'>NutrientScalingTest.kt</a></b></td>
-					<td style='padding: 8px;'>單元測試：驗證份量文字縮放、DetectedFood 營養素等比計算、EntryDraft 基準導出與還原無損計算。</td>
+					<td style='padding: 8px;'>單元測試：驗證份量文字縮放（含 0.25、0.75 份）、DetectedFood 營養素等比計算、EntryDraft 基準導出與還原無損計算。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/test/java/com/watson/nutrilog/PortionInputTest.kt'>PortionInputTest.kt</a></b></td>
+					<td style='padding: 8px;'>份數格直接打字的規則：整數最多兩位、小數最多兩位、超出的那一下無效、0 收到下限 0.01、空白維持原本的倍率。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/test/java/com/watson/nutrilog/ActivityEstimateTest.kt'>ActivityEstimateTest.kt</a></b></td>
-					<td style='padding: 8px;'>兩種配戴方式各自該採用哪一種資料、讀不到時不生猜測值。</td>
+					<td style='padding: 8px;'>兩種配戴方式各自該採用哪一種資料、步數只算超出久坐額度的那一段（運動場次裡的步數要扣掉）、讀不到時不生猜測值。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/test/java/com/watson/nutrilog/CalorieTargetTest.kt'>CalorieTargetTest.kt</a></b></td>
+					<td style='padding: 8px;'>「今天可以吃多少」：運動熱量照回補比例加進目標，沒動的日子就是目標本身。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/test/java/com/watson/nutrilog/BackedUpProfileTest.kt'>BackedUpProfileTest.kt</a></b></td>
@@ -568,11 +632,11 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/test/java/com/watson/nutrilog/BmrCalculatorTest.kt'>BmrCalculatorTest.kt</a></b></td>
-					<td style='padding: 8px;'>蛋白質跟著活動量走、封頂 2.0、碳水固定 55%、脂肪 20% 下限。<br>- 其中一條專釘「久坐與高活動量不能算出同一個數字」。</td>
+					<td style='padding: 8px;'>蛋白質依體態目標固定倍率、不受活動量與手錶影響；交給手錶量時熱量用久坐係數；碳水固定 55%、脂肪 20% 下限。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/test/java/com/watson/nutrilog/CsvRoundTripTest.kt'>CsvRoundTripTest.kt</a></b></td>
-					<td style='padding: 8px;'>單元測試：CSV 匯出→匯入來回逐欄一致、逗號／引號／換行跳脫、缺資料維持 null、舊版欄位相容、去重鍵與壞資料列跳過。</td>
+					<td style='padding: 8px;'>單元測試：CSV 匯出→匯入來回逐欄一致（兩位以上的小數也不掉）、逗號／引號／換行跳脫、缺資料維持 null、舊版欄位相容、去重鍵與壞資料列跳過。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/test/java/com/watson/nutrilog/DriveBackupPruneTest.kt'>DriveBackupPruneTest.kt</a></b></td>
@@ -580,7 +644,27 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/test/java/com/watson/nutrilog/FoodLibraryMatchTest.kt'>FoodLibraryMatchTest.kt</a></b></td>
-					<td style='padding: 8px;'>單元測試：食物庫的模糊比對 —— 描述比庫裡更細仍找得到、名稱裡被拆開的詞仍找得到、只共用一個字不算命中、整串命中排在近似之前。</td>
+					<td style='padding: 8px;'>單元測試：食物庫的模糊比對 —— 描述比庫裡更細仍找得到、名稱裡被拆開的詞仍找得到、只共用一個字不算命中、整串命中排在近似之前、精選清單裝不下的舊品項打字仍找得到。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/test/java/com/watson/nutrilog/BackupScheduleTest.kt'>BackupScheduleTest.kt</a></b></td>
+					<td style='padding: 8px;'>每日備份對齊到凌晨 3 點的延遲計算。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/test/java/com/watson/nutrilog/WaterCsvTest.kt'>WaterCsvTest.kt</a></b></td>
+					<td style='padding: 8px;'>飲水的兩個來源（飲料的水量、手動加減）在 CSV 來回一趟之後仍然分得開，只喝水沒吃東西的日子也保得住。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/test/java/com/watson/nutrilog/HydrationRecordTest.kt'>HydrationRecordTest.kt</a></b></td>
+					<td style='padding: 8px;'>寫進 Health 連線的飲水紀錄：一天一筆（`nutrilog_water_<日期>`）、改了就用同一個 id 加新版號蓋過去，0／負數／未來的日子不寫，日期邊界跨日光節約時間也對。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/test/java/com/watson/nutrilog/ImageLimitTest.kt'>ImageLimitTest.kt</a></b></td>
+					<td style='padding: 8px;'>照片大小上限：手機拍的兩億畫素照片照樣通過、剛好在上限通過、超過一個位元組或一個像素就擋下、讀不到檔頭的另外講。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/test/java/com/watson/nutrilog/PhotoPromptTest.kt'>PhotoPromptTest.kt</a></b></td>
+					<td style='padding: 8px;'>照片確認頁的烹調備註：不填也能直接辨識，填了就完整接在照片指示後面。</td>
 				</tr>
 			</table>
 		</blockquote>
@@ -609,6 +693,10 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/tools/setup-signing.sh'>setup-signing.sh</a></b></td>
 					<td style='padding: 8px;'>一次性正式發佈簽章金鑰設定精靈（產金鑰 → 驗指紋 → 設 GitHub Secrets）。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/tools/setup-google-drive.sh'>setup-google-drive.sh</a></b></td>
+					<td style='padding: 8px;'>一次性 Google Drive 備份設定精靈：在 Google Cloud 建 OAuth client，debug 與 release 兩組簽章 SHA-1 各一個。</td>
 				</tr>
 			</table>
 		</blockquote>
@@ -672,6 +760,8 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 
 APK 產出於 `app/build/outputs/apk/debug/app-debug.apk`。
 
+debug 版的套件名是 `com.watson.nutrilog.debug`、名稱是「肥胖日記 測試版」，可以和正式版同時裝在同一支手機上，互不影響資料。
+
 若本地無 `keystore.properties`，Gradle 將自動退回 debug 簽章以確保可順利編譯。
 
 正式簽章的 `release.jks` 與 `keystore.properties` 的四個值備份在 KeePassXC 資料庫的「NutriLog 簽章金鑰」項目，這把金鑰只有本專案使用。GitHub Secrets 裡的值無法取回，換電腦時請從 KeePassXC 取出 `release.jks` 放回專案根目錄，並照項目內容重建 `keystore.properties`。
@@ -705,6 +795,11 @@ Windows 平台可使用隨附腳本：
 - 份量字串縮放演算法（克、毫升、碗、份）
 - `DetectedFood` 浮點營養素精確度與可空欄位保持
 - `EntryDraft` 基準值導出與無損還原（避免浮點進位累積漂移）
+- 四分之一份：「1 碗」× 0.25 是 0.25 碗而不是 0.3 碗；重開 0.75 份的紀錄能反推回 1 份
+
+[`PortionInputTest.kt`](app/src/test/java/com/watson/nutrilog/PortionInputTest.kt)
+- 份數格直接打字：整數最多兩位、小數最多兩位，超出的那一下無效（不讓人先看到 150 再跳回 99）
+- 離開格子時：空白維持原本的倍率、0 收到下限 0.01、浮點累加的尾巴收掉
 
 [`DriveBackupPruneTest.kt`](app/src/test/java/com/watson/nutrilog/DriveBackupPruneTest.kt)
 - 雲端備份的 30 天保留規則：只刪自己產生的日期檔、跨月跨年排序正確、使用者自行放入的檔案一律不動
@@ -715,21 +810,27 @@ Windows 平台可使用隨附腳本：
 - 名稱裡被拆開的詞仍找得到（「烤肉」→「煎烤豬肉排／五花肉」）
 - 只共用一個字不算命中（「咖啡」不會撈到「咖哩飯」）
 - 整串命中一定排在近似命中之前，篩掉不相干的並依相符程度排序
+- 精選清單（常吃／最近各 60 種）裝不下的舊品項，打字時兩頁都找得到；沒打字時精選清單原樣不動
 
 [`BackupScheduleTest.kt`](app/src/test/java/com/watson/nutrilog/BackupScheduleTest.kt)
 - 每日備份對齊到凌晨 3 點的延遲計算（跨日、剛好 3 點、深夜與傍晚各一種）
 - 這一項是純函式，因為它決定了「每一個日期檔是不是前一天結束時的完整狀態」
 
 [`BmrCalculatorTest.kt`](app/src/test/java/com/watson/nutrilog/BmrCalculatorTest.kt)
-- 蛋白質的每公斤克數跟著活動量走（久坐 1.0 → 非常高 1.8），減脂與增肌各再加 0.2、封頂 2.0
-- 同一個目標下，久坐與高活動量**不能**算出一樣的數字（舊版的固定倍率就是這樣壞的）
+- 蛋白質依體態目標固定倍率（減脂 1.6、維持 1.4、增肌 1.8 g/kg），所有活動量、手錶開或關都一樣
+- 交給手錶量運動時，熱量的底退到久坐係數；久坐的人不管誰量都是同一個熱量
 - 碳水固定佔 55%、脂肪吃差額；蛋白質高到塞不下時讓位的是碳水，脂肪守住 20% 下限
 - 三大營養素加起來等於目標熱量
 
 [`ActivityEstimateTest.kt`](app/src/test/java/com/watson/nutrilog/ActivityEstimateTest.kt)
-- 整天配戴：採用全日活動消耗，運動場次比它多時改用場次
-- 只有運動時戴：只採用運動場次，全日活動消耗再大也不算（它只涵蓋戴著的那幾小時）
-- 兩種都讀不到時是 0，而且說得出原因；步數照樣帶回來但不換算成大卡
+- 整天配戴：採用全日活動消耗，運動場次比它多時改用場次；活動消耗有被採用時步數不參與
+- 只有運動時戴：只採用運動場次，全日活動消耗再大也不算（它只涵蓋戴著的那幾小時），也不能擋掉步數
+- 步數只算超出久坐額度的那一段（額度要扣掉食物熱效應），運動場次裡的步數先扣掉
+- 讀不到時是 0 並說得出原因；步數沒超出額度時原因要說「沒超出」，不是「讀不到」
+
+[`CalorieTargetTest.kt`](app/src/test/java/com/watson/nutrilog/CalorieTargetTest.kt)
+- 運動熱量照回補比例加進目標（預設一半，可以調到全額），沒動的日子就是目標本身
+- 沒在讀運動消耗時原樣返回；目標是 0 不會因為運動變成有目標
 
 [`BackedUpProfileTest.kt`](app/src/test/java/com/watson/nutrilog/BackedUpProfileTest.kt)
 - 備份的身型 JSON 是白名單：**裡面不會出現任何 API key**
@@ -741,6 +842,22 @@ Windows 平台可使用隨附腳本：
 - 缺資料維持 `null` 而不是變成 0
 - 舊版（少「記錄時間」「份數倍率」兩欄）的匯出檔仍可匯入
 - 去重鍵：同一筆重複匯入會撞在一起，但同名不同時間的兩筆不會
+- 數字照存的值原樣寫：0.25 份、0.25 g、1.125 g 匯出再匯入都不變，整數照舊不帶小數點
+
+[`WaterCsvTest.kt`](app/src/test/java/com/watson/nutrilog/WaterCsvTest.kt)
+- 飲料的水量是每一列的欄位，來回一趟不變；沒有水量的食物匯回來還是 `null`
+- 手動飲水走自己的列，不會變成一筆沒名字的食物；只喝水沒吃東西的日子也保得住
+
+[`HydrationRecordTest.kt`](app/src/test/java/com/watson/nutrilog/HydrationRecordTest.kt)
+- 寫進 Health 連線的飲水一天一筆，改了用同一個 id 加新版號蓋過去
+- 0、負數、未來的日子不寫；過去的日子照當地的日期邊界，跨日光節約時間也對
+
+[`ImageLimitTest.kt`](app/src/test/java/com/watson/nutrilog/ImageLimitTest.kt)
+- 手機拍的兩億畫素照片照樣通過，剛好在上限也通過
+- 超過 30 MB 一個位元組、或超過 2.5 億畫素一個像素就擋下；讀不到檔頭的另外講
+
+[`PhotoPromptTest.kt`](app/src/test/java/com/watson/nutrilog/PhotoPromptTest.kt)
+- 照片確認頁的烹調備註不填也能直接辨識，填了就完整接在照片指示後面
 
 UI 部分使用 [`tools/ui.ps1`](tools/ui.ps1) 依元件文字進行模擬器自動化操作：
 
@@ -771,6 +888,7 @@ UI 部分使用 [`tools/ui.ps1`](tools/ui.ps1) 依元件文字進行模擬器自
 
 - 份數範圍為 **0.01～99 份、最多兩位小數**（可以打 0.25、0.75），辨識結果確認頁與手動編輯共用相同上限。
 - **五段純數字雙速步進列**：提供 `−1`、`−0.1`、`+0.1`、`+1` 四顆自繪圓章按鍵，中間展示當前倍率與襯線數字。
+- **中間那格也能直接打字**：點下去跳出自繪數字鍵盤，打字時整張表單的數字不動，**離開這格才換算** —— 不會打到一半就看到熱量亂跳。
 - **基準值持久化與無損還原**：
   - 資料庫記錄 `portionMultiplier`。
   - 編輯已放大紀錄時，系統以 `deriveBase` 精確逆推原始 1.0x 基準，避免多次縮放產生的浮點數捨入漂移。
@@ -782,9 +900,9 @@ UI 部分使用 [`tools/ui.ps1`](tools/ui.ps1) 依元件文字進行模擬器自
 
 | 方式 | 運作流程 |
 |---|---|
-| **輸入營養素** | 2×2 核心營養素網格，搭配自繪圓章數字鍵盤與份數步進列，完全避免系統鍵盤遮擋儲存鈕問題。 |
-| **拍照辨識** | 拍照或自相簿選取 → 壓縮長邊至 1024 px → Gemini 結構化辨識 → **確認畫面**逐項勾選與微調後入庫。 |
-| **常吃／文字輸入** | 同一個輸入框服務兩條路：打字即時模糊篩選個人食物庫，找到直接點；篩不到時才把那句描述（如「無糖綠茶 700ml」）交給 Gemini 估算。 |
+| **輸入營養素** | 熱量滿版一格、三大營養素橫排三格，搭配自繪圓章數字鍵盤與份數步進列，完全避免系統鍵盤遮擋儲存鈕問題。 |
+| **拍照辨識** | 拍照或自相簿選取 → **照片確認頁**（可加一句烹調備註，例如「水煮、沒加油」）→ 壓縮長邊至 1024 px → Gemini 或 OpenRouter 結構化辨識 → **確認畫面**逐項勾選與微調後入庫。 |
+| **常吃／文字輸入** | 同一個輸入框服務兩條路：打字即時模糊篩選個人食物庫，找到直接點；篩不到時才把那句描述（如「無糖綠茶 700ml」）交給 AI 估算。 |
 | **掃條碼** | 掃描條碼或手動輸入 → 優先讀取本機快取，無快取則查詢 Open Food Facts → 輸入食用公克數自動換算。 |
 
 所有有輸入的畫面（上表三條打字路徑 ＋ 搜尋 ＋ 設定的每日目標）共通一件事：**點輸入框與鍵盤以外的空白處即可收鍵盤**，回到沒在打字的版面，已經打的字與數值都保留。編輯表單裡自繪的數字鍵盤同樣照這個方式收 —— 對使用者而言那與系統鍵盤是同一件事。
@@ -793,7 +911,8 @@ UI 部分使用 [`tools/ui.ps1`](tools/ui.ps1) 依元件文字進行模擬器自
 
 ### 常吃頁：一個框，兩條路
 
-- 最上面一個搜尋框，**打字即時篩**常吃／最近兩頁，找到直接點那一列帶進編輯表單 —— 不必在清單裡慢慢翻，也不必跳去搜尋頁。
+- 最上面一個搜尋框，**打字即時篩所有吃過的品項**，找到直接點那一列帶進編輯表單 —— 不必在清單裡慢慢翻，也不必跳去搜尋頁。
+- 沒打字時兩頁是精選（常吃只看近 90 天，兩頁各 60 種），給「不打字直接點」用；一打字就改篩全部歷史，幾年前吃過的也找得到。打字時「常吃」那頁的次數是全部歷史累計，所以會比沒打字時多。
 - 篩選是**模糊比對**（原理見〈[設計決策](#一個搜尋框服務兩條路以及中文為什麼不能用-contains)〉）：「烤肉」找得到「煎烤豬肉排／五花肉」，而「咖啡」不會把咖哩飯撈上來。
 - 找得到的排在前面，同分的維持原本「常吃」的次數順序與「最近」的日期順序。
 - 底下那行會看情況講話：上面還篩得到東西時是「不是上面這些？」，真的一筆都沒有才說「沒有『⋯』？」—— 上面明明列著相近的卻說沒有，等於這個 app 沒在看自己的清單。
@@ -817,11 +936,16 @@ UI 部分使用 [`tools/ui.ps1`](tools/ui.ps1) 依元件文字進行模擬器自
 - 搜尋結果放在**使用者輸入前面**並明講它是參考資料：它是外部來的、可能過期或根本在講別的品項
   （實測結果裡混著部落格整理的表格，數字和官方差了將近 100 大卡）。
 
-### 兩家 AI 供應商：路由只管文字
+### 兩家 AI 供應商：拍照與文字各選各的
 
-設定裡可以選**文字描述**要送去 Gemini 還是 OpenRouter。**拍照不受它影響，永遠是 Gemini** ——
-拍照要吃得下圖片的模型，而這條路上想用的 OpenRouter 免費模型是純文字的。
-做成一個總開關的話，選了 OpenRouter 之後拍照會神祕地失敗或偷偷跑去別家，兩種都比在設定頁講清楚差。
+設定 → API 管理裡，**拍照辨識**與**文字辨識**各自選要送去 Gemini 還是 OpenRouter，
+OpenRouter 的模型也分兩欄（拍照一欄、文字一欄）。不做成一個總開關，是因為拍照要吃得下圖片的模型，
+而文字那條路上常用的 OpenRouter 免費模型是純文字的 —— 共用一個選擇的話，救了拍照就會弄壞文字。
+
+- 拍照選了 OpenRouter 卻沒填拍照用的模型時，會直接擋下來並講原因，不會拿文字那個模型去送圖片。
+  Gemini 的模型本來就看得懂圖片，不用另外挑。
+- 缺 key 時訊息會指名是哪一家，兩把 key 不會填錯把。
+- 週報／月報交給哪一家是第三個獨立的選擇，沿用那一家的金鑰與模型。
 
 兩家共用同一份 prompt（`AiPrompts`），但傳輸格式、強制 JSON 的手法、錯誤訊息全都不一樣，
 所以是兩個獨立的 client、沒有抽共同介面。
@@ -833,6 +957,8 @@ UI 部分使用 [`tools/ui.ps1`](tools/ui.ps1) 依元件文字進行模擬器自
 - **左右滑就換月**，拖的時候上方那個「2026 / 09」也跟著手指走，下一個月的月份從旁邊補進來
   —— 和今日頁的週長條同一種手感。兩側箭頭留著，兩條路做同一件事。**一次滑動就是一個月**，不管滑多快。
 - 下方即時由 SQLite `GROUP BY` 計算當月總記錄天數、平均熱量與超標天數。
+- **超標是照那一天當時的目標判斷的。** 每天的目標會留一份快照，改了熱量目標，上個月的格子不會集體變紅或變綠；
+  這個功能出現之前的日子沒有快照，照目前的設定判斷。
 - 不在本月時，畫面**最底下**會出現一顆空心章「回到本月」。它不在報頭裡：
   它是一個動作而不是某一個月的內容，放到分頁器外面的底部，它出現時吃掉的是月曆底下那塊
   本來就空的地方，格子一格都不會動。
@@ -841,7 +967,7 @@ UI 部分使用 [`tools/ui.ps1`](tools/ui.ps1) 依元件文字進行模擬器自
 
 - 點擊右上角放大鏡開啟。
 - **未輸入關鍵字時**：展示個人食物庫，支援左右滑動切換「90 天常吃」與「全部最近」。
-- **輸入關鍵字時**：切換為即時全文搜尋模式，支援多關鍵字空白分割比對（名稱 + 份量文字）。
+- **輸入關鍵字時**：切換為即時全文搜尋模式，支援多關鍵字空白分割比對（名稱 + 份量文字）。**不限筆數**，幾年前的紀錄也找得到；不是今年的日期會帶年份（「2024/3/14」）。
 - 點擊任一項目直接帶入編輯表單，兼顧便捷與可編輯性。
 
 這裡的搜尋與[常吃頁那一個](#常吃頁一個框兩條路)**搜的不是同一種東西**：這頁搜的是逐筆紀錄（每一筆帶日期），回答的是「我哪天吃過這個」；常吃頁搜的是聚合後的品項，回答的是「拿一個品項來記一筆」——日期在那裡是雜訊，而且同一樣東西會重複出現二十次。兩頁共用同一個食物庫元件，但主要工作不同，所以沒有合併成一個要切換模式的畫面。
@@ -860,6 +986,8 @@ UI 部分使用 [`tools/ui.ps1`](tools/ui.ps1) 依元件文字進行模擬器自
   （700 ml 的珍奶就是 700），確認畫面看得到那個數字才入庫。刪掉那筆飲料，水量跟著消失。
 - **手動那一段是獨立的**，存在自己的表裡，不會在紀錄清單長出一堆 0 大卡的白開水。
   兩者相加才是當天的量，而總量不會被減成負的。
+- **點飲水量打開明細**：這個數字是哪幾杯飲料、再加上手動按了多少。
+- 有開 Health 連線的寫入、而且給了飲水權限時，當天的飲水量也會寫過去（一天一筆，改了就覆寫）。飲水權限是選配，沒給就只寫餐點。
 - **匯出的 CSV 兩種都帶得走**：飲料的水量是每一列的欄位，手動的那一段以日期為單位
   自己一列（食物名稱留空）—— 那天一筆食物都沒記也保得住。
 
@@ -872,15 +1000,20 @@ UI 部分使用 [`tools/ui.ps1`](tools/ui.ps1) 依元件文字進行模擬器自
   `effectiveCalorieTarget()`，不會出現「今日頁說還有 200、月曆卻把同一天標紅」。
 - **打開它的時候，熱量目標的底會退到久坐基準**，運動改由手錶量。活動係數的定義本來
   就含運動（「輕度」＝每週運動 1–3 天），不退的話同一批熱量會算兩次。關掉就算回你
-  填的活動係數。**蛋白質兩種情況都照你填的活動量算。**
+  填的活動係數。**蛋白質只看體態目標，不受這個開關影響。**
 - **運動熱量預設只回補一半**（設定 → 每日目標 →「運動熱量回補」，可改 25/50/75/全額）。
   手錶估熱量普遍偏高，全額吃回去等於把高估的部分也吃掉。
 - **手錶配戴方式**決定哪一種資料算數：整天戴就用全日活動消耗，只有運動時戴就只算
   運動場次（全日那個數字只涵蓋戴著的那幾小時，當一整天用會低估）。
-- **只認活動消耗與運動場次這兩種資料。** 讀不到就講原因，不會拿「總消耗扣基礎代謝」
-  或步數換算生一個猜的數字給你（理由見〈[運動消耗加進目標](#運動消耗加進目標不從吃下去的扣回去)〉）。
-- **寫入飲食是選配、預設關閉**，而且只在新增、編輯、刪除當下寫，不在背景整批同步。
-  每一筆用 `nutrilog_<紀錄 id>` 當 clientRecordId，改同一筆就是覆寫，不會長出重複的紀錄。
+- **步數只算超出久坐基準的那一段。** 久坐的熱量目標本來就含日常走動（走去買午餐那種），
+  所以四千步左右以內是 +0，走得比那多才開始加；跑步那段已經算在運動場次裡，那些步數會先扣掉。
+  活動消耗有被採用（整天配戴）時步數不參與，兩者估的是同一件事。
+- **讀不到就講原因，不生猜的數字**：不會拿「總消耗扣基礎代謝」去推活動量（理由見
+  〈[寧可說「讀不到」](#寧可說讀不到也不給一個猜出來的運動消耗)〉）。「讀不到」和「讀到了但沒超出」
+  分開講 —— 一個要去調權限，一個是多走兩步。
+- **寫入是選配、預設關閉**，而且只在新增、編輯、刪除當下寫，不在背景整批同步。餐點寫成營養紀錄，
+  有給飲水權限的話當天的飲水量也一起寫。每一筆用 `nutrilog_<紀錄 id>` 當 clientRecordId，
+  改同一筆就是覆寫，不會長出重複的紀錄。
 - 每天的值快取在 Room 的 `daily_health_metrics`，週長條與月曆一打開就要用，不能等健康連線慢慢回。
 - **數字和手錶的 app 對不上時，設定 → Health 連線最底下有「讀取診斷資訊」**：列出今天從
   健康連線讀到的原始值（活動大卡、總消耗、步數、運動場次、四個權限各有沒有）以及
@@ -892,7 +1025,7 @@ UI 部分使用 [`tools/ui.ps1`](tools/ui.ps1) 依元件文字進行模擬器自
 - **設定 → 每日目標 → 依身型計算**：填性別、年齡、身高、體重、活動量與目標（減脂／維持／增肌），
   用 Mifflin-St Jeor 算出基礎代謝與每日消耗，並給出建議的熱量、三大營養素與各餐配比。
 - **按「套用」才會寫進目標** —— 和 AI 辨識、週報推薦同一條規則：算出來的只是建議。
-- **蛋白質跟著活動量走**（久坐 1.0 → 非常高 1.8 g/kg，減脂與增肌各再加 0.2，封頂 2.0），
+- **蛋白質只看體態目標**（減脂 1.6、維持 1.4、增肌 1.8 g/kg），活動量與手錶設定只影響熱量。
   結果會標出「蛋白質每公斤 N g」，這個數字高不高一眼看得出來。
 - 身型本身會存下來：下次打開不必重填，週報也要用體重判斷蛋白質夠不夠。
 
@@ -934,14 +1067,15 @@ UI 部分使用 [`tools/ui.ps1`](tools/ui.ps1) 依元件文字進行模擬器自
 - 備份內容與本地匯出**完全相同**，可直接於 Drive 下載、以試算表開啟，或改用本地匯入讀回 —— 資料不會被鎖在 app 裡。
 - **唯一的例外是身型與每日目標**：它們是設定而不是紀錄，塞不進 CSV 的欄位，所以另外存一份 `nutrilog-profile-<日期>.json`。那是一份**白名單**（只有目標與身型欄位），**API 金鑰永遠不會被備份**，有測試專門守著。還原時併進同一個確認面板，不另外問一次。
 - 「連結 Google Drive」會**順便把雲端的紀錄接回來**：換手機時自動比對雲端備份，走與本地匯入相同的確認面板（新增幾筆／略過幾筆重複），確認後才寫入資料庫。
-- 此功能為選配。未連結時 app 不會存取網路，也不會排入任何背景工作。
+- 此功能為選配。未連結時不會碰 Google Drive，也不會排入任何背景工作。
 - 首次使用需自行於 Google Cloud 建立 OAuth client，可執行 [`tools/setup-google-drive.sh`](tools/setup-google-drive.sh) 精靈完成設定。
 
 ---
 
 ## 設定：選單加子頁，三把 key
 
-設定分兩層：先是一排項目，點進去才是內容。七段疊成一條長捲軸的話，找一個開關要捲很久；
+設定分兩層：先是一排項目（外觀、每日目標、Health 連線、API 管理、雲端備份、本地資料管理、關於），
+點進去才是內容。七段疊成一條長捲軸的話，找一個開關要捲很久；
 選單每一列右邊直接寫著現在的值（深淺模式、熱量目標、健康連線讀寫狀態、key 設了沒、
 Drive 連了沒），不用點進去就看得到自己設過什麼。
 **子頁的返回鍵回選單，不是回今日頁** —— 不然每改一項設定都要重新點兩次進來。
@@ -950,16 +1084,16 @@ Drive 連了沒），不用點進去就看得到自己設過什麼。
 
 | key | 用在哪 | 怎麼拿 |
 |---|---|---|
-| **Gemini** | 拍照辨識（必需）、文字辨識（預設）| [Google AI Studio](https://aistudio.google.com) 免費申請 |
-| **OpenRouter** | 文字辨識的另一家（選配）| [openrouter.ai](https://openrouter.ai) |
+| **Gemini** | 拍照、文字辨識與報告的預設供應商 | [Google AI Studio](https://aistudio.google.com) 免費申請 |
+| **OpenRouter** | 拍照、文字辨識或報告的另一家（選配；拍照要另外填看得懂圖片的模型）| [openrouter.ai](https://openrouter.ai) |
 | **Tavily** | 「AI 查」的搜尋來源（選配）| [tavily.com](https://tavily.com)，免費層 1000 次/月 |
 
 Key 僅安全儲存於本地 DataStore，**不會打包進 APK 或上傳第三方伺服器**。
 
-同一頁還可以選模型（預設推薦 `gemini-3.7-flash`，亦可選用 `gemini-3.5-flash-lite`）、
-文字辨識要走哪一家、「AI 查」要用誰查，以及**週報／月報交給哪一家寫**（沿用那一家已經
-填好的金鑰與模型，不另外要一把）。**只有 Gemini 那把是必需的**：
-沒有它拍照辨識就不能用，其餘三項不設也不影響 app 的其他功能。
+同一頁還可以選 Gemini 模型（五個攤開圈選，預設 `gemini-3.7-flash`，要快一點可以選
+`gemini-3.5-flash-lite`）、拍照與文字辨識各要走哪一家、「AI 查」要用誰查，以及
+**週報／月報交給哪一家寫**（沿用那一家已經填好的金鑰與模型，不另外要一把）。
+**三把都是選配**：不填的話手動輸入、常吃、條碼照常能用；要用 AI 辨識，至少要填你選的那一家。
 
 ---
 
@@ -977,7 +1111,8 @@ Key 僅安全儲存於本地 DataStore，**不會打包進 APK 或上傳第三�
 - **掃碼**：使用 Google Play 服務之 Google Code Scanner，掃描視窗獨立於 Google Play 服務行程執行。
 - **相簿**：使用系統 `PickVisualMedia` 照片選擇器。
 
-本 App 本身無需宣告 `CAMERA` 或儲存權限，僅需 `INTERNET` 權限進行外部查詢。
+本 App 本身無需宣告 `CAMERA` 或儲存權限。Manifest 裡只有 `INTERNET`（外部查詢）與 Health 連線的讀寫權限；
+後者要使用者在系統畫面同意才會生效，不開健康連線就用不到。
 
 ### 「紙與墨」出版物風格與內嵌字型
 
@@ -1037,19 +1172,16 @@ Tavily 免費層回的就是清洗過的頁面正文。
 進去就是默默落地。詳細的追查過程見
 [issue #11](https://github.com/rowing195/NutriLog/issues/11)。
 
-### 蛋白質跟著活動量走，不是一個固定倍率
+### 蛋白質只看體態目標，活動量只管熱量
 
-這段算法最早是只看目標給一個固定倍率：維持一律 **每公斤 1.7 g**。問題有兩個。
+蛋白質的每公斤克數只由體態目標決定：**減脂 1.6、維持 1.4、增肌 1.8 g/kg**，
+不受活動量與「讀取運動消耗」開關影響。活動量與手錶設定只拿來算熱量。
 
-一是**那是運動員的數字**。一般健康成人的建議是 0.8（RDA）到 1.2 g/kg，1.4–2.0 是給
-有在認真訓練的人的區間，1.7 已經在那個區間的上緣。64 公斤、只想維持體重的人會算出
-108 g —— 那得每天刻意安排才吃得到，實務上等於被推去喝高蛋白。
-
-二是**活動量那一欄形同白填**：久坐和每週練五天的人，同一個目標下拿到一模一樣的數字。
-
-現在每公斤幾克由活動量決定（久坐 1.0、輕度 1.2、中度 1.4、高 1.6、非常高 1.8），
-減脂與增肌各再加 0.2、封頂 2.0，並且把這個數字**顯示在結果裡**。
-`BmrCalculatorTest` 有一條專門釘「久坐與高活動量不能算出同一個數字」。
+這段算法改過兩次。最早是維持一律 **每公斤 1.7 g**，那是運動員區間的上緣
+（64 公斤、只想維持體重的人會算出 108 g）；之後改成跟著活動量走（久坐 1.0 → 非常高 1.8，
+減脂與增肌各再加 0.2）。現在回到只看目標，但倍率比最早那版低，維持是 1.4。
+結果畫面會標出「蛋白質每公斤 N g」，這個數字高不高一眼看得出來；
+`BmrCalculatorTest` 釘住「所有活動量、手錶開或關，蛋白質都一樣」。
 
 連帶的一件事：原本脂肪固定佔 25%、碳水吃剩下的差額，所以蛋白質一降，省下來的熱量
 一克不剩全部跑到碳水（實測被推到 58.7%，建議範圍 50–65% 的上緣）。改成**碳水固定 55%、
@@ -1068,19 +1200,24 @@ Tavily 免費層回的就是清洗過的頁面正文。
 ### 寧可說「讀不到」，也不給一個猜出來的運動消耗
 
 健康連線裡拿得到的東西不只一種，早期的版本排了三段退路：活動消耗 → 總消耗扣掉基礎
-代謝 → 步數換算。後兩段都已經移除，因為它們**看起來像測量值，其實是估算值**：
+代謝 → 整天步數直接換算。**總消耗扣基礎代謝那一段已經移除**，因為它看起來像測量值，
+其實是估算值：
 
-- **總消耗扣基礎代謝**是拿兩個一千五百多的大數字相減，去換一個一百多的小數字。
-  三星寫進健康連線的總消耗含它自己算的靜態消耗，我們扣的是自己用 Mifflin 算的，
-  兩邊差幾個百分點，誤差就和答案同一個量級 —— 實測手錶記 153 大卡，這條路算出 **39**。
-  而且總消耗是從午夜累加上來的，要扣對就得引進「今天過了幾成」，於是同一天在不同
-  時刻讀會得到不同的數字。
-- **步數換算**是固定係數乘出來的猜測值，一旦和手錶實測混在同一個數字裡，使用者就
-  分不出哪天是量的、哪天是猜的。
+- 它拿兩個一千五百多的大數字相減，去換一個一百多的小數字。三星寫進健康連線的總消耗
+  含它自己算的靜態消耗，我們扣的是自己用 Mifflin 算的，兩邊差幾個百分點，誤差就和答案
+  同一個量級 —— 實測手錶記 153 大卡，這條路算出 **39**。
+- 總消耗是從午夜累加上來的，要扣對就得引進「今天過了幾成」，同一天在不同時刻讀會得到
+  不同的數字。實測那支手機上的總消耗甚至沒有任何 app 寫過，是系統自己推出來的。
 
-現在只認「活動消耗」與「運動場次」這兩種本身就是活動量的資料，兩種都沒有就顯示
-讀不到並講原因。步數照樣讀、照樣存進 `daily_health_metrics` 給報表用，只是不再
-換算成大卡。
+**步數則改成只算超出久坐基準的那一段**，不再整天直接換算。三星不把日常的活動消耗寫進
+健康連線，沒開運動紀錄的日子裡步數是唯一真的量到的東西；但久坐的熱量目標本來就含日常
+走動，整筆加進去就是同一批熱量算兩次。所以先扣掉久坐已經含的那一段（約四千步），
+運動場次裡的步數也先扣掉，剩下的才換算。活動消耗有被採用時步數完全不參與。
+
+兩種方式都沒有資料時就顯示讀不到並講原因；「讀不到」和「讀到了但沒超出」分開講。
+
+**健康連線是共用池**：手機自己也會寫一份步數，沒在健康連線的資料來源排好優先順序的話，
+讀到的會是兩份疊加。數字和手錶的 app 對不上時，先看設定 → Health 連線最底下的「讀取診斷資訊」。
 
 ### 活動係數與運動消耗只能取一個，而且運動只回補一半
 
@@ -1166,7 +1303,7 @@ POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateCon
 
 - API Key 走 `x-goog-api-key` HTTP Header。
 - 透過 `responseSchema` 鎖定純 JSON 結構化輸出。
-- 內建 5xx / 逾時自動指數退避重試 3 次。
+- 遇到 5xx／逾時自動指數退避重試，最多試 3 次。
 - **不加搜尋 grounding**（`tools: [{google_search:{}}]`）：實測免費層的 grounding 配額是 0，
   開了之後每一次文字辨識都變 429，而且那個 429 的 body **沒有 `QuotaFailure` 明細**，
   只能開關對照才分離得出來。
@@ -1177,13 +1314,16 @@ POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateCon
 POST https://openrouter.ai/api/v1/chat/completions
 ```
 
-- 文字辨識的另一家供應商，預設模型 `inclusionai/ling-3.0-flash-sante:free`。
+- 另一家供應商，拍照、文字辨識與報告都能選它。文字的預設模型是 `inclusionai/ling-3.0-flash-sante:free`（純文字）；
+  拍照的模型另外一欄、沒有預設值，要自己填一個看得懂圖片的模型。
+- 圖片用 OpenAI 格式的多模態訊息帶進去（`image_url` 配 data URI）。
 - **用強制函式呼叫鎖 JSON**（定義一個函式、參數就是那份 schema，再用 `tool_choice` 強制呼叫），
   因為那個模型的 `supported_parameters` 裡**沒有** `response_format`。
   回傳在 `choices[0].message.tool_calls[0].function.arguments`，而那是**字串包著的 JSON**。
 - **402 是餘額不足**（免費模型也需要帳號裡有額度才跑得動），401 才是 key 的問題 ——
   Gemini 那邊沒有前者這種狀態。
-- 換模型之前先查 `openrouter.ai/api/v1/models`，確認新模型的 `supported_parameters` 有 `tools`。
+- 換模型之前先查 `openrouter.ai/api/v1/models`，確認新模型的 `supported_parameters` 有 `tools`；
+  拍照用的還要看 `input_modalities` 有沒有 `image`。
 
 ### Tavily
 
@@ -1202,9 +1342,10 @@ POST https://api.tavily.com/search
 
 - 相依 `androidx.health.connect:connect-client`，**釘在 `1.1.0-beta01`**：1.1.0 正式版要求
   compileSdk 36 與 AGP ≥ 8.9.1，本專案是 35 / 8.7.3，升上去會在 AAR metadata 檢查失敗。
-- 只讀全日活動消耗與運動場次，要用哪一種看手錶配戴方式；來源會顯示在明細面板上。
-- 寫入使用 `Metadata.manualEntry(clientRecordId, ...)`，以 `nutrilog_<紀錄 id>` 作為
-  clientRecordId，同一筆紀錄重寫即為覆寫。
+- 讀全日活動消耗、運動場次、步數與總消耗，要用哪一種看手錶配戴方式；來源會顯示在明細面板上。
+  總消耗只用在單場運動的時間窗內（幾十分鐘，誤差小），不拿來推一整天的活動量。
+- 寫入營養紀錄與飲水，使用 `Metadata.manualEntry(clientRecordId, ...)`：餐點以 `nutrilog_<紀錄 id>`、
+  飲水以 `nutrilog_water_<日期>` 作為 clientRecordId，同一筆重寫即為覆寫。
 - 權限每次回到前景重查一次 —— 使用者隨時可以在系統設定收回，app 不會收到通知。
 
 ---
@@ -1235,10 +1376,10 @@ git push origin v1.10.0
 | 條碼辨識 | Google Play services Code Scanner 16.1.0 |
 | 雲端備份 | Google Play services Auth 22.0.0（`drive.file`）+ WorkManager 2.10.0 |
 | 健康連線 | androidx.health.connect `connect-client` 1.1.0-beta01 |
-| 測試框架 | JUnit 4 + Kotlin Test |
+| 測試框架 | JUnit 4 |
 | 內嵌字型 | jf open 粉圓 2.1（中文）+ Neucha（數字，已正規化側邊留白） |
-| 發佈 APK 大小 | 約 14.1 MB（其中內嵌字型約 2.9 MB） |
-| 應用權限 | `android.permission.INTERNET` |
+| 發佈 APK 大小 | 約 15.3 MB（v2.2.7，其中內嵌字型壓縮後約 3.0 MB） |
+| 應用權限 | `INTERNET`；Health 連線的 `READ_ACTIVE_CALORIES_BURNED`、`READ_TOTAL_CALORIES_BURNED`、`READ_STEPS`、`READ_EXERCISE`、`WRITE_NUTRITION`、`WRITE_HYDRATION`（使用者同意才生效） |
 
 ---
 
