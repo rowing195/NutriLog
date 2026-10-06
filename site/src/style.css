@@ -52,7 +52,9 @@ h1, h2, h3, b { font-weight: 400; }
 a { color: inherit; }
 a:focus-visible { outline: 2px solid var(--vermilion); outline-offset: 4px; }
 ::selection { background: var(--ink); color: var(--bg); }
-img { display: block; max-width: 100%; }
+/* height: auto 不能省：<img> 寫了 width/height 屬性，max-width 只會把寬度縮下來，
+   高度留在屬性的 1481px，截圖就被直向拉長、下半截被手機框切掉（手機版踩過） */
+img { display: block; max-width: 100%; height: auto; }
 
 /* 數字字型一律關 kerning、固定 0.5px 字距（同 app 的 numeric()） */
 .num { font-family: var(--num); font-feature-settings: "kern" 0; letter-spacing: 0.5px; }
