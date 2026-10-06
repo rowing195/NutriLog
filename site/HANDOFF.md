@@ -1,0 +1,179 @@
+# 展示網站交接（本機 session → 雲端 session）
+
+> 寫於 2026-10-06。網站做完、合併前**刪掉這個檔**，它不是給使用者看的文件。
+
+## 使用者要的
+
+為 NutriLog（app 顯示名稱「肥胖日記」）做一個**敘事風格的展示網站**：
+GSAP ScrollTrigger ＋ Lenis 平滑捲動，放 Vercel、接 GitHub 自動部署。
+
+### 已經由使用者拍板的決策（不要重新討論）
+
+| 項目 | 決定 |
+|---|---|
+| 放哪裡 | 這個 repo 的 `site/`，Vercel 的 Root Directory 設 `site` |
+| 技術 | Vite ＋ 原生 JS ＋ `gsap` ＋ `lenis`（npm） |
+| 畫面素材 | 模擬器實拍截圖（**已拍好**，在 `site/public/shots/`） |
+| 視覺 | 沿用 app 的「紙與墨」（見根目錄 `CLAUDE.md` 的〈配色與版面語言〉） |
+| 語言 | 只有繁體中文 |
+| 敘事 | 「一天」時間軸（下面〈分鏡〉） |
+| app 圖示 | **網站上只放「肥貓」**。牢大（Kobe 本人＋康師傅商標）、冰紅茶（商品照）、菲比啾比／快樂牛馬（遊戲角色同人圖）不放；糯糯也不放。favicon 用的也是肥貓 |
+
+### 使用者的工作習慣（他在本機 session 裡交代過的）
+
+- 回覆一律繁體中文（台灣用語）。
+- **UI 文字與設計方向的改動，先把要改的東西印出來給他看，他確定了才改。**
+- 需要他決策的事用選項讓他選（AskUserQuestion），推薦的放第一個。
+- 沒有要求就不要 commit／push；在 `main` 上要先開分支。
+
+## 目前進度
+
+| 檔案 | 狀態 |
+|---|---|
+| `site/package.json` | ✅ gsap ^3.15.0、lenis ^1.3.26、vite ^8.3.3（Vite 8 要 Node ≥ 20.19） |
+| `site/vercel.json` | ✅ `framework: vite`，`ignoreCommand` 讓只改 Android 的 commit 不觸發部署 |
+| `site/vite.config.js` | ✅ 把 `%SITE_URL%` 換成 `VERCEL_PROJECT_PRODUCTION_URL`（og:image 要完整網址） |
+| `site/.gitignore` | ✅ |
+| `site/index.html` | ✅ 完整結構與文案，**沒在瀏覽器跑過** |
+| `site/src/style.css` | ✅ 寫完，**沒在瀏覽器跑過** |
+| `site/src/main.js` | ❌ **還沒寫**，規格在下面 |
+| `site/public/` | ✅ 10 張截圖、`fonts/neucha.woff2`、`icon-cat.webp`、`favicon.png`、`apple-touch-icon.png`、`og.png` |
+| `npm install` / build / 瀏覽器驗證 | ❌ 都還沒做 |
+| Vercel 連線 | ❌ 要使用者自己在 Vercel 後台做（見〈部署〉） |
+| `CLAUDE.md` 加一節講 `site/` | ❌ |
+
+## 分鏡（使用者核可過的版本）
+
+右邊手機釘住、左邊章節捲過去；報頭的時鐘跟著捲動走、今日熱量逐章累加；
+入夜時整頁從米紙轉暖黑，天亮再轉回來。
+
+| # | 時間 | 章節 | 標題／內文 | 手機畫面 | 網頁小動畫 |
+|---|---|---|---|---|---|
+| 00 | 07:00 | 封面 | 肥胖日記／每天隨手記一筆。紀錄只留在你的手機裡。［下載］Android 8.0 以上・免費・開源 | today-morning | 標題逐字升起、墨線畫出 |
+| 01 | 07:40 | 早餐 — 常吃 | 打兩個字，昨天那份就回來了。／吃過的東西自己變成食物庫。「烤肉」找得到「煎烤豬肉排」，「咖啡」不會撈到咖哩飯。 | library → library-query | 「烤」「肉」底線逐字畫出；咖啡那列只中「咖」→ 變淡、標「不算」 |
+| 02 | 12:30 | 午餐 — 拍照 | 拍一張，AI 估，你點頭才算數。／模型給的是估算值，一定先經過確認畫面才入庫。 | review-lunch | — |
+| 03 | 15:10 | 下午 — AI 估／AI 查 | 要不要上網查，是你按的。／麥當勞 大麥克：AI 估 540 ／ AI 查 503（台灣官方標示） | ai-stamps → review-bigmac | 兩顆章，AI 查那列的數字從 540 滾到 503 |
+| 04 | 19:20 | 晚餐 — 份數 | 吃了一碗半，就按一碗半。／1 碗 (250 g) → 1.5 碗 (375 g)，熱量與營養素一起換算。 | portion | 份數步進 1 → 1.5（每 0.1 一格），份量文字與熱量跟著換 |
+| 05 | 21:00 | 跑步 — 健康連線 | 動得多，就能多吃一點。／運動消耗加進今天的目標，不從吃掉的扣。手錶估得偏高，預設只回補一半。 | today-night | 熱量條：超出目標的紅段 → 目標線往右推 +300、紅段退回墨色 |
+| 06 | 23:30 | 月曆 | 一天，收進一格。／哪幾天忘了記，一眼就看得出形狀。改了目標，過去的日子還是照當時的標準。 | calendar-today → calendar-month | — |
+| 07 | 23:58 | 沒有帳號，沒有後端 | 紀錄全部在你手機裡。對外連線只有你按下去的那幾種。CSV 匯出／匯入，資料不會被鎖在 app 裡。 | （無手機） | 大標逐行升起、清單細線畫出 |
+| 08 | 06:30 | 紙與墨（隔天） | 粉圓＋手寫數字、兩級規線、朱紅只給「看這裡」、形狀就是層級；肥貓圖示 | （無手機） | — |
+| 09 | — | 下載 | ［下載 vX］GitHub・MIT；AI 功能要自己申請 Gemini key（免費） | — | — |
+
+**分鏡沒寫到、是本機 session 自己補的文案**（`index.html` 裡已經寫上去了，完成後要請使用者過目）：
+07 的五列對外連線說明、08 四個字樣各自的說明句與「桌面圖示也能換」、09 的三條備註、
+各章 demo 的小標（「憑模型的印象」「先找該店公布的營養標示」「手錶量到 600，回補一半」）、頁尾三句。
+
+## 示範資料：文案裡的數字都從這裡來
+
+截圖是在本機模擬器上用 sqlite 灌示範資料拍的（使用者同意清掉模擬器上原本的資料）。
+**雲端沒有模擬器，截圖要重拍只能回本機。**
+
+今天＝2026-10-06（週二），每日熱量目標 1944：
+
+| 時間 | 餐 | 品項 | kcal | 累計 |
+|---|---|---|---|---|
+| 07:40 | 早 | 無糖豆漿 150、茶葉蛋 75 | 225 | **225** |
+| 12:30 | 午 | 雞腿便當 850、無糖綠茶 0（蘋果 104 在確認畫面**取消勾選**，沒入庫） | 850 | **1075** |
+| 15:10 | 點心 | 麥當勞大麥克（真的按了「AI 查」：503，蛋白 26、脂肪 25、碳水 43） | 503 | **1578** |
+| 19:20 | 晚 | 白飯 1.5 碗 (375 g) 525、燙青菜 80 | 605 | **2183** |
+| 21:00 | — | 跑步：量到 600，回補 50% → **目標 +300 → 2244，還有 61** | | |
+
+- 19:20 那一刻 2183 > 1944，報頭的今日熱量要轉**朱紅**（超標）；21:00 加了 +300 之後轉回墨色 —— 這是第 05 章的重點，網頁本身就在示範「動得多就能多吃」。
+- 「AI 估 540」沒有在這次重測，是 README〈查網路〉那節記的實測值（美國規格）。
+- 九月的月曆：記錄 25 天、平均 1761、超標 3 天（12、17、25 號），沒記的是 6、13、19、20、27 號。
+- 過了 06:30（第 08 章，隔天）今日熱量歸零、運動額度歸零。
+
+### 截圖對照（`site/public/shots/`，720×1481 WebP）
+
+原圖 1080×2400，切掉上方 118px 狀態列與下方 60px 手勢條後縮到 720 寬。
+**系統狀態列是網頁自己畫的**（手機框裡的 `.statusbar`，時間跟報頭時鐘同步）。
+
+| 檔案 | 內容 | 深淺 |
+|---|---|---|
+| today-morning | 今日頁，四餐都「還沒記」 | 淺 |
+| library | 常吃頁，未輸入 | 淺 |
+| library-query | 常吃頁，輸入「烤肉」→ 只剩煎烤豬肉排 | 淺 |
+| review-lunch | 確認辨識結果：雞腿便當✓、無糖綠茶✓、蘋果☐，午餐 | 淺 |
+| ai-stamps | 常吃頁，輸入「麥當勞 大麥克」、找不到，底下 AI 估／AI 查兩顆章 | 淺 |
+| review-bigmac | 確認辨識結果：麥當勞大麥克 503，點心 | 淺 |
+| portion | 編輯表單：白飯 1.5 份、1.5 碗 (375 g)、525 kcal、晚餐 | 淺 |
+| today-night | 今日頁 2183、目標 1944、運動 +300、還有 61 | 深 |
+| calendar-today | 十月月曆，6 號那格 2183 | 深 |
+| calendar-month | 九月月曆（底下有「回到本月」章） | 深 |
+
+## `main.js` 規格（還沒寫）
+
+`index.html` 的 data 屬性就是為這份規格設計的，照著接就好。
+
+**原則**：捲動狀態（時鐘、熱量、入夜程度）**用一個函式從捲動位置直接算**，不要每章各掛一個
+ScrollTrigger 去改同一個值 —— 那樣倒捲回去時會互相蓋掉。換畫面與小動畫才用 scrub 的 ScrollTrigger。
+
+1. **Lenis**：`new Lenis({ anchors: true })`；`lenis.on('scroll', ScrollTrigger.update)`、
+   `gsap.ticker.add(t => lenis.raf(t * 1000))`、`gsap.ticker.lagSmoothing(0)`。
+   `prefers-reduced-motion: reduce` 時不開 Lenis。另外 `import 'lenis/dist/lenis.css'`。
+2. **捲動狀態**（`ScrollTrigger.create({ start: 0, end: 'max', onUpdate, onRefresh })` 裡呼叫）：
+   - 錨點＝所有 `[data-time]`（hero、六章、privacy、paper），refresh 時量好每個的頁面 y。
+   - 判斷位置用 `scrollY + innerHeight / 2`。
+   - **時鐘**：在相鄰兩錨點之間線性內插分鐘數；後一個比前一個小就 +1440（23:58 → 隔天 06:30 跨過午夜）。
+     寫進所有 `[data-clock]`（報頭與手機狀態列），格式 `HH:MM`。
+   - **熱量**：取最後一個「已經過」且有 `data-kcal` 的錨點；沒寫 `data-kcal` 的沿用前一個。
+     目標值變了才用 `gsap.to` 補間顯示（約 0.9s），寫進 `[data-kcal]`，整數、不加千分位（app 也不加）。
+   - **運動額度**：同上取 `data-bonus`；> 0 時 `.target` 加 `has-bonus`、`[data-bonus]` 寫 `+300`。
+   - **超標**：顯示值 > 1944 + bonus 時 `.today` 加 `over`（CSS 已經會轉朱紅）。
+   - **入夜程度 n**：`[data-dusk]`（第 05 章）頂端從視窗 85% 走到 25% 時 n 0→1；
+     `[data-dawn]`（第 08 章）頂端從 90% 走到 35% 時 n 1→0。
+     用 `gsap.utils.interpolate(淺色, 深色)` 對每個色票內插，寫回 `document.documentElement.style`
+     的 `--bg` `--raised` `--container` `--track` `--ink` `--ink2` `--muted` `--faint` `--hairline`
+     `--field` `--vermilion` `--ochre`。深色那套是 `Theme.kt` 的 `Paper.Dark*`：
+     `#17150F #1E1B14 #232016 #2C2820 #EFE9DC #BDB5A2 #A8A08C #7C7565 #2F2B21 #4A4636 #F2705A #D9A24E`。
+     順便更新 `<meta name="theme-color">`。
+3. **手機換畫面**（只在 `gsap.matchMedia('(min-width: 900px)')` 底下）：每個 `.reveal-mark[data-reveal]`
+   對應 `.screen img[data-shot]`；`data-from="top"` 從 `inset(0% 0% 100% 0%)`、`bottom` 從
+   `inset(100% 0% 0% 0%)` 收到 `inset(0% 0% 0% 0%)`，`fade` 是 opacity 0→1。
+   `scrollTrigger: { trigger: mark, start: 'top 80%', end: 'top 45%', scrub: true }`。
+   方向照 app 的規則：「記一筆」開出來的由上往下蓋，報頭圖示（月曆）開出來的由下往上。
+4. **demo**（全部 scrub，trigger 用 demo 本身，大約 `top 80%` → `top 35%`）：
+   - `match`：`hit` 列的兩個 `<b>` 依序把 CSS 變數 `--u` 0→1（底線），接著 `.verdict` 淡入；
+     `miss` 列的 `<b>` 畫完後整列加 `is-dim`、`.verdict` 淡入。
+   - `stamps`：`[data-row="search"]` 那列淡入，`[data-count]` 從 540 滾到 503（取整數）。
+   - `portion`：進度 p → 倍率 `1 + round(p*5)/10`；`[data-mult]` 顯示倍率（1、1.1…1.5），
+     `[data-serving]` 為 `${倍率} 碗 (${250*倍率} g)`，`[data-portion-kcal]` 為 `round(350*倍率)`；
+     倍率每跳一格就讓 `[data-plus]` 加 `press` 約 150ms。
+   - `budget`：`.bar` 的 `--target` 81 → 93.5、`--red` 1 → 0（目標線往右推、紅段消失）。
+     比例尺是 2400 kcal：1944→81%、2183→91%、2244→93.5%。
+5. **封面進場**（載入時跑一次，不綁捲動）：`.title .ch` 由 `yPercent: 110` 逐字升起、
+   `.hero-rule` `scaleX` 0→1、`.lede` `.cta` 淡入上移、`.day-phone .phone` 由下浮上。
+6. **一般進場**：各章的 `.when` `h2` `p` `.demo` 進畫面時淡入上移；`.privacy .big .line > span`
+   從 `yPercent: 100` 升起；`.ledger .hair` `scaleX` 0→1 逐列；`.specimen` 淡入；
+   手機版的 `.inline-shot` 進畫面時淡入上移。
+7. **下載鈕**：`fetch('https://api.github.com/repos/rowing195/NutriLog/releases/latest')`，
+   找 `.apk` 結尾的 asset → 所有 `[data-apk]` 的 href 換成直接下載網址、`[data-apk-label]` 寫
+   `下載 ${tag_name}`、`[data-apk-meta]` 寫檔案大小（MB），`[data-release-notes]` 的 href 換成 `html_url`。
+   失敗就什麼都不做 —— HTML 裡預設的連結已經指向 releases/latest 頁。
+   **不要把版號寫死在 HTML**：網站只在 `site/` 有改動時才重新部署，寫死會過期。
+8. **reduced motion**：不開 Lenis、不做位移；換畫面改成到點直接切換。時鐘、熱量、入夜配色照樣跑（那是內容，不是動態）。
+
+## 驗證清單
+
+- `cd site && npm install && npm run build`，再 `npm run dev` 用瀏覽器看。
+- 桌面（約 1440×900）與手機（375×812）各從頭捲到尾、**再倒捲回去**：
+  手機有沒有釘住、換畫面兩個方向都對、時鐘連續、19:20 轉紅 21:00 轉回、入夜與天亮、沒有橫向捲軸。
+- 字型：粉圓是 Google Fonts 的 `Huninn`（瀏覽器會拿到依 unicode-range 切片的 woff2）；
+  數字是本地的 `fonts/neucha.woff2` —— **那是 app 裡改過側邊留白的版本轉出來的，不要換成 Google Fonts 的 Neucha**。
+- `.phone` 的尺寸是用 `--sw` 從視窗高度反推的（`style.css` 的 `.phone`），矮螢幕要確認手機不會超出畫面。
+- 開 reduced motion 再看一次。
+
+## 部署（要使用者自己動手）
+
+Vercel 後台：Add New → Project → Import `rowing195/NutriLog` → **Root Directory 選 `site`** →
+Framework 會自動認成 Vite → Deploy。之後推到 `main` 就自動部署；`vercel.json` 的 `ignoreCommand`
+讓沒動到 `site/` 的 commit 直接略過。`.github/workflows/release.yml` 只吃 `v*` tag，兩者互不影響。
+
+## 收尾
+
+- 在根目錄 `CLAUDE.md` 補一小節講 `site/`：色票是 `Theme.kt` 的複本（改色票要改三處：
+  `Theme.kt`、`values*/colors.xml`、`site/src/style.css` 與 `main.js` 的深色表）、
+  `neucha.woff2` 是改過的那支轉的、截圖來自模擬器示範資料、Vercel Root Directory 是 `site`。
+  寫之前先給使用者看草稿。
+- 刪掉這個 `HANDOFF.md`。
