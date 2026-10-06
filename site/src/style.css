@@ -48,7 +48,7 @@ body {
   overflow-x: clip;
 }
 
-h1, h2, b { font-weight: 400; }
+h1, h2, h3, b { font-weight: 400; }
 a { color: inherit; }
 a:focus-visible { outline: 2px solid var(--vermilion); outline-offset: 4px; }
 ::selection { background: var(--ink); color: var(--bg); }
@@ -71,7 +71,19 @@ img { display: block; max-width: 100%; }
   inset: 0 0 auto;
   z-index: 10;
   background: var(--bg);
-  border-bottom: 2px solid var(--ink);
+  border-bottom: 2px solid var(--hairline);
+}
+
+/* 報頭底下那條墨線跟著捲動進度從左畫到右（main.js 寫 scaleX），底下墊的是細線色的軌道 */
+.progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 2px;
+  background: var(--ink);
+  transform: scaleX(0);
+  transform-origin: left;
 }
 
 .masthead-inner {
@@ -176,6 +188,18 @@ a.stamp:hover { background: var(--ink2); }
   }
   .day-phone { display: block; }
   .inline-shot { display: none; }
+
+  /* 左欄也釘住，每一幕疊在同一個位置，捲動只推進 main.js 的時間軸。
+     .day 的高度由 main.js 依時間軸長度設定。場景疊在一起，空的那幾層不能擋住封面的按鈕 */
+  .day.is-staged .day-text { position: sticky; top: 0; height: 100svh; }
+  .day.is-staged .day-text > .scene {
+    position: absolute;
+    inset: 0;
+    min-height: 0;
+    padding: calc(var(--mast) + 24px) 0 48px;
+    pointer-events: none;
+  }
+  .day.is-staged .scene a { pointer-events: auto; }
 }
 
 .hero {
@@ -189,7 +213,9 @@ a.stamp:hover { background: var(--ink2); }
 
 .title {
   margin: 0;
-  font-size: clamp(64px, 11vw, 156px);
+  /* 上限 136px：桌面版的左欄最窄約 599px（寬螢幕時手機框與欄距都到頂），
+     四個字含字距是 4.24em，136px 放得下；原本的 156px 會把「記」切掉 */
+  font-size: clamp(64px, 11vw, 136px);
   line-height: 1.1;
   letter-spacing: 0.06em;
   display: flex;
@@ -236,7 +262,7 @@ a.stamp:hover { background: var(--ink2); }
   100% { transform: scaleX(0); transform-origin: right; }
 }
 
-.chapter {
+.chapter, .panel {
   position: relative;
   min-height: 100svh;
   padding: 16svh 0;
@@ -245,7 +271,8 @@ a.stamp:hover { background: var(--ink2); }
   justify-content: center;
 }
 
-.reveal-mark { display: block; height: 0; }
+.panel { min-height: 80svh; padding: 10svh 0; }
+
 
 .when { display: flex; align-items: baseline; gap: 16px; margin: 0 0 18px; }
 .when .num { font-size: 40px; line-height: 1; }
@@ -257,14 +284,22 @@ a.stamp:hover { background: var(--ink2); }
   letter-spacing: 0.03em;
 }
 
-.chapter p {
+.panel h3 {
+  margin: 0 0 20px;
+  font-size: clamp(26px, 3vw, 40px);
+  line-height: 1.4;
+  letter-spacing: 0.03em;
+}
+
+.panel .when { margin-bottom: 14px; }
+
+.chapter p, .panel p {
   margin: 0 0 18px;
   max-width: 30em;
   font-size: clamp(17px, 1.4vw, 19px);
   color: var(--ink2);
 }
 
-.beat { margin-top: 32svh; }
 
 /* ---------- 手機框（線稿） ---------- */
 
@@ -307,16 +342,40 @@ a.stamp:hover { background: var(--ink2); }
   border-radius: 0 0 calc(var(--sw) * 0.11) calc(var(--sw) * 0.11);
 }
 
-.screen img { position: absolute; inset: 0; width: 100%; height: 100%; }
+.screen .shot { position: absolute; inset: 0; margin: 0; background: var(--bg); }
+.screen .shot img { width: 100%; height: 100%; }
 
 /* 換頁的方向照 app 的規則：「記一筆」開出來的由上往下蓋，報頭圖示開出來的由下往上 */
-.screen img[data-from="top"] { clip-path: inset(0% 0% 100% 0%); }
-.screen img[data-from="bottom"] { clip-path: inset(100% 0% 0% 0%); }
-.screen img[data-from="fade"] { opacity: 0; }
+.screen .shot[data-from="top"] { clip-path: inset(0% 0% 100% 0%); }
+.screen .shot[data-from="bottom"] { clip-path: inset(100% 0% 0% 0%); }
+.screen .shot[data-from="fade"] { opacity: 0; }
+
+/* 截圖還沒拍好的位置：虛線框寫出它在等哪個檔名（main.js 在圖片載入失敗時加 .is-missing）。
+   版面照常佔位，拍好放進 public/shots/ 就自動換成圖 */
+.shot { position: relative; display: block; }
+.shot .ph { display: none; }
+.shot.is-missing img { visibility: hidden; }
+.shot.is-missing .ph {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  border: 1.5px dashed var(--field);
+  border-radius: inherit;
+  background: var(--raised);
+  color: var(--muted);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-align: center;
+  word-break: break-all;
+}
+.shot.is-missing .ph::before { content: '待拍截圖'; display: block; margin-bottom: 6px; color: var(--ink2); letter-spacing: 0.2em; }
+.shot.is-missing .ph { align-content: center; }
 
 .inline-shot { margin: 40px 0 0; }
 .inline-shot .phone { --sw: min(64vw, 280px); }
-.inline-shot img { border-radius: calc(var(--sw) * 0.11); }
+.inline-shot .shot { aspect-ratio: 720 / 1481; border-radius: calc(var(--sw) * 0.11); overflow: hidden; }
 
 /* ---------- 章節裡的小示範 ---------- */
 
@@ -463,6 +522,10 @@ a.stamp:hover { background: var(--ink2); }
 .big .line { display: block; overflow: hidden; }
 .big .line > span { display: inline-block; }
 
+/* 逐字點亮：main.js 把大標拆成一個字一個 .glyph，捲到哪裡亮到哪裡 */
+.big .glyph { color: color-mix(in srgb, var(--ink) 20%, var(--bg)); transition: color 0.35s; }
+.big .glyph.lit { color: var(--ink); }
+
 .lede-sm { max-width: 32em; margin: 0; font-size: clamp(17px, 1.6vw, 20px); color: var(--ink2); }
 
 .ledger { list-style: none; margin: 36px 0 44px; padding: 0; border-top: 2px solid var(--ink); }
@@ -486,6 +549,40 @@ a.stamp:hover { background: var(--ink2); }
   .ledger .who { text-align: left; }
   .ledger .when-sent { grid-column: auto; }
 }
+
+/* ---------- 橫向藝廊：往下捲，一排畫面往左推 ---------- */
+
+.gallery { position: relative; height: 280svh; }
+
+.gallery-sticky {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  padding-top: var(--mast);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+
+.gallery-track {
+  --gsw: calc((min(100svh - var(--mast) - 190px, 660px) - 24px) / 2.132);
+  display: flex;
+  align-items: flex-start;
+  gap: clamp(32px, 5vw, 72px);
+  /* 第一格和上下文的左緣對齊 */
+  padding: 0 var(--gutter) 0 max(var(--gutter), calc((100vw - 1160px) / 2 + var(--gutter)));
+  will-change: transform;
+}
+
+.g-head { flex: 0 0 auto; width: min(78vw, 340px); align-self: center; }
+.g-head h2 { margin: 0 0 20px; font-size: clamp(30px, 4vw, 52px); line-height: 1.32; letter-spacing: 0.03em; }
+.g-hint { margin: 0; }
+
+.g-item { flex: 0 0 auto; width: calc(var(--gsw) + 24px); margin: 0; }
+.g-item .phone { --sw: var(--gsw); }
+.g-item .shot { aspect-ratio: 720 / 1481; border-radius: calc(var(--sw) * 0.11); overflow: hidden; }
+.g-item figcaption { margin-top: 18px; font-size: 15px; line-height: 1.7; color: var(--ink2); }
+.g-tag { display: block; margin-bottom: 4px; }
 
 /* ---------- 天亮：紙與墨 ---------- */
 
@@ -559,4 +656,10 @@ a.stamp:hover { background: var(--ink2); }
 
 @media (prefers-reduced-motion: reduce) {
   .hint-line { animation: none; transform: none; }
+
+  /* 橫推是位移，減少動態時藝廊改成一般往下排的版面 */
+  .gallery { height: auto; padding: 14svh 0; }
+  .gallery-sticky { position: static; height: auto; padding-top: 0; overflow: visible; }
+  .gallery-track { flex-wrap: wrap; row-gap: 48px; max-width: 1160px; margin: 0 auto; padding: 0 var(--gutter); }
+  .g-head { width: 100%; }
 }
