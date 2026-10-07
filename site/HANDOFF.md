@@ -1,10 +1,10 @@
 # 展示網站交接（本機 session ⇄ 雲端 session）
 
-> 寫於 2026-10-06，2026-10-07 雲端 session 更新。網站做完、合併前**刪掉這個檔**，它不是給使用者看的文件。
+> 寫於 2026-10-06，2026-10-07 雲端 session 更新、同日本機 session 補完截圖。網站做完、合併前**刪掉這個檔**，它不是給使用者看的文件。
 
 **現況（先讀這段）**：最新的網站在 **`claude/site-showcase-main-js-0b8uh8`** 分支，不是 `site-showcase`
-（那條停在 main.js 還沒寫的時候）。網站已經寫完、在雲端用 Playwright 驗過；**剩下的是 10 張截圖**，
-雲端拍不了，要本機拍 —— 直接跳到〈雲端 session 的改版〉底下的〈待拍的截圖〉。
+（那條停在 main.js 還沒寫的時候）。網站已經寫完、在雲端用 Playwright 驗過；**截圖 19 張都拍好了**
+（2026-10-07 本機補拍，使用者看過，見〈補拍的截圖〉）。剩下〈部署〉與〈收尾〉。
 下面〈`main.js` 第一版規格〉是第一版的紀錄，現在的行為以程式和〈雲端 session 的改版〉為準。
 
 ## 使用者要的
@@ -18,7 +18,7 @@ GSAP ScrollTrigger ＋ Lenis 平滑捲動，放 Vercel、接 GitHub 自動部署
 |---|---|
 | 放哪裡 | 這個 repo 的 `site/`，Vercel 的 Root Directory 設 `site` |
 | 技術 | Vite ＋ 原生 JS ＋ `gsap` ＋ `lenis`（npm） |
-| 畫面素材 | 模擬器實拍截圖（在 `site/public/shots/`；10 張已拍、10 張待拍，見〈待拍的截圖〉） |
+| 畫面素材 | 模擬器實拍截圖（在 `site/public/shots/`，19 張，見〈補拍的截圖〉） |
 | 視覺 | 沿用 app 的「紙與墨」（見根目錄 `CLAUDE.md` 的〈配色與版面語言〉） |
 | 語言 | 只有繁體中文 |
 | 敘事 | 「一天」時間軸（下面〈分鏡〉） |
@@ -42,8 +42,8 @@ GSAP ScrollTrigger ＋ Lenis 平滑捲動，放 Vercel、接 GitHub 自動部署
 | `site/index.html` | ✅ 完整結構與文案（新配文使用者確認過） |
 | `site/src/style.css` | ✅ 寫完，瀏覽器驗證過 |
 | `site/src/main.js` | ✅ 已寫，改版內容見〈雲端 session 的改版〉 |
-| `site/public/` | ⚠️ 10 張截圖（其中 library-query 要重拍）＋**10 張待拍**、`fonts/neucha.woff2`、`icon-cat.webp`、`favicon.png`、`apple-touch-icon.png`、`og.png` |
-| `npm install` / build / 瀏覽器驗證 | ✅ 雲端用 Playwright 驗過桌面、手機、減少動態；截圖還缺 10 張 |
+| `site/public/` | ✅ 19 張截圖、`fonts/neucha.woff2`、`icon-cat.webp`、`favicon.png`、`apple-touch-icon.png`、`og.png` |
+| `npm install` / build / 瀏覽器驗證 | ✅ 雲端用 Playwright 驗過桌面、手機、減少動態；補完截圖後本機再驗過桌面與手機寬度 |
 | Vercel 連線 | ❌ 要使用者自己在 Vercel 後台做（見〈部署〉） |
 | `CLAUDE.md` 加一節講 `site/` | ❌ |
 
@@ -184,13 +184,42 @@ ScrollTrigger 去改同一個值 —— 那樣倒捲回去時會互相蓋掉。�
 **新配文使用者確認過了（2026-10-07），照現在的用字**：四個章節後的 `.panel`
 （左滑刪除、復原、運動消耗明細、飲水明細、AI 週報／月報）與藝廊的四段說明（設定、掃條碼、換一家再試、CSV 匯入）。
 
-### 待拍的截圖（下一個本機 session 的第一件事）
+### 補拍的截圖（2026-10-07 本機拍完，使用者看過）
 
-使用者要求補上這些。**雲端拍不了**：容器沒有 `/dev/kvm`（模擬器跑不起來），`dl.google.com` 也被網路政策擋住
+下面這 10 張已經拍好放進 `site/public/shots/`，使用者看過才 commit。這一節留著給**要重拍的時候**用。
+**雲端拍不了**：容器沒有 `/dev/kvm`（模擬器跑不起來），`dl.google.com` 也被網路政策擋住
 （連 SDK 都裝不了）。所以要在本機用 `tools/emu.ps1` 開模擬器、`tools/ui.ps1` 操作來拍。
 
 網頁上缺的圖會顯示「待拍截圖＋檔名」的虛線框，**檔名一字不差**放進 `site/public/shots/` 就自動換掉，程式不用改。
 裁切同上（1080×2400 切掉上 118px、下 60px，縮到 720 寬 WebP），示範資料同〈示範資料〉那一節。
+
+**這次的作法（使用者選的或看過的）**
+
+- **用目前的程式拍，不是模擬器上原本 9/25 那顆舊版**（使用者選的）。示範資料在 `com.watson.nutrilog`（不是 `.debug`），
+  所以是暫時註解掉 `app/build.gradle.kts` 的 `applicationIdSuffix`／`versionNameSuffix`、把 `app/src/debug/res/values/strings.xml`
+  的「肥胖日記 測試版」改成「肥胖日記」，`assembleDebug -PappVersionName=2.2.8` 後 `adb install -r -d` 蓋上去（同 debug 簽章，資料保留），
+  建完立刻 `git checkout` 那兩個檔、再正常 `assembleDebug` 一次，讓 `app-debug.apk` 回到 `.debug` 那顆。
+  先前那 9 張是舊版拍的，那幾頁外觀沒變。
+- swipe／undo：今日頁往下捲到營養素那一區貼著週長條，四餐都在畫面裡；兩張同一個捲動位置，淡入切換時上半部對得齊。
+  刪掉一列後頁面變短，**捲到底的話捲動位置會被夾回、上緣切到半截**，所以不要捲到底。
+- library-query：主機 `Set-Clipboard "烤肉"`（模擬器會同步主機剪貼簿），長按輸入框貼上，等提示消失、點空白處失焦再拍
+  （聚焦時底下那段說明會收起來，和原圖不一樣）。
+- csv-import：九月的紀錄（146 筆，重複）＋同一批往前推一個月當八月（146 筆，新的），面板同時有「會新增」與「會略過」。
+- barcode：台灣比菲多「質立希臘式優格（無加糖）」`4710784965544`（名稱是中文、每 100 g）。很多台灣商品在 OFF 的
+  `product_name` 是機器翻的英文（光泉鮮乳是「Frankincense Family High Quality Pure Milk」），挑之前先查 API。
+- provider-switch：走「從相簿選」→ 斷網 → 送出辨識，讓它是**拍照**失敗：面板的說明句才是「拍照要用看得懂圖片的模型…」，
+  對得上配文的「同一張照片直接重試」。失敗畫面不顯示照片，用哪張圖都可以。
+- report：月報內文是照 `MonthlyAggregator` 的 prompt 規則手寫的，使用者看過。**統計那塊要帶運動**：拍的時候暫時把
+  DataStore 的 `readExerciseCalories` 改成 false（UI 改不了：沒授權時開關本來就顯示關），報表才會讀快取裡九月那四次跑步
+  （運動消耗 每天 46／每日消耗 1,666／熱量收支 +2,139）；拍完把設定檔與資料庫換回備份。
+
+**會咬人的事**
+
+- **打開 AI 報告頁會把 `daily_health_metrics` 寫成 0。** 沒授權讀取時 `readDailyActivity` 回 0（不是 null），
+  `MonthlyAggregator`／`WeeklyAggregator` 照寫進快取，整個月（加上比較的上個月）都被蓋掉。這是 app 的 bug，另開任務修。
+  修好之前，**開報表頁之前先備份資料庫**。
+- **用 `adb shell run-as … 'cat > 檔' < 檔` 寫二進位會被截斷**（77 KB 的資料庫只寫進 21 KB）。資料庫、DataStore 一律
+  `adb push` 到 `/data/local/tmp`，`adb root` 後 `cp`、`chown u0_a211:u0_a211`、`restorecon`。讀出來用 `exec-out` 沒問題。
 
 **開拍前**
 
@@ -224,6 +253,9 @@ ScrollTrigger 去改同一個值 —— 那樣倒捲回去時會互相蓋掉。�
    （`style.css` 的 `img { height: auto }`）、桌面版右邊手機換畫面的方向對（`index.html` 裡 `.shot` 的 `data-from`）。
 2. 模擬器改回自動時間、網路打開，示範資料沒被動到（今日頁還是 2183）。
 3. 先給使用者看，他同意再 commit／push 到同一個分支。推上去之後雲端 session 可以再用 Playwright 驗一次。
+
+2026-10-07 這次三項都做了：手機寬度 16 張比例正確、無橫向捲軸；桌面寬度用 headless Chrome 往下捲再倒捲回去，
+15 個畫面順序兩個方向都對、`bottom` 由下往上蓋、`fade` 淡入；模擬器資料庫與設定檔換回開始前的備份（逐位元組相同）。
 
 ## 驗證清單
 
