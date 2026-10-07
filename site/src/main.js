@@ -12,6 +12,12 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const clamp01 = gsap.utils.clamp(0, 1);
 const pageY = (el) => el.getBoundingClientRect().top + window.scrollY;
+// 不算 transform 的版面位置：正在淡入上移的元素，量 getBoundingClientRect 會跟著捲動位置差幾十 px
+const layoutY = (el) => {
+  let y = 0;
+  for (let e = el; e; e = e.offsetParent) y += e.offsetTop;
+  return y;
+};
 
 const MQ = {
   desktop: '(min-width: 900px)',
@@ -63,6 +69,12 @@ const SCENE = {
 };
 const UNIT_SVH = 24;
 
+// 停手之後把半路的那一幕播完（settleOnRest）。全部 scrub 的話，停在哪裡就看每個人捲動的習慣，
+// 字飛到一半就停住是常態；停手 DELAY 毫秒後往剛剛捲的方向捲到下一個「整幕都在」的位置。
+// 速度用時間軸的秒算，跟剛剛捲得多快無關。RATE 1 是照 SCENE 的秒數播，實測一段要 3～8 秒，
+// 使用者選了 1.5 倍（桌面 1.9～3.7 秒、手機 2.1～5.4 秒）。
+const SETTLE = { DELAY: 300, RATE: 1.5 };
+
 // 換畫面的方向照 app 的規則：「記一筆」開出來的由上往下蓋，報頭圖示（月曆）與底部面板由下往上。
 // 減少動態時一律改成淡入：移動的那條邊也是位移。
 const FULL = 'inset(0% 0% 0% 0%)';
@@ -78,8 +90,9 @@ const SHOT_REDUCED = { from: { opacity: 0, clipPath: FULL }, to: { opacity: 1, c
 let deferredCount = 0;
 const deferIn = (ctx, fn) => ctx.add(`deferred${++deferredCount}`, fn);
 
-// 桌面版的場景疊在同一個位置，錨點與入夜的位置不能量元素，要從時間軸換算（stageDay 填、還原時清掉）
-const layout = { anchorY: null, duskRange: null };
+// 桌面版的場景疊在同一個位置，錨點與入夜的位置不能量元素，要從時間軸換算（stageDay 填、還原時清掉）。
+// rests 是停手後可以停的位置：由上往下排的 [起, 迄] 捲動範圍，兩段之間就是「動畫的半路」。
+const layout = { anchorY: null, duskRange: null, rests: null };
 
 /* ---------- 截圖還沒拍好的位置 ----------
    圖片載入失敗就換成虛線框，寫出它在等哪個檔名。版面照常佔位，拍好放進 public/shots/ 就自動換成圖。 */
@@ -100,12 +113,70 @@ mm.add(MQ.motion, () => {
   lenis.on('scroll', ScrollTrigger.update);
   gsap.ticker.add(raf);
   gsap.ticker.lagSmoothing(0);
+  const stopSettle = settleOnRest(lenis);
   return () => {
+    stopSettle();
     gsap.ticker.remove(raf);
     gsap.ticker.lagSmoothing(500, 33);
     lenis.destroy();
   };
 });
+
+// 停手（捲動停了、手指也離開了）之後，如果停在兩個可以停的位置中間，就往剛剛捲的方向捲到下一個。
+// 已經在可以停的範圍裡、或在故事以外（第一段之前、最後一段之後）就不動。
+// 自動捲動中一碰滾輪或手指一動，Lenis 就把捲動交還給使用者，不需要另外處理。
+// 減少動態時不會走到這裡：整段只在有 Lenis 的時候掛上，而自動捲動本身就是位移。
+function settleOnRest(lenis) {
+  let timer = 0;
+  let dir = 0;
+  const easeInOut = (t) => -(Math.cos(Math.PI * t) - 1) / 2;
+
+  const settle = () => {
+    if (lenis.isScrolling || lenis.isTouching) return;
+    const rests = layout.rests?.();
+    if (!rests?.length) return;
+    const y = lenis.scroll;
+    const target = restTarget(rests, y, dir);
+    if (target === null) return;
+    const perSecond = (window.innerHeight * UNIT_SVH) / 100;
+    lenis.scrollTo(target, {
+      duration: Math.abs(target - y) / perSecond / SETTLE.RATE,
+      easing: easeInOut,
+    });
+  };
+  const arm = () => {
+    clearTimeout(timer);
+    timer = setTimeout(settle, SETTLE.DELAY);
+  };
+
+  const offScroll = lenis.on('scroll', () => {
+    if (lenis.direction) dir = lenis.direction;
+    arm();
+  });
+  // 手指按著不動時不會有 scroll 事件，放開那一下（touchend）才重新開始等
+  const offVirtual = lenis.on('virtual-scroll', arm);
+  return () => {
+    clearTimeout(timer);
+    offScroll();
+    offVirtual();
+  };
+}
+
+// 停在 y、剛剛往 dir 捲：要捲到哪裡（null 是不用動）
+function restTarget(rests, y, dir) {
+  const EPS = 2;
+  for (let i = 0; i < rests.length; i++) {
+    const [a, b] = rests[i];
+    if (y >= a - EPS && y <= b + EPS) return null;
+    const next = rests[i + 1];
+    if (!next || y >= next[0]) continue;
+    if (y < a) return null;
+    if (dir > 0) return next[0];
+    if (dir < 0) return b;
+    return y - b < next[0] - y ? b : next[0];
+  }
+  return null;
+}
 
 /* ---------- 2. 章節裡的小示範 ----------
    每個都回傳一條暫停的時間軸，接進那一幕的時間軸裡（sceneTimeline），在字全部進來之後播。 */
@@ -336,7 +407,8 @@ function sceneTimeline(scene, reduce, onScreen = () => {}) {
     else tl.to(el, { autoAlpha: 0, y: -lift, duration: SCENE.CHAR_OUT * 1.5 }, at);
   });
 
-  return { tl, anchor: scene.dataset.time ? anchor : null, resets };
+  // rest：字和小示範都到齊、還沒開始飄走的那一段，停手後就停在這裡
+  return { tl, anchor: scene.dataset.time ? anchor : null, rest: [end, outAt], resets };
 }
 
 /* ---------- 4. 桌面版：釘住的一天 ----------
@@ -369,6 +441,7 @@ function stageDay(ctx, reduce) {
   tl.to($('.hero-copy', hero), { autoAlpha: 0, y: -2 * lift, duration: 0.8 }, 0.3);
   let t = 1.1 + SCENE.GAP;
   let duskAt = null;
+  const rests = [[0, 0.3]];
 
   for (const scene of scenes) {
     const start = t;
@@ -378,6 +451,7 @@ function stageDay(ctx, reduce) {
     resets.push(...s.resets);
     tl.add(s.tl, start);
     if (s.anchor !== null) anchorTime.set(scene, start + s.anchor);
+    rests.push([start + s.rest[0], start + s.rest[1]]);
     t = start + s.tl.duration() + SCENE.GAP;
   }
 
@@ -394,10 +468,16 @@ function stageDay(ctx, reduce) {
   layout.anchorY = (el) => (anchorTime.has(el) ? at(anchorTime.get(el)) + window.innerHeight / 2 : null);
   // 入夜：上一幕往上飄走時開始，跑步這一幕的畫面換好時完成
   layout.duskRange = () => (duskAt === null ? null : [at(duskAt - 0.9), at(duskAt + SCENE.LEAD)]);
+  // 最後一幕飄走、手機淡出之後那段是空的，停在那裡要往下接到下一段的開頭；從那裡起就不是這條時間軸的事
+  layout.rests = () => {
+    const end = pageY(day) + day.offsetHeight;
+    return [...rests.map(([a, b]) => [at(a), at(b)]), [end, end]];
+  };
 
   return () => {
     layout.anchorY = null;
     layout.duskRange = null;
+    layout.rests = null;
     day.classList.remove('is-staged');
     day.style.height = '';
     resets.forEach((fn) => fn());
@@ -423,7 +503,7 @@ function stageMobile(ctx, reduce) {
     const total = s.tl.duration();
     stage.style.height = `${100 + total * UNIT_SVH}svh`;
     ScrollTrigger.create({ trigger: stage, start: 'top top', end: 'bottom bottom', scrub: true, animation: s.tl });
-    stages.set(scene, { stage, anchor: s.anchor, total });
+    stages.set(scene, { stage, anchor: s.anchor, rest: s.rest, total, shot: $('.inline-shot', scene) });
   }
 
   $$('.day-text > .scene:not(.hero) > .inline-shot').forEach((shot) =>
@@ -455,8 +535,27 @@ function stageMobile(ctx, reduce) {
     return pageY(s.stage) + (s.anchor / s.total) * (s.stage.offsetHeight - window.innerHeight) + window.innerHeight / 2;
   };
 
+  // 可以停的位置：封面最上面、每一幕的字到齊時，以及接在後面的那張截圖整張露出來、淡入也走完時。
+  // 截圖也要算一站：不然從字直接捲到下一幕，截圖只會一閃而過
+  layout.rests = () => {
+    const vh = window.innerHeight;
+    const top = $('.masthead').offsetHeight;
+    const out = [[0, 0]];
+    for (const s of stages.values()) {
+      const at = (time) => pageY(s.stage) + (time / s.total) * (s.stage.offsetHeight - vh);
+      out.push([at(s.rest[0]), at(s.rest[1])]);
+      if (!s.shot) continue;
+      // 截圖上緣落在報頭下面、且整張在畫面裡（淡入在上緣到 65% 時走完）；太矮的螢幕就貼齊報頭
+      const y = layoutY(s.shot);
+      const b = y - top;
+      out.push([Math.min(b, y - Math.min(0.65 * vh, vh - s.shot.offsetHeight - 16)), b]);
+    }
+    return out;
+  };
+
   return () => {
     layout.anchorY = null;
+    layout.rests = null;
     day.classList.remove('is-staged');
     for (const { stage } of stages.values()) stage.style.height = '';
     resets.forEach((fn) => fn());
