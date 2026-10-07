@@ -40,20 +40,25 @@ const DARK = {
 
 // 「減少動態」拿掉的是位移，不是整段動畫：淡入淡出照舊，只是不飄（同 html-games/fhibichubi-nono）。
 // 位移、視差、接管捲動會誘發前庭不適；純透明度不會，留著它敘事才不會變成一面不動的長頁。
-const RISE = 40; // 一行進場時往上飄的距離 (px)
-const LIFT = 30; // 一行離場時再往上飄的距離 (px)
+const RISE = 40; // 整塊（小示範、截圖）進場時往上飄的距離 (px)
+const LIFT = 30; // 整塊離場時再往上飄的距離 (px)
 
-// 桌面版那條時間軸的節奏，單位是時間軸的秒；一秒佔 UNIT_SVH 的捲動距離。
-// 改節奏只改這裡，.day 的高度跟著時間軸總長算，不用回頭改 CSS。
+// 每一幕的節奏，單位是時間軸的秒；一秒佔 UNIT_SVH 的捲動距離。桌面版整天接成一條、手機版每一幕
+// 各自一條，用的是同一組數字。改節奏只改這裡，高度跟著時間軸總長算，不用回頭改 CSS。
+// 這組數字是在示範頁（逐字掃法比較）上和使用者一起挑的「釘住＋大動作」。
 const SCENE = {
   LEAD: 0.5, //       換到這一幕的手機畫面，字還沒出來
-  IN_STEP: 0.32, //   行與行錯開多少
-  IN_SPAN: 0.6, //    一行飄完要多久
+  CHAR_IN: 0.35, //   一個字彈完要多久（要留時間給最後那一下回彈）
+  CHAR_STEP: 0.03, // 字與字錯開多少
+  LINE_MAX: 1.0, //   一行最多花多久掃完：長段落只是字與字更緊，不會拖
+  LINE_GAP: 0.12, //  上一行掃完之後，下一行多久開始
   BEAT: 0.8, //       帶著自己畫面的那一行，先讓上一個畫面多停一下
+  BLOCK_IN: 0.6, //   小示範整塊淡入
   DEMO: 1.8, //       小示範（底線、540→503、份數、熱量條）
-  HOLD: 0.9, //       全部都在、停著讓人讀
-  OUT_STEP: 0.1,
-  OUT_SPAN: 0.5,
+  HOLD: 1.2, //       全部都在、停著讓人讀
+  CHAR_OUT: 0.3,
+  OUT_STEP: 0.016,
+  OUT_MAX: 1.2, //    整幕最多花多久飄完
   GAP: 0.15, //       兩幕之間
 };
 const UNIT_SVH = 24;
@@ -103,7 +108,7 @@ mm.add(MQ.motion, () => {
 });
 
 /* ---------- 2. 章節裡的小示範 ----------
-   每個都回傳一條暫停的時間軸：桌面版接進那一幕的時間軸，手機版由示範自己的位置驅動。 */
+   每個都回傳一條暫停的時間軸，接進那一幕的時間軸裡（sceneTimeline），在字全部進來之後播。 */
 
 function matchTimeline(demo) {
   const tl = gsap.timeline({ paused: true, defaults: { ease: 'none' } });
@@ -205,16 +210,144 @@ function budgetTimeline(demo) {
 
 const DEMOS = { match: matchTimeline, stamps: stampsTimeline, portion: portionTimeline, budget: budgetTimeline };
 
-/* ---------- 3. 桌面版：釘住的一天 ----------
-   左欄和右邊的手機都釘住，捲動只推進一條時間軸：每一幕的字一行一行飄進來、停著讓人讀、
-   再往上飄走，手機跟著換畫面。字在出現的時候，旁邊沒有任何東西在移動。
+/* ---------- 3. 逐字進出場 ----------
+   每一幕的字照閱讀順序一個一個彈進來、停著讓人讀、再一個一個飄走。不用 GSAP 的 SplitText：
+   它的 specialChars 在把字黏回去時只比長度不比內容，在示範頁上實測把「煎烤豬肉排」改成
+   「烤烤豬肉排」、「咖啡」改成「烤啡」。這裡只把字包進 span，一個字都不動。 */
+
+// 一個單位＝一個中文字，或一整段數字／英文。標點黏在前一個字上、開括號黏在後一個字上，
+// 不然每個字各自 inline-block 之後，「，」可能跑到行首。數字整段一起，Neucha 的字距才不會散。
+const UNIT = /[「『（(]*[0-9A-Za-z+][0-9A-Za-z.:%+\-]*[，。、！？；：」』）)]*|[「『（(]*[^\s「『（(，。、！？；：」』）)][，。、！？；：」』）)…]*/gu;
+
+// 拆開的字對讀螢幕軟體藏起來，另外放一份完整的原文給它念。不用 aria-label：<p> 這種一般元素
+// 不允許命名，很多讀螢幕軟體會直接忽略。巢狀的 .num／.label 照原樣保留（數字字型才套得到），<br> 不碰。
+function splitUnits(el) {
+  const whole = document.createElement('span');
+  whole.className = 'sr-only';
+  whole.textContent = el.textContent.replace(/\s+/g, ' ').trim();
+  const out = [];
+  const walk = (node) => {
+    for (const child of [...node.childNodes]) {
+      if (child.nodeType === Node.ELEMENT_NODE) {
+        if (child.tagName !== 'BR') walk(child);
+        continue;
+      }
+      if (child.nodeType !== Node.TEXT_NODE) continue;
+      const text = child.textContent;
+      const frag = document.createDocumentFragment();
+      let last = 0;
+      for (const m of text.matchAll(UNIT)) {
+        if (m.index > last) frag.append(text.slice(last, m.index));
+        const u = document.createElement('span');
+        u.className = 'u';
+        u.setAttribute('aria-hidden', 'true');
+        u.textContent = m[0];
+        frag.append(u);
+        out.push(u);
+        last = m.index + m[0].length;
+      }
+      if (last < text.length) frag.append(text.slice(last));
+      child.replaceWith(frag);
+    }
+  };
+  walk(el);
+  el.prepend(whole);
+  return out;
+}
+
+// 拆一次就好，桌面與手機版共用（換版面時不用重拆）。小示範整塊進出，不拆
+const units = new Map();
+for (const line of $$('.scene-copy > .float:not([data-demo])')) units.set(line, splitUnits(line));
+
+// 一個字的進出場：彈起來、帶一點旋轉與縮放，最後回彈一下；離場時縮小、往上飄。
+// 減少動態時只淡入淡出，順序不變。
+function popLook(u, reduce) {
+  if (reduce) return { from: { autoAlpha: 0 }, to: { autoAlpha: 1 }, out: { autoAlpha: 0 }, inEase: 'power2.out', outEase: 'none' };
+  const f = parseFloat(getComputedStyle(u).fontSize);
+  return {
+    from: { autoAlpha: 0, y: f * 0.9, scale: 0.55, rotation: -14, transformOrigin: '50% 100%' },
+    to: { autoAlpha: 1, y: 0, scale: 1, rotation: 0 },
+    out: { autoAlpha: 0, y: -f * 0.8, scale: 0.8, rotation: 10 },
+    inEase: 'back.out(2.4)',
+    outEase: 'power2.in',
+  };
+}
+
+// 一幕的時間軸：字照閱讀順序彈進來 → 小示範 → 停著讓人讀 → 照閱讀順序飄走。
+// 桌面版接進整天那一條，手機版自己掛一個 ScrollTrigger。onScreen(畫面, 第幾秒) 是桌面版用來換手機畫面的。
+function sceneTimeline(scene, reduce, onScreen = () => {}) {
+  const tl = gsap.timeline({ defaults: { ease: 'none' } });
+  const lines = $$('.scene-copy > .float', scene);
+  const rise = reduce ? 0 : RISE;
+  const lift = reduce ? 0 : LIFT;
+  const resets = [];
+  const leaving = []; // 離場的順序：每一個字，或整塊示範
+  let cursor = SCENE.LEAD;
+  let end = cursor;
+  let anchor = null;
+  let demo = null;
+
+  lines.forEach((line, i) => {
+    // 帶著自己畫面的那一行（月曆的第二句）先讓上一個畫面多停一下，進場時一起換
+    const own = line.dataset.screen && !line.dataset.demo;
+    if (own && i > 0) cursor += SCENE.BEAT;
+    if (own) onScreen(line.dataset.screen, cursor);
+
+    if (line.dataset.demo) {
+      tl.fromTo(line, { autoAlpha: 0, y: rise }, { autoAlpha: 1, y: 0, duration: SCENE.BLOCK_IN, ease: 'power3.out' }, cursor);
+      leaving.push({ el: line });
+      demo = line;
+      end = Math.max(end, cursor + SCENE.BLOCK_IN);
+      cursor += SCENE.BLOCK_IN / 2;
+      return;
+    }
+
+    const us = units.get(line) ?? [];
+    const spread = Math.min(SCENE.LINE_MAX, Math.max(0, us.length - 1) * SCENE.CHAR_STEP);
+    us.forEach((u, j) => {
+      const look = popLook(u, reduce);
+      const at = cursor + (us.length > 1 ? j / (us.length - 1) : 0) * spread;
+      tl.fromTo(u, look.from, { ...look.to, duration: SCENE.CHAR_IN, ease: look.inEase }, at);
+      leaving.push({ el: u, look });
+    });
+    end = Math.max(end, cursor + spread + SCENE.CHAR_IN);
+    // 第一行（「幾點」那一行）完整出現時，報頭的時鐘剛好走到這個時間、今日熱量也在這時候跳
+    if (anchor === null) anchor = cursor + spread + SCENE.CHAR_IN;
+    cursor += spread + SCENE.LINE_GAP;
+  });
+
+  if (demo) {
+    const build = DEMOS[demo.dataset.demo];
+    if (build) {
+      const { tl: demoTl, reset } = build(demo);
+      resets.push(reset);
+      if (demo.dataset.screen) onScreen(demo.dataset.screen, end);
+      demoTl.paused(false).timeScale(demoTl.duration() / SCENE.DEMO);
+      tl.add(demoTl, end + 0.2);
+      end += 0.2 + SCENE.DEMO;
+    }
+  }
+
+  const outAt = end + SCENE.HOLD;
+  const outSpread = Math.min(SCENE.OUT_MAX, Math.max(0, leaving.length - 1) * SCENE.OUT_STEP);
+  leaving.forEach(({ el, look }, k) => {
+    const at = outAt + (leaving.length > 1 ? k / (leaving.length - 1) : 0) * outSpread;
+    if (look) tl.to(el, { ...look.out, duration: SCENE.CHAR_OUT, ease: look.outEase }, at);
+    else tl.to(el, { autoAlpha: 0, y: -lift, duration: SCENE.CHAR_OUT * 1.5 }, at);
+  });
+
+  return { tl, anchor: scene.dataset.time ? anchor : null, resets };
+}
+
+/* ---------- 4. 桌面版：釘住的一天 ----------
+   左欄和右邊的手機都釘住，捲動只推進一條時間軸：每一幕接在上一幕後面，手機跟著換畫面。
+   字在出現的時候，旁邊沒有任何東西在移動。
    最後一幕走完，手機在原地淡出，看不見了才解除釘住 —— 不會一路捲出畫面。 */
 
 function stageDay(ctx, reduce) {
   const day = $('.day');
   const scenes = $$('.day-text > .scene');
   const shots = new Map($$('.screen .shot').map((s) => [s.dataset.shot, s]));
-  const rise = reduce ? 0 : RISE;
   const lift = reduce ? 0 : LIFT;
   const resets = [];
 
@@ -239,49 +372,13 @@ function stageDay(ctx, reduce) {
 
   for (const scene of scenes) {
     const start = t;
-    const lines = $$(':scope > .float', scene);
     if (scene.dataset.screen) swap(scene.dataset.screen, start);
     if ('dusk' in scene.dataset) duskAt = start;
-
-    // 進場：帶著自己畫面的那一行（月曆的第二句）先讓上一個畫面多停一下，進場時一起換
-    let cursor = start + SCENE.LEAD;
-    let lastIn = cursor;
-    let demo = null;
-    lines.forEach((line, i) => {
-      const own = line.dataset.screen && !line.dataset.demo;
-      if (own && i > 0) cursor += SCENE.BEAT;
-      if (own) swap(line.dataset.screen, cursor);
-      tl.fromTo(
-        line,
-        { autoAlpha: 0, y: rise },
-        { autoAlpha: 1, y: 0, duration: SCENE.IN_SPAN, ease: 'power3.out' },
-        cursor,
-      );
-      if (line.dataset.demo) demo = line;
-      lastIn = cursor;
-      cursor += SCENE.IN_STEP;
-    });
-    // 「幾點」那一行完整出現時，報頭的時鐘剛好走到這個時間、今日熱量也在這時候跳
-    if (scene.dataset.time) anchorTime.set(scene, start + SCENE.LEAD + SCENE.IN_SPAN);
-
-    let hold = lastIn + SCENE.IN_SPAN;
-    if (demo) {
-      const build = DEMOS[demo.dataset.demo];
-      if (build) {
-        const { tl: demoTl, reset } = build(demo);
-        resets.push(reset);
-        if (demo.dataset.screen) swap(demo.dataset.screen, hold);
-        demoTl.paused(false).timeScale(demoTl.duration() / SCENE.DEMO);
-        tl.add(demoTl, hold + 0.2);
-        hold += 0.2 + SCENE.DEMO;
-      }
-    }
-
-    const outAt = hold + SCENE.HOLD;
-    lines.forEach((line, i) => {
-      tl.to(line, { autoAlpha: 0, y: -lift, duration: SCENE.OUT_SPAN }, outAt + i * SCENE.OUT_STEP);
-    });
-    t = outAt + (lines.length - 1) * SCENE.OUT_STEP + SCENE.OUT_SPAN + SCENE.GAP;
+    const s = sceneTimeline(scene, reduce, (name, at) => swap(name, start + at));
+    resets.push(...s.resets);
+    tl.add(s.tl, start);
+    if (s.anchor !== null) anchorTime.set(scene, start + s.anchor);
+    t = start + s.tl.duration() + SCENE.GAP;
   }
 
   // 一天結束：手機在原地淡出。停在這裡的是空的左欄與看不見的手機，解除釘住時沒有東西在移動
@@ -307,30 +404,35 @@ function stageDay(ctx, reduce) {
   };
 }
 
-/* ---------- 4. 手機版：照順序往下排 ----------
-   沒有釘住的手機，每一行由自己在視窗裡的位置連續驅動，往回捲會倒帶。 */
+/* ---------- 5. 手機版：每一幕的字自己釘住 ----------
+   沒有釘住的那支手機，改成每一幕的字停在畫面中間，逐字彈進來、停著讓人讀、再飄走，
+   那一幕的截圖接在後面捲上來。節奏和桌面版同一組，只是每一幕各自一個 ScrollTrigger。
+   原本是每一行跟著頁面往上捲、在畫面下緣飄進來，手機上一滑就過去了，使用者說看不出有進出場。 */
 
-function flatDay(ctx, reduce) {
+function stageMobile(ctx, reduce) {
+  const day = $('.day');
   const rise = reduce ? 0 : RISE;
   const resets = [];
+  const stages = new Map();
 
-  const floatIn = (el, start = 'top 92%', end = 'top 58%') =>
-    gsap.fromTo(
-      el,
-      { autoAlpha: 0, y: rise },
-      { autoAlpha: 1, y: 0, ease: 'power3.out', scrollTrigger: { trigger: el, start, end, scrub: true } },
-    );
-
-  $$('.day-text > .scene:not(.hero) > .float').forEach((el) => floatIn(el));
-  $$('.day-text > .scene:not(.hero) > .inline-shot').forEach((el) => floatIn(el, 'top 95%', 'top 65%'));
-
-  for (const demo of $$('[data-demo]')) {
-    const build = DEMOS[demo.dataset.demo];
-    if (!build) continue;
-    const { tl, reset } = build(demo);
-    resets.push(reset);
-    ScrollTrigger.create({ trigger: demo, animation: tl, start: 'top 70%', end: 'top 25%', scrub: true });
+  day.classList.add('is-staged');
+  for (const scene of $$('.day-text > .scene:not(.hero)')) {
+    const stage = $('.scene-stage', scene);
+    const s = sceneTimeline(scene, reduce);
+    resets.push(...s.resets);
+    const total = s.tl.duration();
+    stage.style.height = `${100 + total * UNIT_SVH}svh`;
+    ScrollTrigger.create({ trigger: stage, start: 'top top', end: 'bottom bottom', scrub: true, animation: s.tl });
+    stages.set(scene, { stage, anchor: s.anchor, total });
   }
+
+  $$('.day-text > .scene:not(.hero) > .inline-shot').forEach((shot) =>
+    gsap.fromTo(
+      shot,
+      { autoAlpha: 0, y: rise },
+      { autoAlpha: 1, y: 0, ease: 'power3.out', scrollTrigger: { trigger: shot, start: 'top 95%', end: 'top 65%', scrub: true } },
+    ),
+  );
 
   // 封面往上捲走時，大標與文字往上飄、淡掉
   const hero = $('.hero');
@@ -346,7 +448,19 @@ function flatDay(ctx, reduce) {
     scrollTrigger: { trigger: hero, start: 'top top', end: '15% top', scrub: true },
   });
 
-  return () => resets.forEach((fn) => fn());
+  // 時鐘和桌面版一樣：「幾點」那一行完整出現時走到這個時間
+  layout.anchorY = (el) => {
+    const s = stages.get(el);
+    if (!s || s.anchor === null) return null;
+    return pageY(s.stage) + (s.anchor / s.total) * (s.stage.offsetHeight - window.innerHeight) + window.innerHeight / 2;
+  };
+
+  return () => {
+    layout.anchorY = null;
+    day.classList.remove('is-staged');
+    for (const { stage } of stages.values()) stage.style.height = '';
+    resets.forEach((fn) => fn());
+  };
 }
 
 // 換版面（跨過 900px、轉平板、切換減少動態）時，ScrollTrigger 會把捲動位置歸零。兩種版面的同一個
@@ -362,14 +476,14 @@ ScrollTrigger.addEventListener('refresh', () => {
 
 mm.add({ desktop: MQ.desktop, mobile: MQ.mobile, reduce: MQ.reduce }, (ctx) => {
   const { desktop, reduce } = ctx.conditions;
-  const undo = desktop ? stageDay(ctx, reduce) : flatDay(ctx, reduce);
+  const undo = desktop ? stageDay(ctx, reduce) : stageMobile(ctx, reduce);
   return () => {
     if (story) resumeAt = story.minutes();
     undo();
   };
 });
 
-/* ---------- 5. 一天之後：逐字點亮、藝廊、天亮、下載 ---------- */
+/* ---------- 6. 一天之後：逐字點亮、藝廊、天亮、下載 ---------- */
 
 // 「沒有帳號，沒有後端。」拆成一個字一個 .glyph，捲到哪裡亮到哪裡。
 // 那是顏色不是位移，減少動態時照樣跑。
@@ -455,7 +569,7 @@ mm.add({ motion: MQ.motion, reduce: MQ.reduce }, (ctx) => {
   }
 });
 
-/* ---------- 6. 封面進場（載入時跑一次，不綁捲動） ----------
+/* ---------- 7. 封面進場（載入時跑一次，不綁捲動） ----------
    手機只淡入、不位移：字正在升起的時候，旁邊不該有東西在動。 */
 
 if (!reduceQuery.matches) {
@@ -469,7 +583,7 @@ if (!reduceQuery.matches) {
   gsap.from(['.hero-copy', '.day-phone .phone'], { opacity: 0, duration: 0.8 });
 }
 
-/* ---------- 7. 捲動狀態：時鐘、今日熱量、入夜、進度線 ----------
+/* ---------- 8. 捲動狀態：時鐘、今日熱量、入夜、進度線 ----------
    全部由一個函式從捲動位置直接算出來，不是每一幕各掛一個 ScrollTrigger 去改同一個值 ——
    那樣倒捲回去時，最後觸發的那一個會蓋掉該有的值。 */
 
@@ -510,12 +624,14 @@ function scrollState() {
   const mix = Object.fromEntries(Object.keys(DARK).map((k) => [k, gsap.utils.interpolate(light[k], DARK[k])]));
 
   let maxScroll = 1;
+  let measuredWidth = window.innerWidth;
   let duskFrom = Infinity;
   let duskTo = Infinity;
   let dawnFrom = Infinity;
   let dawnTo = Infinity;
 
   function measure() {
+    measuredWidth = window.innerWidth;
     const vh = window.innerHeight;
     maxScroll = Math.max(1, ScrollTrigger.maxScroll(window));
     // 錨點夾進「畫面中線摸得到」的範圍：封面的頂端是 0，但捲到最上面時中線已經在半個視窗高，
@@ -590,6 +706,10 @@ function scrollState() {
   const between = (y, from, to) => (to > from ? clamp01((y - from) / (to - from)) : y >= to ? 1 : 0);
 
   let minutesNow = anchors[0]?.minutes ?? 0;
+  // 換版面時要捲回去的那個時間。寬度一變，舊版面的高度先變、瀏覽器把捲動位置夾掉，那一下的捲動
+  // 會用舊版面量好的錨點算出錯的時間（實測手機 → 桌面從 21:38 掉到 13:48）。所以寬度和上次量的
+  // 不一樣時不更新它，等新版面量好再說。
+  let storyMinutes = minutesNow;
 
   function update() {
     const scrollY = window.scrollY;
@@ -601,6 +721,7 @@ function scrollState() {
     const b = anchors[i + 1];
     const t = b && b.y > a.y ? clamp01((pos - a.y) / (b.y - a.y)) : 0;
     minutesNow = b ? a.minutes + (b.minutes - a.minutes) * t : a.minutes;
+    if (window.innerWidth === measuredWidth) storyMinutes = minutesNow;
     paintClock(minutesNow);
 
     setBonus(a.bonus);
@@ -632,7 +753,7 @@ function scrollState() {
       update();
     },
   });
-  return { minutes: () => minutesNow, scrollFor };
+  return { minutes: () => storyMinutes, scrollFor };
 }
 
 // 放在桌面／手機版的版面建好之後：桌面版的錨點位置要從那條時間軸換算
@@ -641,7 +762,7 @@ story = scrollState();
 // 粉圓是 Google Fonts 非同步載進來的，換字之後行高會變，量好的位置要重量一次
 document.fonts?.ready.then(() => ScrollTrigger.refresh());
 
-/* ---------- 8. 下載鈕：接上最新一版的 APK ----------
+/* ---------- 9. 下載鈕：接上最新一版的 APK ----------
    版號不寫死在 HTML：網站只在 site/ 有改動時才重新部署，寫死的版號會過期。 */
 
 async function linkLatestApk() {

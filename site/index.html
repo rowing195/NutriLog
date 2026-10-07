@@ -56,146 +56,168 @@
         </section>
 
         <article class="scene chapter" data-time="07:40" data-kcal="225" data-bonus="0" data-screen="library">
-          <p class="when float"><span class="num">07:40</span><span class="label">早餐 — 常吃</span></p>
-          <h2 class="float">打兩個字，<br>昨天那份就回來了。</h2>
-          <p class="float">吃過的東西自己變成食物庫。「烤肉」找得到「煎烤豬肉排」，「咖啡」不會撈到咖哩飯。</p>
-          <div class="demo match float" data-demo="match" data-screen="library-query">
-            <div class="match-row" data-row="hit">
-              <span class="q">烤肉</span>
-              <span class="arrow" aria-hidden="true"></span>
-              <span class="name"><span>煎</span><b>烤</b><span>豬</span><b>肉</b><span>排</span></span>
-              <span class="verdict">找得到</span>
+          <div class="scene-stage"><div class="scene-copy">
+            <p class="when float"><span class="num">07:40</span><span class="label">早餐 — 常吃</span></p>
+            <h2 class="float">打兩個字，<br>昨天那份就回來了。</h2>
+            <p class="float">吃過的東西自己變成食物庫。「烤肉」找得到「煎烤豬肉排」，「咖啡」不會撈到咖哩飯。</p>
+            <div class="demo match float" data-demo="match" data-screen="library-query">
+              <div class="match-row" data-row="hit">
+                <span class="q">烤肉</span>
+                <span class="arrow" aria-hidden="true"></span>
+                <span class="name"><span>煎</span><b>烤</b><span>豬</span><b>肉</b><span>排</span></span>
+                <span class="verdict">找得到</span>
+              </div>
+              <div class="match-row" data-row="miss">
+                <span class="q">咖啡</span>
+                <span class="arrow" aria-hidden="true"></span>
+                <span class="name"><b>咖</b><span>哩</span><span>飯</span></span>
+                <span class="verdict">不算</span>
+              </div>
             </div>
-            <div class="match-row" data-row="miss">
-              <span class="q">咖啡</span>
-              <span class="arrow" aria-hidden="true"></span>
-              <span class="name"><b>咖</b><span>哩</span><span>飯</span></span>
-              <span class="verdict">不算</span>
-            </div>
-          </div>
+          </div></div>
           <figure class="inline-shot">
             <div class="phone"><span class="shot"><img src="/shots/library-query.webp" width="720" height="1481" loading="lazy" alt="常吃頁：打了「烤肉」，清單篩出「煎烤豬肉排」"><span class="ph">shots/library-query.webp</span></span></div>
           </figure>
         </article>
 
         <article class="scene chapter" data-time="12:30" data-kcal="1075" data-bonus="0" data-screen="review-lunch">
-          <p class="when float"><span class="num">12:30</span><span class="label">午餐 — 拍照</span></p>
-          <h2 class="float">拍一張，AI 估，<br>你點頭才算數。</h2>
-          <p class="float">模型給的是估算值，一定先經過確認畫面才入庫。</p>
+          <div class="scene-stage"><div class="scene-copy">
+            <p class="when float"><span class="num">12:30</span><span class="label">午餐 — 拍照</span></p>
+            <h2 class="float">拍一張，AI 估，<br>你點頭才算數。</h2>
+            <p class="float">模型給的是估算值，一定先經過確認畫面才入庫。</p>
+          </div></div>
           <figure class="inline-shot">
             <div class="phone"><span class="shot"><img src="/shots/review-lunch.webp" width="720" height="1481" loading="lazy" alt="確認辨識結果：雞腿便當、無糖綠茶已勾選，蘋果取消勾選"><span class="ph">shots/review-lunch.webp</span></span></div>
           </figure>
         </article>
 
         <article class="scene chapter" data-time="15:10" data-kcal="1578" data-bonus="0" data-screen="ai-stamps">
-          <p class="when float"><span class="num">15:10</span><span class="label">下午 — AI 估／AI 查</span></p>
-          <h2 class="float">要不要上網查，<br>是你按的。</h2>
-          <p class="float">麥當勞 大麥克：AI 估 540 ／ AI 查 503（台灣官方標示）</p>
-          <div class="demo stamps float" data-demo="stamps" data-screen="review-bigmac">
-            <div class="stamp-row">
-              <span class="stamp small">AI 估</span>
-              <span class="figure"><span class="num">540</span><span class="num unit">kcal</span></span>
-              <span class="note">憑模型的印象</span>
+          <div class="scene-stage"><div class="scene-copy">
+            <p class="when float"><span class="num">15:10</span><span class="label">下午 — AI 估／AI 查</span></p>
+            <h2 class="float">要不要上網查，<br>是你按的。</h2>
+            <p class="float">麥當勞 大麥克：AI 估 540 ／ AI 查 503（台灣官方標示）</p>
+            <div class="demo stamps float" data-demo="stamps" data-screen="review-bigmac">
+              <div class="stamp-row">
+                <span class="stamp small">AI 估</span>
+                <span class="figure"><span class="num">540</span><span class="num unit">kcal</span></span>
+                <span class="note">憑模型的印象</span>
+              </div>
+              <div class="stamp-row" data-row="search">
+                <span class="stamp small secondary">AI 查</span>
+                <span class="figure"><span class="num" data-count>540</span><span class="num unit">kcal</span></span>
+                <span class="note">先找該店公布的營養標示</span>
+              </div>
             </div>
-            <div class="stamp-row" data-row="search">
-              <span class="stamp small secondary">AI 查</span>
-              <span class="figure"><span class="num" data-count>540</span><span class="num unit">kcal</span></span>
-              <span class="note">先找該店公布的營養標示</span>
-            </div>
-          </div>
+          </div></div>
           <figure class="inline-shot">
             <div class="phone"><span class="shot"><img src="/shots/review-bigmac.webp" width="720" height="1481" loading="lazy" alt="確認辨識結果：麥當勞大麥克 503 kcal，蛋白 26、脂肪 25、碳水 43"><span class="ph">shots/review-bigmac.webp</span></span></div>
           </figure>
         </article>
 
         <article class="scene chapter" data-time="19:20" data-kcal="2183" data-bonus="0" data-screen="portion">
-          <p class="when float"><span class="num">19:20</span><span class="label">晚餐 — 份數</span></p>
-          <h2 class="float">吃了一碗半，<br>就按一碗半。</h2>
-          <p class="float">1 碗 (250 g) → 1.5 碗 (375 g)，熱量與營養素一起換算。</p>
-          <div class="demo portion float" data-demo="portion">
-            <div class="stepper">
-              <span class="key">−1</span><span class="key" data-minus>−0.1</span>
-              <span class="value"><span class="num" data-mult>1</span><span class="label">份</span></span>
-              <span class="key" data-plus>+0.1</span><span class="key">+1</span>
+          <div class="scene-stage"><div class="scene-copy">
+            <p class="when float"><span class="num">19:20</span><span class="label">晚餐 — 份數</span></p>
+            <h2 class="float">吃了一碗半，<br>就按一碗半。</h2>
+            <p class="float">1 碗 (250 g) → 1.5 碗 (375 g)，熱量與營養素一起換算。</p>
+            <div class="demo portion float" data-demo="portion">
+              <div class="stepper">
+                <span class="key">−1</span><span class="key" data-minus>−0.1</span>
+                <span class="value"><span class="num" data-mult>1</span><span class="label">份</span></span>
+                <span class="key" data-plus>+0.1</span><span class="key">+1</span>
+              </div>
+              <div class="readout">
+                <span class="serving" data-serving>1 碗 (250 g)</span>
+                <span class="figure"><span class="num" data-portion-kcal>350</span><span class="num unit">kcal</span></span>
+              </div>
             </div>
-            <div class="readout">
-              <span class="serving" data-serving>1 碗 (250 g)</span>
-              <span class="figure"><span class="num" data-portion-kcal>350</span><span class="num unit">kcal</span></span>
-            </div>
-          </div>
+          </div></div>
           <figure class="inline-shot">
             <div class="phone"><span class="shot"><img src="/shots/portion.webp" width="720" height="1481" loading="lazy" alt="編輯表單：白飯 1.5 份，份量自動變成 1.5 碗 (375 g)，熱量 525 kcal"><span class="ph">shots/portion.webp</span></span></div>
           </figure>
         </article>
 
         <article class="scene panel" data-screen="swipe">
-          <p class="when float"><span class="label">左滑刪除</span></p>
-          <h3 class="float">記錯了，往左滑。</h3>
-          <p class="float">紀錄往左滑會露出刪除，點下去才真的刪。滑開之後改變主意，點一下那一列就收回去。</p>
+          <div class="scene-stage"><div class="scene-copy">
+            <p class="when float"><span class="label">左滑刪除</span></p>
+            <h3 class="float">記錯了，往左滑。</h3>
+            <p class="float">紀錄往左滑會露出刪除，點下去才真的刪。滑開之後改變主意，點一下那一列就收回去。</p>
+          </div></div>
           <figure class="inline-shot">
             <div class="phone"><span class="shot"><img src="/shots/swipe.webp" width="720" height="1481" loading="lazy" alt="今日頁：一筆紀錄往左滑開，露出刪除"><span class="ph">shots/swipe.webp</span></span></div>
           </figure>
         </article>
 
         <article class="scene panel" data-screen="undo">
-          <p class="when float"><span class="label">復原</span></p>
-          <h3 class="float">刪錯了，<br>五秒內收得回來。</h3>
-          <p class="float">刪掉的那一刻，左下角會出現一顆復原章，底下那條線就是剩下的秒數。按下去，那一筆原封不動地回來。</p>
+          <div class="scene-stage"><div class="scene-copy">
+            <p class="when float"><span class="label">復原</span></p>
+            <h3 class="float">刪錯了，<br>五秒內收得回來。</h3>
+            <p class="float">刪掉的那一刻，左下角會出現一顆復原章，底下那條線就是剩下的秒數。按下去，那一筆原封不動地回來。</p>
+          </div></div>
           <figure class="inline-shot">
             <div class="phone"><span class="shot"><img src="/shots/undo.webp" width="720" height="1481" loading="lazy" alt="今日頁：刪掉一筆之後，左下角的復原章"><span class="ph">shots/undo.webp</span></span></div>
           </figure>
         </article>
 
         <article class="scene chapter" data-time="21:00" data-kcal="2183" data-bonus="300" data-dusk data-screen="today-night">
-          <p class="when float"><span class="num">21:00</span><span class="label">跑步 — 健康連線</span></p>
-          <h2 class="float">動得多，<br>就能多吃一點。</h2>
-          <p class="float">運動消耗加進今天的目標，不從吃掉的扣。<br>手錶估得偏高，預設只回補一半。</p>
-          <div class="demo budget float" data-demo="budget">
-            <div class="bar">
-              <span class="eaten"></span>
-              <span class="over"></span>
-              <span class="bonus-zone"></span>
-              <span class="target-line"></span>
+          <div class="scene-stage"><div class="scene-copy">
+            <p class="when float"><span class="num">21:00</span><span class="label">跑步 — 健康連線</span></p>
+            <h2 class="float">動得多，<br>就能多吃一點。</h2>
+            <p class="float">運動消耗加進今天的目標，不從吃掉的扣。<br>手錶估得偏高，預設只回補一半。</p>
+            <div class="demo budget float" data-demo="budget">
+              <div class="bar">
+                <span class="eaten"></span>
+                <span class="over"></span>
+                <span class="bonus-zone"></span>
+                <span class="target-line"></span>
+              </div>
+              <p class="legend"><span class="label">吃了</span><span class="num">2183</span><span class="label">目標</span><span class="num">1944</span><span class="label">運動</span><span class="num">+300</span></p>
+              <p class="small-note">手錶量到 600，回補一半</p>
             </div>
-            <p class="legend"><span class="label">吃了</span><span class="num">2183</span><span class="label">目標</span><span class="num">1944</span><span class="label">運動</span><span class="num">+300</span></p>
-            <p class="small-note">手錶量到 600，回補一半</p>
-          </div>
+          </div></div>
           <figure class="inline-shot">
             <div class="phone"><span class="shot"><img src="/shots/today-night.webp" width="720" height="1481" loading="lazy" alt="今日頁深色模式：吃了 2183 kcal，目標 1944，運動 +300，還有 61"><span class="ph">shots/today-night.webp</span></span></div>
           </figure>
         </article>
 
         <article class="scene panel" data-screen="exercise">
-          <p class="when float"><span class="label">運動消耗明細</span></p>
-          <h3 class="float">加了多少，<br>點進去看。</h3>
-          <p class="float">今日頁寫的 +300，是真的加進目標的量。點進去才看得到手錶量到 600、回補一半。沒開運動紀錄的日子，步數只算超出平常走動的那一段。</p>
+          <div class="scene-stage"><div class="scene-copy">
+            <p class="when float"><span class="label">運動消耗明細</span></p>
+            <h3 class="float">加了多少，<br>點進去看。</h3>
+            <p class="float">今日頁寫的 +300，是真的加進目標的量。點進去才看得到手錶量到 600、回補一半。沒開運動紀錄的日子，步數只算超出平常走動的那一段。</p>
+          </div></div>
           <figure class="inline-shot">
             <div class="phone"><span class="shot"><img src="/shots/exercise.webp" width="720" height="1481" loading="lazy" alt="運動消耗明細：手錶量到 600，回補 50%，加進目標 300"><span class="ph">shots/exercise.webp</span></span></div>
           </figure>
         </article>
 
         <article class="scene panel" data-screen="water">
-          <p class="when float"><span class="label">飲水明細</span></p>
-          <h3 class="float">水另外記。</h3>
-          <p class="float">飲料自己帶的水會算進今天的飲水，旁邊兩顆鍵再手動加減 50 ml。刪掉那杯飲料，它的水也跟著扣掉。</p>
+          <div class="scene-stage"><div class="scene-copy">
+            <p class="when float"><span class="label">飲水明細</span></p>
+            <h3 class="float">水另外記。</h3>
+            <p class="float">飲料自己帶的水會算進今天的飲水，旁邊兩顆鍵再手動加減 50 ml。刪掉那杯飲料，它的水也跟著扣掉。</p>
+          </div></div>
           <figure class="inline-shot">
             <div class="phone"><span class="shot"><img src="/shots/water.webp" width="720" height="1481" loading="lazy" alt="飲水明細：每杯飲料的水量、手動加減與合計"><span class="ph">shots/water.webp</span></span></div>
           </figure>
         </article>
 
         <article class="scene chapter" data-time="23:30" data-screen="calendar-today">
-          <p class="when float"><span class="num">23:30</span><span class="label">月曆</span></p>
-          <h2 class="float">一天，收進一格。</h2>
-          <p class="float" data-screen="calendar-month">哪幾天忘了記，一眼就看得出形狀。<br>改了目標，過去的日子還是照當時的標準。</p>
+          <div class="scene-stage"><div class="scene-copy">
+            <p class="when float"><span class="num">23:30</span><span class="label">月曆</span></p>
+            <h2 class="float">一天，收進一格。</h2>
+            <p class="float" data-screen="calendar-month">哪幾天忘了記，一眼就看得出形狀。<br>改了目標，過去的日子還是照當時的標準。</p>
+          </div></div>
           <figure class="inline-shot">
             <div class="phone"><span class="shot"><img src="/shots/calendar-month.webp" width="720" height="1481" loading="lazy" alt="九月的月曆：沒記的日子是空格，超標的日子標紅"><span class="ph">shots/calendar-month.webp</span></span></div>
           </figure>
         </article>
 
         <article class="scene panel" data-screen="report">
-          <p class="when float"><span class="label">AI 週報／月報</span></p>
-          <h3 class="float">月底，<br>讓 AI 寫一份月報。</h3>
-          <p class="float">統計是手機自己算的，按下「產生」才花一次 AI 呼叫。週報最後還會建議下週的每日目標，要不要套用由你決定。</p>
+          <div class="scene-stage"><div class="scene-copy">
+            <p class="when float"><span class="label">AI 週報／月報</span></p>
+            <h3 class="float">月底，<br>讓 AI 寫一份月報。</h3>
+            <p class="float">統計是手機自己算的，按下「產生」才花一次 AI 呼叫。週報最後還會建議下週的每日目標，要不要套用由你決定。</p>
+          </div></div>
           <figure class="inline-shot">
             <div class="phone"><span class="shot"><img src="/shots/report.webp" width="720" height="1481" loading="lazy" alt="AI 月報：九月記錄 25 天，平均 1761"><span class="ph">shots/report.webp</span></span></div>
           </figure>
