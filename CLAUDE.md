@@ -1716,6 +1716,22 @@ adb shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c 
 
 最後一行就是目前的桌面入口，例如 `com.watson.nutrilog/.IconHat`。
 
+## 展示網站：`site/`
+
+`site/` 是介紹這個 app 的單頁網站（Vite ＋ 原生 JS ＋ GSAP ＋ Lenis），自己是一個 npm 專案，
+跟 gradle 無關。部署在 **Vercel**，Root Directory 設 `site`；`site/vercel.json` 的 `ignoreCommand`
+讓沒動到 `site/` 的 commit 不觸發部署（`release.yml` 只吃 `v*` tag，兩者互不影響）。
+動畫怎麼排、為什麼這樣排，寫在 `site/src/main.js` 各段的註解裡。
+
+- **公開頁面上只放「肥貓」這款圖示**（favicon 也是）。牢大（本人照片＋康師傅商標）、
+  冰紅茶（商品照）、菲比啾比／快樂牛馬（遊戲角色同人圖）都不能上公開頁面，糯糯也不放。
+- **色票有第三份複本**：`site/src/style.css` 的 `:root`（淺色）與 `site/src/main.js` 的 `DARK`
+  （深色）。改 `Theme.kt` 的色票時，`values*/colors.xml` 和這兩處要一起改。
+- **`site/public/fonts/neucha.woff2` 是從改過側邊留白的 `res/font/neucha.ttf` 轉出來的。**
+  改了 ttf 就要重轉一份；不要換成 Google Fonts 的 Neucha。
+- **截圖是模擬器上灌示範資料拍的**，雲端 session 拍不了。重拍或補拍之前先讀
+  [`site/SHOTS.md`](site/SHOTS.md)。
+
 ## 改動慣例
 
 - 註解寫**繁體中文**，解釋「為什麼」而不是「做了什麼」。
