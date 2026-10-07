@@ -1,6 +1,11 @@
-# 展示網站交接（本機 session → 雲端 session）
+# 展示網站交接（本機 session ⇄ 雲端 session）
 
-> 寫於 2026-10-06。網站做完、合併前**刪掉這個檔**，它不是給使用者看的文件。
+> 寫於 2026-10-06，2026-10-07 雲端 session 更新。網站做完、合併前**刪掉這個檔**，它不是給使用者看的文件。
+
+**現況（先讀這段）**：最新的網站在 **`claude/site-showcase-main-js-0b8uh8`** 分支，不是 `site-showcase`
+（那條停在 main.js 還沒寫的時候）。網站已經寫完、在雲端用 Playwright 驗過；**剩下的是 10 張截圖**，
+雲端拍不了，要本機拍 —— 直接跳到〈雲端 session 的改版〉底下的〈待拍的截圖〉。
+下面〈`main.js` 第一版規格〉是第一版的紀錄，現在的行為以程式和〈雲端 session 的改版〉為準。
 
 ## 使用者要的
 
@@ -13,7 +18,7 @@ GSAP ScrollTrigger ＋ Lenis 平滑捲動，放 Vercel、接 GitHub 自動部署
 |---|---|
 | 放哪裡 | 這個 repo 的 `site/`，Vercel 的 Root Directory 設 `site` |
 | 技術 | Vite ＋ 原生 JS ＋ `gsap` ＋ `lenis`（npm） |
-| 畫面素材 | 模擬器實拍截圖（**已拍好**，在 `site/public/shots/`） |
+| 畫面素材 | 模擬器實拍截圖（在 `site/public/shots/`；10 張已拍、10 張待拍，見〈待拍的截圖〉） |
 | 視覺 | 沿用 app 的「紙與墨」（見根目錄 `CLAUDE.md` 的〈配色與版面語言〉） |
 | 語言 | 只有繁體中文 |
 | 敘事 | 「一天」時間軸（下面〈分鏡〉） |
@@ -34,10 +39,10 @@ GSAP ScrollTrigger ＋ Lenis 平滑捲動，放 Vercel、接 GitHub 自動部署
 | `site/vercel.json` | ✅ `framework: vite`，`ignoreCommand` 讓只改 Android 的 commit 不觸發部署 |
 | `site/vite.config.js` | ✅ 把 `%SITE_URL%` 換成 `VERCEL_PROJECT_PRODUCTION_URL`（og:image 要完整網址） |
 | `site/.gitignore` | ✅ |
-| `site/index.html` | ✅ 完整結構與文案，**沒在瀏覽器跑過** |
-| `site/src/style.css` | ✅ 寫完，**沒在瀏覽器跑過** |
+| `site/index.html` | ✅ 完整結構與文案（新配文使用者確認過） |
+| `site/src/style.css` | ✅ 寫完，瀏覽器驗證過 |
 | `site/src/main.js` | ✅ 已寫，改版內容見〈雲端 session 的改版〉 |
-| `site/public/` | ✅ 10 張截圖、`fonts/neucha.woff2`、`icon-cat.webp`、`favicon.png`、`apple-touch-icon.png`、`og.png` |
+| `site/public/` | ⚠️ 10 張截圖（其中 library-query 要重拍）＋**10 張待拍**、`fonts/neucha.woff2`、`icon-cat.webp`、`favicon.png`、`apple-touch-icon.png`、`og.png` |
 | `npm install` / build / 瀏覽器驗證 | ✅ 雲端用 Playwright 驗過桌面、手機、減少動態；截圖還缺 10 張 |
 | Vercel 連線 | ❌ 要使用者自己在 Vercel 後台做（見〈部署〉） |
 | `CLAUDE.md` 加一節講 `site/` | ❌ |
@@ -102,9 +107,9 @@ GSAP ScrollTrigger ＋ Lenis 平滑捲動，放 Vercel、接 GitHub 自動部署
 | calendar-today | 十月月曆，6 號那格 2183 | 深 |
 | calendar-month | 九月月曆（底下有「回到本月」章） | 深 |
 
-## `main.js` 規格（還沒寫）
+## `main.js` 第一版規格（已實作，之後被改版取代，留著當紀錄）
 
-`index.html` 的 data 屬性就是為這份規格設計的，照著接就好。
+第一版照這份寫的。第 3、4、5、6、8 點後來都被〈雲端 session 的改版〉改掉了，現在以程式為準。
 
 **原則**：捲動狀態（時鐘、熱量、入夜程度）**用一個函式從捲動位置直接算**，不要每章各掛一個
 ScrollTrigger 去改同一個值 —— 那樣倒捲回去時會互相蓋掉。換畫面與小動畫才用 scrub 的 ScrollTrigger。
@@ -158,7 +163,8 @@ ScrollTrigger 去改同一個值 —— 那樣倒捲回去時會互相蓋掉。�
 
 使用者看過第一版之後要求：手機不能在字出現的時候移動、大標不能被切掉、多放幾個畫面與配文、
 動畫要像 `rowing195/html-games` 的 `fhibichubi-nono` 那樣（全部 scrub、往回捲會倒帶）。
-他用選項選定了下面這些，**上面〈`main.js` 規格〉第 3、4、6 點已經被這一節取代**：
+他用選項選定了下面這些，**上面〈`main.js` 第一版規格〉第 3、4、5、6、8 點已經被這一節取代**
+（第 5 點：封面那支手機只淡入、不再由下浮上；第 8 點：減少動態時換畫面與字改成淡入，不是到點直接切換）：
 
 - **桌面版整天是一個釘住的舞台**：左欄與手機都釘住，捲動只推進 `main.js` 的 `stageDay` 那條時間軸。
   `data-screen` 是那一幕／那一行出現時手機要換的畫面。節奏常數在 `SCENE`，`.day` 的高度依時間軸總長算。
@@ -185,21 +191,39 @@ ScrollTrigger 去改同一個值 —— 那樣倒捲回去時會互相蓋掉。�
 
 網頁上缺的圖會顯示「待拍截圖＋檔名」的虛線框，**檔名一字不差**放進 `site/public/shots/` 就自動換掉，程式不用改。
 裁切同上（1080×2400 切掉上 118px、下 60px，縮到 720 寬 WebP），示範資料同〈示範資料〉那一節。
-拍完照〈驗證清單〉用瀏覽器看一次手機寬度與桌面寬度：手機版的截圖比例要對（見 `style.css` 的 `img { height: auto }`），
-桌面版右邊那支手機換畫面的方向要對（`index.html` 裡 `.shot` 的 `data-from`）。
 
-| 檔名 | 深淺 | 畫面 | 注意 |
+**開拍前**
+
+1. `git checkout claude/site-showcase-main-js-0b8uh8`（見最上面〈現況〉）。
+2. **模擬器的日期要撥回 2026-10-06。** 示範資料的「今天」是 10/6，現在已經過了；不撥回去的話今日頁是空的一天，
+   運動明細標題也不會是「10 月 6 日（今天）」。先關掉自動時間（`adb shell settings put global auto_time 0`），
+   再到系統設定手動改（`adb shell am start -a android.settings.DATE_SETTINGS`）；非 Play 映像也可以
+   `adb root` 後 `adb shell date 100619302026.00`。**拍完要改回自動時間。**
+3. 確認示範資料還在：今日頁 2183 kcal、目標 1944、運動 +300、還有 61（同 today-night 那張）。
+   模擬器被清過的話，照〈示範資料〉重灌；運動 +300 是 `daily_health_metrics` 那一列（根目錄 CLAUDE.md
+   〈健康連線〉：模擬器上不要真的授權，用 `run-as` 塞假資料）。
+
+**每一張**
+
+| 檔名 | 深淺 | 畫面 | 怎麼到那個畫面／注意 |
 |---|---|---|---|
-| library-query | 淺 | **重拍**，同原本 | 原圖底部有系統提示「肥胖日記 pasted from your clipboard」蓋住兩顆章 |
-| swipe | 淺 | 19:20 之後的今日頁，「無糖綠茶」那一列往左滑開，露出紅色刪除塊 | 選 0 kcal 的綠茶，熱量才會維持 2183 |
-| undo | 淺 | 同一頁按下刪除之後，左下角的復原章 | 倒數線大約剩一半 |
-| exercise | 深 | 21:00 今日頁點「運動 +300」打開的「運動消耗明細」 | 手錶 600、回補 50% |
-| water | 深 | 今日頁點「飲水」打開的「飲水明細」 | |
-| report | 深 | 九月月報（記錄 25 天、平均 1761） | 照根目錄 CLAUDE.md〈AI 週報／月報〉塞一份 `monthly_reports/2026-09.json`，不要真的打 API |
-| settings | 深 | 設定選單 | Drive 那列不要露出帳號 email |
-| barcode | 深 | 掃條碼：手動輸入條碼查到一項商品，顯示每 100 g 與「實際份量 (g)」 | 模擬器叫不出掃描器 |
-| provider-switch | 深 | 辨識失敗後升上來的「換一家再試」面板 | |
-| csv-import | 深 | 「要匯入這些紀錄嗎？」確認面板 | |
+| library-query | 淺 | **重拍**，同原本：常吃頁打「烤肉」只剩煎烤豬肉排 | 原圖底部有系統提示「肥胖日記 pasted from your clipboard」蓋住兩顆章。拍之前先等提示消失，或不要經過剪貼簿輸入 |
+| swipe | 淺 | 19:20 之後的今日頁，「無糖綠茶」那一列往左滑開，露出紅色刪除塊 | 選 0 kcal 的綠茶，熱量才會維持 2183。`ui.ps1` 沒有 swipe，用 `adb shell input swipe x1 y x2 y 300` |
+| undo | 淺 | 同一頁按下刪除之後，左下角的復原章 | 復原只有 5 秒，倒數線大約剩一半時拍；**拍完按復原**，不然綠茶就真的刪掉了 |
+| exercise | 深 | 21:00 今日頁點「運動 +300」打開的「運動消耗明細」 | 沒授權健康連線時面板不會有「來源／走路」那幾列，只有吃了 2183、運動 −600、運動回補 50% +300 —— 這樣就對了，配文講的就是這幾個數字 |
+| water | 深 | 今日頁點「飲水」打開的「飲水明細」 | 列出每杯飲料的水、手動加減、合計 |
+| report | 深 | 九月月報（記錄 25 天、平均 1761） | 照根目錄 CLAUDE.md〈AI 週報／月報〉塞一份 `monthly_reports/2026-09.json`，不要真的打 API。入口在月曆九月月摘要底下 |
+| settings | 深 | 設定選單 | 每一列右邊有摘要。**畫面上不能出現帳號 email 或金鑰**（Drive 那列連著的話會顯示 email） |
+| barcode | 深 | 掃條碼：手動輸入條碼查到一項商品，顯示每 100 g 與「實際份量 (g)」 | 模擬器叫不出掃描器，改手動輸入條碼；要連網查 Open Food Facts。挑查得到的商品就好 |
+| provider-switch | 深 | 辨識失敗後升上來的「換一家再試」面板 | 要先讓辨識失敗：例如暫時關掉網路（`adb shell svc wifi disable` 與 `svc data disable`）再按「AI 估」。**拍完把網路開回來**；不要改壞真的金鑰 |
+| csv-import | 深 | 「要匯入這些紀錄嗎？」確認面板 | 要有一個 CSV 可選：設定裡先匯出一份，或 `adb push` 一份到 `/sdcard/Download`。停在確認面板拍，**按取消**，不要真的匯入（會動到示範資料） |
+
+**拍完**
+
+1. 照〈驗證清單〉用瀏覽器看手機寬度與桌面寬度：每一張都換掉了虛線框、手機版截圖比例對
+   （`style.css` 的 `img { height: auto }`）、桌面版右邊手機換畫面的方向對（`index.html` 裡 `.shot` 的 `data-from`）。
+2. 模擬器改回自動時間、網路打開，示範資料沒被動到（今日頁還是 2183）。
+3. 先給使用者看，他同意再 commit／push 到同一個分支。推上去之後雲端 session 可以再用 Playwright 驗一次。
 
 ## 驗證清單
 
