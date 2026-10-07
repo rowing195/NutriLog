@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>肥胖日記 — 每天隨手記一筆</title>
+  <meta name="description" content="Android 飲食營養紀錄 app。沒有帳號、沒有後端，紀錄只留在你的手機裡；拍照或打一句話交給 AI 估，你點頭才算數。">
+  <meta name="theme-color" content="#F7F3E9">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="肥胖日記">
+  <meta property="og:description" content="每天隨手記一筆。紀錄只留在你的手機裡。">
+  <meta property="og:url" content="%SITE_URL%/">
+  <meta property="og:image" content="%SITE_URL%/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="preload" href="/fonts/neucha.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Huninn&display=swap">
+</head>
+<body>
+  <header class="masthead">
+    <div class="masthead-inner">
+      <a class="brand" href="#top">肥胖日記</a>
+      <div class="ticker" aria-hidden="true">
+        <span class="num clock" data-clock>07:00</span>
+        <span class="today"><span class="label">今日</span><span class="num" data-kcal>0</span><span class="num unit">kcal</span></span>
+        <span class="target"><span class="label">目標</span><span class="num">1944</span><span class="num bonus" data-bonus>+300</span></span>
+      </div>
+      <a class="pill" href="#download">下載</a>
+    </div>
+    <span class="progress" aria-hidden="true"></span>
+  </header>
+
+  <main>
+    <!-- 桌面版：左右兩欄都釘住，捲動只推進時間軸（main.js 的 stageDay）。
+         每個 .scene 是一幕，.float 是一行；data-screen 是這一幕／這一行出現時手機要換到的畫面。
+         手機版：照原本的順序往下排，.float 由自己在視窗裡的位置驅動。 -->
+    <div class="day">
+      <div class="day-text">
+        <section class="scene hero" id="top" data-time="07:00" data-kcal="0" data-bonus="0">
+          <div class="hero-copy">
+            <h1 class="title" aria-label="肥胖日記"><span class="ch">肥</span><span class="ch">胖</span><span class="ch">日</span><span class="ch">記</span></h1>
+            <div class="rule hero-rule"></div>
+            <p class="lede">每天隨手記一筆。<br>紀錄只留在你的手機裡。</p>
+            <div class="cta">
+              <a class="stamp" data-apk href="https://github.com/rowing195/NutriLog/releases/latest"><span data-apk-label>下載 APK</span></a>
+              <p class="meta">Android 8.0 以上・免費・開源</p>
+            </div>
+          </div>
+          <figure class="inline-shot">
+            <div class="phone"><span class="shot"><img src="/shots/today-morning.webp" width="720" height="1481" alt="今日頁：早上，四餐都還沒記，目標 1944 kcal"><span class="ph">shots/today-morning.webp</span></span></div>
+          </figure>
+          <p class="scroll-hint"><span class="label">往下捲，過一天</span><span class="hint-line"></span></p>
+        </section>
+
+        <article class="scene chapter" data-time="07:40" data-kcal="225" data-bonus="0" data-screen="library">
+          <div class="scene-stage"><div class="scene-copy">
+            <p class="when float"><span class="num">07:40</span><span class="label">早餐 — 常吃</span></p>
+            <h2 class="float">打兩個字，<br>昨天那份就回來了。</h2>
+            <p class="float">吃過的東西自己變成食物庫。「烤肉」找得到「煎烤豬肉排」，「咖啡」不會撈到咖哩飯。</p>
+            <div class="demo match float" data-demo="match" data-screen="library-query">
+              <div class="match-row" data-row="hit">
+                <span class="q">烤肉</span>
+                <span class="arrow" aria-hidden="true"></span>
+                <span class="name"><span>煎</span><b>烤</b><span>豬</span><b>肉</b><span>排</span></span>
+                <span class="verdict">找得到</span>
+              </div>
+              <div class="match-row" data-row="miss">
+                <span class="q">咖啡</span>
+                <span class="arrow" aria-hidden="true"></span>
+                <span class="name"><b>咖</b><span>哩</span><span>飯</span></span>
+                <span class="verdict">不算</span>
+              </div>
+            </div>
+          </div></div>
+          <figure class="inline-shot">
+            <div class="phone"><span class="shot"><img src="/shots/library-query.webp" width="720" height="1481" loading="lazy" alt="常吃頁：打了「烤肉」，清單篩出「煎烤豬肉排」"><span class="ph">shots/library-query.webp</span></span></div>
+          </figure>
+        </article>
+
+        <article class="scene chapter" data-time="12:30" data-kcal="1075" data-bonus="0" data-screen="review-lunch">
+          <div class="scene-stage"><div class="scene-copy">
+            <p class="when float"><span class="num">12:30</span><span class="label">午餐 — 拍照</span></p>
+            <h2 class="float">拍一張，AI 估，<br>你點頭才算數。</h2>
+            <p class="float">模型給的是估算值，一定先經過確認畫面才入庫。</p>
+          </div></div>
+          <figure class="inline-shot">
+            <div class="phone"><span class="shot"><img src="/shots/review-lunch.webp" width="720" height="1481" loading="lazy" alt="確認辨識結果：雞腿便當、無糖綠茶已勾選，蘋果取消勾選"><span class="ph">shots/review-lunch.webp</span></span></div>
+          </figure>
+        </article>
+
+        <article class="scene chapter" data-time="15:10" data-kcal="1578" data-bonus="0" data-screen="ai-stamps">
+          <div class="scene-stage"><div class="scene-copy">
+            <p class="when float"><span class="num">15:10</span><span class="label">下午 — AI 估／AI 查</span></p>
+            <h2 class="float">要不要上網查，<br>是你按的。</h2>
+            <p class="float">麥當勞 大麥克：AI 估 540 ／ AI 查 503（台灣官方標示）</p>
+            <div class="demo stamps float" data-demo="stamps" data-screen="review-bigmac">
+              <div class="stamp-row">
+                <span class="stamp small">AI 估</span>
+                <span class="figure"><span class="num">540</span><span class="num unit">kcal</span></span>
+                <span class="note">憑模型的印象</span>
+              </div>
+              <div class="stamp-row" data-row="search">
+                <span class="stamp small secondary">AI 查</span>
+                <span class="figure"><span class="num" data-count>540</span><span class="num unit">kcal</span></span>
+                <span class="note">先找該店公布的營養標示</span>
+              </div>
+            </div>
+          </div></div>
+          <figure class="inline-shot">
+            <div class="phone"><span class="shot"><img src="/shots/review-bigmac.webp" width="720" height="1481" loading="lazy" alt="確認辨識結果：麥當勞大麥克 503 kcal，蛋白 26、脂肪 25、碳水 43"><span class="ph">shots/review-bigmac.webp</span></span></div>
+          </figure>
+        </article>
+
+        <article class="scene chapter" data-time="19:20" data-kcal="2183" data-bonus="0" data-screen="portion">
+          <div class="scene-stage"><div class="scene-copy">
+            <p class="when float"><span class="num">19:20</span><span class="label">晚餐 — 份數</span></p>
+            <h2 class="float">吃了一碗半，<br>就按一碗半。</h2>
+            <p class="float">1 碗 (250 g) → 1.5 碗 (375 g)，熱量與營養素一起換算。</p>
+            <div class="demo portion float" data-demo="portion">
+              <div class="stepper">
+                <span class="key">−1</span><span class="key" data-minus>−0.1</span>
+                <span class="value"><span class="num" data-mult>1</span><span class="label">份</span></span>
+                <span class="key" data-plus>+0.1</span><span class="key">+1</span>
+              </div>
+              <div class="readout">
+                <span class="serving" data-serving>1 碗 (250 g)</span>
+                <span class="figure"><span class="num" data-portion-kcal>350</span><span class="num unit">kcal</span></span>
+              </div>
+            </div>
+          </div></div>
+          <figure class="inline-shot">
+            <div class="phone"><span class="shot"><img src="/shots/portion.webp" width="720" height="1481" loading="lazy" alt="編輯表單：白飯 1.5 份，份量自動變成 1.5 碗 (375 g)，熱量 525 kcal"><span class="ph">shots/portion.webp</span></span></div>
+          </figure>
+        </article>
+
+        <article class="scene panel" data-screen="swipe">
+          <div class="scene-stage"><div class="scene-copy">
+            <p class="when float"><span class="label">左滑刪除</span></p>
+            <h3 class="float">記錯了，往左滑。</h3>
+            <p class="float">紀錄往左滑會露出刪除，點下去才真的刪。滑開之後改變主意，點一下那一列就收回去。</p>
+          </div></div>
+          <figure class="inline-shot">
+            <div class="phone"><span class="shot"><img src="/shots/swipe.webp" width="720" height="1481" loading="lazy" alt="今日頁：一筆紀錄往左滑開，露出刪除"><span class="ph">shots/swipe.webp</span></span></div>
+          </figure>
+        </article>
+
+        <article class="scene panel" data-screen="undo">
+          <div class="scene-stage"><div class="scene-copy">
+            <p class="when float"><span class="label">復原</span></p>
+            <h3 class="float">刪錯了，<br>五秒內收得回來。</h3>
+            <p class="float">刪掉的那一刻，左下角會出現一顆復原章，底下那條線就是剩下的秒數。按下去，那一筆原封不動地回來。</p>
+          </div></div>
+          <figure class="inline-shot">
+            <div class="phone"><span class="shot"><img src="/shots/undo.webp" width="720" height="1481" loading="lazy" alt="今日頁：刪掉一筆之後，左下角的復原章"><span class="ph">shots/undo.webp</span></span></div>
+          </figure>
+        </article>
+
+        <article class="scene chapter" data-time="21:00" data-kcal="2183" data-bonus="300" data-dusk data-screen="today-night">
+          <div class="scene-stage"><div class="scene-copy">
+            <p class="when float"><span class="num">21:00</span><span class="label">跑步 — 健康連線</span></p>
+            <h2 class="float">動得多，<br>就能多吃一點。</h2>
+            <p class="float">運動消耗加進今天的目標，不從吃掉的扣。<br>手錶估得偏高，預設只回補一半。</p>
+            <div class="demo budget float" data-demo="budget">
+              <div class="bar">
+                <span class="eaten"></span>
+                <span class="over"></span>
+                <span class="bonus-zone"></span>
+                <span class="target-line"></span>
+              </div>
+              <p class="legend"><span class="label">吃了</span><span class="num">2183</span><span class="label">目標</span><span class="num">1944</span><span class="label">運動</span><span class="num">+300</span></p>
+              <p class="small-note">手錶量到 600，回補一半</p>
+            </div>
+          </div></div>
+          <figure class="inline-shot">
+            <div class="phone"><span class="shot"><img src="/shots/today-night.webp" width="720" height="1481" loading="lazy" alt="今日頁深色模式：吃了 2183 kcal，目標 1944，運動 +300，還有 61"><span class="ph">shots/today-night.webp</span></span></div>
+          </figure>
+        </article>
+
+        <article class="scene panel" data-screen="exercise">
+          <div class="scene-stage"><div class="scene-copy">
+            <p class="when float"><span class="label">運動消耗明細</span></p>
+            <h3 class="float">加了多少，<br>點進去看。</h3>
+            <p class="float">今日頁寫的 +300，是真的加進目標的量。點進去才看得到手錶量到 600、回補一半。沒開運動紀錄的日子，步數只算超出平常走動的那一段。</p>
+          </div></div>
+          <figure class="inline-shot">
+            <div class="phone"><span class="shot"><img src="/shots/exercise.webp" width="720" height="1481" loading="lazy" alt="運動消耗明細：手錶量到 600，回補 50%，加進目標 300"><span class="ph">shots/exercise.webp</span></span></div>
+          </figure>
+        </article>
+
+        <article class="scene panel" data-screen="water">
+          <div class="scene-stage"><div class="scene-copy">
+            <p class="when float"><span class="label">飲水明細</span></p>
+            <h3 class="float">水另外記。</h3>
+            <p class="float">飲料自己帶的水會算進今天的飲水，旁邊兩顆鍵再手動加減 50 ml。刪掉那杯飲料，它的水也跟著扣掉。</p>
+          </div></div>
+          <figure class="inline-shot">
+            <div class="phone"><span class="shot"><img src="/shots/water.webp" width="720" height="1481" loading="lazy" alt="飲水明細：每杯飲料的水量、手動加減與合計"><span class="ph">shots/water.webp</span></span></div>
+          </figure>
+        </article>
+
+        <article class="scene chapter" data-time="23:30" data-screen="calendar-today">
+          <div class="scene-stage"><div class="scene-copy">
+            <p class="when float"><span class="num">23:30</span><span class="label">月曆</span></p>
+            <h2 class="float">一天，收進一格。</h2>
+            <p class="float" data-screen="calendar-month">哪幾天忘了記，一眼就看得出形狀。<br>改了目標，過去的日子還是照當時的標準。</p>
+          </div></div>
+          <figure class="inline-shot">
+            <div class="phone"><span class="shot"><img src="/shots/calendar-month.webp" width="720" height="1481" loading="lazy" alt="九月的月曆：沒記的日子是空格，超標的日子標紅"><span class="ph">shots/calendar-month.webp</span></span></div>
+          </figure>
+        </article>
+
+        <article class="scene panel" data-screen="report">
+          <div class="scene-stage"><div class="scene-copy">
+            <p class="when float"><span class="label">AI 週報／月報</span></p>
+            <h3 class="float">月底，<br>讓 AI 寫一份月報。</h3>
+            <p class="float">統計是手機自己算的，按下「產生」才花一次 AI 呼叫。週報最後還會建議下週的每日目標，要不要套用由你決定。</p>
+          </div></div>
+          <figure class="inline-shot">
+            <div class="phone"><span class="shot"><img src="/shots/report.webp" width="720" height="1481" loading="lazy" alt="AI 月報：九月記錄 25 天，平均 1761"><span class="ph">shots/report.webp</span></span></div>
+          </figure>
+        </article>
+      </div>
+
+      <div class="day-phone">
+        <div class="phone-sticky">
+          <div class="phone">
+            <div class="statusbar" aria-hidden="true">
+              <span class="num" data-clock>07:00</span>
+              <span class="sb-icons"><i class="sb-signal"></i><i class="sb-battery"></i></span>
+            </div>
+            <div class="screen">
+              <figure class="shot" data-shot="today-morning"><img src="/shots/today-morning.webp" width="720" height="1481" alt="今日頁：早上，四餐都還沒記"><figcaption class="ph">shots/today-morning.webp</figcaption></figure>
+              <figure class="shot" data-shot="library" data-from="top"><img src="/shots/library.webp" width="720" height="1481" alt="常吃頁：吃過的品項依次數排"><figcaption class="ph">shots/library.webp</figcaption></figure>
+              <figure class="shot" data-shot="library-query" data-from="fade"><img src="/shots/library-query.webp" width="720" height="1481" alt="常吃頁：打了「烤肉」，篩出「煎烤豬肉排」"><figcaption class="ph">shots/library-query.webp</figcaption></figure>
+              <figure class="shot" data-shot="review-lunch" data-from="top"><img src="/shots/review-lunch.webp" width="720" height="1481" alt="確認辨識結果：雞腿便當、無糖綠茶已勾選，蘋果取消勾選"><figcaption class="ph">shots/review-lunch.webp</figcaption></figure>
+              <figure class="shot" data-shot="ai-stamps" data-from="top"><img src="/shots/ai-stamps.webp" width="720" height="1481" alt="常吃頁：打了「麥當勞 大麥克」，底下是 AI 估與 AI 查兩顆章"><figcaption class="ph">shots/ai-stamps.webp</figcaption></figure>
+              <figure class="shot" data-shot="review-bigmac" data-from="top"><img src="/shots/review-bigmac.webp" width="720" height="1481" alt="確認辨識結果：麥當勞大麥克 503 kcal"><figcaption class="ph">shots/review-bigmac.webp</figcaption></figure>
+              <figure class="shot" data-shot="portion" data-from="top"><img src="/shots/portion.webp" width="720" height="1481" alt="編輯表單：白飯 1.5 份，525 kcal"><figcaption class="ph">shots/portion.webp</figcaption></figure>
+              <figure class="shot" data-shot="swipe" data-from="fade"><img src="/shots/swipe.webp" width="720" height="1481" alt="今日頁：一筆紀錄往左滑開，露出刪除"><figcaption class="ph">shots/swipe.webp</figcaption></figure>
+              <figure class="shot" data-shot="undo" data-from="fade"><img src="/shots/undo.webp" width="720" height="1481" alt="今日頁：刪掉一筆之後，左下角的復原章"><figcaption class="ph">shots/undo.webp</figcaption></figure>
+              <figure class="shot" data-shot="today-night" data-from="fade"><img src="/shots/today-night.webp" width="720" height="1481" alt="今日頁深色模式：2183 kcal，運動 +300，還有 61"><figcaption class="ph">shots/today-night.webp</figcaption></figure>
+              <figure class="shot" data-shot="exercise" data-from="bottom"><img src="/shots/exercise.webp" width="720" height="1481" alt="運動消耗明細：手錶量到 600，回補 50%"><figcaption class="ph">shots/exercise.webp</figcaption></figure>
+              <figure class="shot" data-shot="water" data-from="bottom"><img src="/shots/water.webp" width="720" height="1481" alt="飲水明細：每杯飲料的水量、手動加減與合計"><figcaption class="ph">shots/water.webp</figcaption></figure>
+              <figure class="shot" data-shot="calendar-today" data-from="bottom"><img src="/shots/calendar-today.webp" width="720" height="1481" alt="十月的月曆：今天這一格剛填上 2183"><figcaption class="ph">shots/calendar-today.webp</figcaption></figure>
+              <figure class="shot" data-shot="calendar-month" data-from="fade"><img src="/shots/calendar-month.webp" width="720" height="1481" alt="九月的月曆：沒記的日子是空格，超標的日子標紅"><figcaption class="ph">shots/calendar-month.webp</figcaption></figure>
+              <figure class="shot" data-shot="report" data-from="bottom"><img src="/shots/report.webp" width="720" height="1481" alt="AI 月報：九月記錄 25 天，平均 1761"><figcaption class="ph">shots/report.webp</figcaption></figure>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <section class="privacy" data-time="23:58">
+      <div class="wrap">
+        <h2 class="big"><span class="line"><span>沒有帳號，</span></span><span class="line"><span>沒有後端。</span></span></h2>
+        <p class="lede-sm">紀錄全部在你手機裡。對外連線只有你按下去的那幾種：</p>
+        <ul class="ledger">
+          <li><i class="hair"></i><span class="what">AI 辨識</span><span class="who">Gemini／OpenRouter</span><span class="when-sent">拍照或按「AI 估」才送出</span></li>
+          <li><i class="hair"></i><span class="what">AI 查</span><span class="who">Tavily</span><span class="when-sent">按「AI 查」才上網找</span></li>
+          <li><i class="hair"></i><span class="what">掃條碼</span><span class="who">Open Food Facts</span><span class="when-sent">查商品的營養標示</span></li>
+          <li><i class="hair"></i><span class="what">雲端備份</span><span class="who">Google Drive</span><span class="when-sent">選配，只碰自己建的檔案</span></li>
+          <li><i class="hair"></i><span class="what">檢查新版</span><span class="who">GitHub</span><span class="when-sent">一天一次，可以關掉</span></li>
+        </ul>
+        <p class="lede-sm">CSV 匯出／匯入，資料不會被鎖在 app 裡。</p>
+      </div>
+    </section>
+
+    <section class="gallery" aria-labelledby="gallery-title">
+      <div class="gallery-sticky">
+        <div class="gallery-track">
+          <div class="g-head">
+            <h2 id="gallery-title">其他時候，<br>它長這樣。</h2>
+            <p class="g-hint label">繼續往下捲 →</p>
+          </div>
+          <figure class="g-item">
+            <div class="phone"><span class="shot"><img src="/shots/settings.webp" width="720" height="1481" loading="lazy" alt="設定選單：每一列右邊寫著目前的值"><span class="ph">shots/settings.webp</span></span></div>
+            <figcaption><span class="g-tag label">設定</span>每一列右邊就寫著現在的值，不用點進去才知道設過什麼。</figcaption>
+          </figure>
+          <figure class="g-item">
+            <div class="phone"><span class="shot"><img src="/shots/barcode.webp" width="720" height="1481" loading="lazy" alt="掃條碼：查到商品的每 100 g 營養標示"><span class="ph">shots/barcode.webp</span></span></div>
+            <figcaption><span class="g-tag label">掃條碼</span>查 Open Food Facts 的營養標示。標示是每 100 g，填上你實際吃了幾公克就換算好。</figcaption>
+          </figure>
+          <figure class="g-item">
+            <div class="phone"><span class="shot"><img src="/shots/provider-switch.webp" width="720" height="1481" loading="lazy" alt="換一家再試：供應商與模型的選擇，最下面是重試"><span class="ph">shots/provider-switch.webp</span></span></div>
+            <figcaption><span class="g-tag label">換一家再試</span>辨識失敗時從底下升上來。換一家或換個模型，同一張照片直接重試。</figcaption>
+          </figure>
+          <figure class="g-item">
+            <div class="phone"><span class="shot"><img src="/shots/csv-import.webp" width="720" height="1481" loading="lazy" alt="匯入確認：會加幾筆、略過幾筆"><span class="ph">shots/csv-import.webp</span></span></div>
+            <figcaption><span class="g-tag label">CSV 匯入</span>匯入前先列出會加幾筆、略過幾筆，按下「匯入」才寫進去。</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="paper" data-time="06:30" data-kcal="0" data-bonus="0" data-dawn>
+      <div class="wrap">
+        <p class="when"><span class="num">06:30</span><span class="label">隔天</span></p>
+        <h2 class="big">紙與墨</h2>
+        <div class="specimens">
+          <div class="specimen">
+            <p class="sample type"><span class="cjk">吃了</span><span class="num">1800</span></p>
+            <p class="caption">中文是 jf open 粉圓，數字是手寫的 Neucha。</p>
+          </div>
+          <div class="specimen">
+            <div class="sample lines"><span class="rule"></span><span class="label">墨線</span><span class="hairline"></span><span class="label">細線</span></div>
+            <p class="caption">版面靠線分隔，不靠色塊。線分兩級。</p>
+          </div>
+          <div class="specimen">
+            <p class="sample red"><span class="num">2740</span></p>
+            <p class="caption">朱紅只給「看這裡」：超標、聚焦、會刪掉東西的動作。</p>
+          </div>
+          <div class="specimen">
+            <div class="sample shapes"><span class="stamp small">章</span><span class="pill-demo">藥丸</span><span class="radio" title="單選"></span><span class="check" title="複選"></span></div>
+            <p class="caption">形狀就是層級：單選是圓的，複選是方的。</p>
+          </div>
+        </div>
+        <div class="icon-aside">
+          <img src="/icon-cat.webp" width="96" height="96" alt="肥貓 app 圖示">
+          <p>桌面圖示也能換。<br><span class="muted">設定 → 外觀，八款內建圖示。</span></p>
+        </div>
+      </div>
+    </section>
+
+    <section class="download" id="download">
+      <div class="wrap">
+        <h2 class="big">下載</h2>
+        <div class="download-row">
+          <a class="stamp large" data-apk href="https://github.com/rowing195/NutriLog/releases/latest"><span data-apk-label>下載 APK</span></a>
+          <p class="meta"><span data-apk-meta>Android 8.0 以上</span>・GitHub・MIT 授權</p>
+        </div>
+        <ul class="notes">
+          <li>AI 功能要自己申請 Gemini key（免費）。不填也能手動記、掃條碼、用常吃。</li>
+          <li>不在 Google Play 上：從 GitHub 下載 APK 安裝，app 每天會自己查一次有沒有新版。</li>
+          <li><a href="https://github.com/rowing195/NutriLog/releases/latest" data-release-notes>看這一版改了什麼</a></li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <span><a href="https://github.com/rowing195/NutriLog">原始碼</a>・MIT 授權</span>
+      <span>字型：jf open 粉圓、Neucha（SIL OFL）</span>
+      <span>畫面中的紀錄是示範資料</span>
+    </div>
+  </footer>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
