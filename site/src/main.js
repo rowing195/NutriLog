@@ -637,10 +637,14 @@ function stageMobile(ctx, reduce) {
     return at(s, s.anchor) + window.innerHeight / 2;
   };
 
-  // 可以停的位置：封面最上面，以及每一幕的字和截圖都到齊的時候（月曆那一幕有兩段）
+  // 可以停的位置：封面最上面、每一幕的字和截圖都到齊的時候（月曆那一幕有兩段），以及這一天的結尾。
+  // 最後一幕飄走之後那段是空的（入夜後整片暗），沒有結尾這一站的話，小力滑一下就停在月報的字飄到一半，
+  // 或停在那片空白裡；從結尾往下就不是這條時間軸的事，照常自由捲。桌面版也是同一招
   layout.rests = () => {
     const out = [[0, 0]];
     for (const s of stages.values()) for (const [a, b] of s.rests) out.push([at(s, a), at(s, b)]);
+    const end = pageY(day) + day.offsetHeight;
+    out.push([end, end]);
     return out;
   };
 
