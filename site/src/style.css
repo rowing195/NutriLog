@@ -229,7 +229,10 @@ a.stamp:hover { background: var(--ink2); }
   /* 「幾點 — 章節名」那行不折：可以比字欄寬，但至少一樣寬，靠右的那幾幕左緣才對得齊 */
   .day.is-staged .scene-copy > .when { width: max-content; min-width: 88%; }
   .day.is-staged [data-corner^="b"] .scene-copy { justify-content: flex-end; }
-  .day.is-staged [data-corner$="r"] .scene-copy > .float { align-self: flex-end; }
+  /* 靠右的那幾幕整段靠右對齊（像文書軟體的「靠右」）：只把字欄擺到右邊的話，每一行還是從左邊開始，
+     行尾參差不齊，看起來不像靠右 */
+  .day.is-staged [data-corner$="r"] .scene-copy > .float { align-self: flex-end; text-align: right; }
+  .day.is-staged [data-corner$="r"] .scene-copy > .when { justify-content: flex-end; }
   .day.is-staged .inline-shot { display: none; }
 
   /* 字和圖擠在同一個畫面，字也縮一級 */
@@ -619,12 +622,10 @@ a.stamp:hover { background: var(--ink2); }
 .ledger .hair { position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--hairline); transform-origin: left; }
 .ledger .what { font-size: 20px; }
 .ledger .who { color: var(--ink2); text-align: right; }
-.ledger .when-sent { grid-column: 1 / -1; font-size: 15px; color: var(--muted); }
 
 @media (min-width: 900px) {
-  .ledger li { grid-template-columns: 10em 14em 1fr; }
+  .ledger li { grid-template-columns: 10em 1fr; }
   .ledger .who { text-align: left; }
-  .ledger .when-sent { grid-column: auto; }
 }
 
 /* ---------- 橫向藝廊：往下捲，一排畫面往左推 ---------- */
