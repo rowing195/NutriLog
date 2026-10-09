@@ -12,12 +12,6 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const clamp01 = gsap.utils.clamp(0, 1);
 const pageY = (el) => el.getBoundingClientRect().top + window.scrollY;
-// 不算 transform 的版面位置：正在淡入上移的元素，量 getBoundingClientRect 會跟著捲動位置差幾十 px
-const layoutY = (el) => {
-  let y = 0;
-  for (let e = el; e; e = e.offsetParent) y += e.offsetTop;
-  return y;
-};
 
 const MQ = {
   desktop: '(min-width: 900px)',
@@ -382,8 +376,10 @@ function popLook(u, reduce) {
 }
 
 // 一幕的時間軸：字照閱讀順序彈進來 → 小示範 → 停著讓人讀 → 照閱讀順序飄走。
-// 桌面版接進整天那一條，手機版自己掛一個 ScrollTrigger。onScreen(畫面, 第幾秒) 是桌面版用來換手機畫面的。
-function sceneTimeline(scene, reduce, onScreen = () => {}) {
+// 桌面版接進整天那一條，手機版自己掛一個 ScrollTrigger。onScreen(畫面, 第幾秒) 是用來換手機畫面的。
+// demos 為 false 時跳過小示範（手機版：字只佔三成高度，放了小示範字就得縮到看不清楚），
+// 原本跟著小示範換的畫面改成字出完就換，換完才算整幕到齊
+function sceneTimeline(scene, reduce, onScreen = () => {}, { demos = true } = {}) {
   const tl = gsap.timeline({ defaults: { ease: 'none' } });
   const lines = $$('.scene-copy > .float', scene);
   const rise = reduce ? 0 : RISE;
@@ -409,9 +405,10 @@ function sceneTimeline(scene, reduce, onScreen = () => {}) {
     }
 
     if (line.dataset.demo) {
+      demo = line;
+      if (!demos) return;
       tl.fromTo(line, { autoAlpha: 0, y: rise }, { autoAlpha: 1, y: 0, duration: SCENE.BLOCK_IN, ease: 'power3.out' }, cursor);
       leaving.push({ el: line });
-      demo = line;
       end = Math.max(end, cursor + SCENE.BLOCK_IN);
       cursor += SCENE.BLOCK_IN / 2;
       return;
@@ -431,7 +428,12 @@ function sceneTimeline(scene, reduce, onScreen = () => {}) {
     cursor += spread + SCENE.LINE_GAP;
   });
 
-  if (demo) {
+  if (demo && !demos) {
+    if (demo.dataset.screen) {
+      onScreen(demo.dataset.screen, end);
+      end += SCENE.LEAD;
+    }
+  } else if (demo) {
     const build = DEMOS[demo.dataset.demo];
     if (build) {
       const { tl: demoTl, reset } = build(demo);
@@ -529,35 +531,87 @@ function stageDay(ctx, reduce) {
   };
 }
 
-/* ---------- 5. 手機版：每一幕的字自己釘住 ----------
-   沒有釘住的那支手機，改成每一幕的字停在畫面中間，逐字彈進來、停著讓人讀、再飄走，
-   那一幕的截圖接在後面捲上來。節奏和桌面版同一組，只是每一幕各自一個 ScrollTrigger。
-   原本是每一行跟著頁面往上捲、在畫面下緣飄進來，手機上一滑就過去了，使用者說看不出有進出場。 */
+/* ---------- 5. 手機版：每一幕的字和截圖一起釘住 ----------
+   沒有釘住的那支手機，改成每一幕自己帶一支小手機框，和字一起釘在畫面上、四個角輪流排（CORNERS）：
+   字在左上、圖在右下從右邊滑進來，下一幕字右上、圖左下從左邊進來，再來字左下、字右下……
+   圖先滑進來，到位了字才開始彈（sceneTimeline 開頭的 LEAD 就是留給這一下的），之後的順序和桌面版一樣，
+   退場時圖往原路滑回去。字和圖原本是上下分開的兩段（字先釘住、截圖接在後面捲上來），使用者覺得那樣不好。 */
+
+const CORNERS = ['tl', 'tr', 'bl', 'br'];
 
 function stageMobile(ctx, reduce) {
   const day = $('.day');
-  const rise = reduce ? 0 : RISE;
   const resets = [];
   const stages = new Map();
+  const shots = new Map($$('.day-phone .screen .shot').map((s) => [s.dataset.shot, s]));
 
   day.classList.add('is-staged');
-  for (const scene of $$('.day-text > .scene:not(.hero)')) {
+  $$('.day-text > .scene:not(.hero)').forEach((scene, i) => {
+    const corner = CORNERS[i % CORNERS.length];
+    scene.dataset.corner = corner;
+    const phone = miniPhone(scene, shots);
+    $('.scene-copy', scene).append(phone);
+
+    // 換畫面要排進這一幕自己的時間軸，sceneTimeline 建好之後才拿得到
+    const swaps = [];
+    const s = sceneTimeline(scene, reduce, (name, at) => swaps.push([name, at]), { demos: false });
+    for (const [name, at] of swaps) {
+      const shot = $(`[data-shot="${name}"]`, phone);
+      const v = reduce ? SHOT_REDUCED : SHOT[shot.dataset.from] || SHOT.fade;
+      s.tl.fromTo(shot, v.from, { ...v.to, duration: SCENE.LEAD }, at);
+    }
+    // 字在左邊，圖就在右邊、從右邊進出；減少動態時只淡入淡出
+    const side = corner[1] === 'l' ? 1 : -1;
+    const away = reduce ? { autoAlpha: 0 } : { x: () => side * window.innerWidth };
+    const outAt = s.rests[s.rests.length - 1][1];
+    s.tl.fromTo(phone, away, { autoAlpha: 1, x: 0, duration: SCENE.LEAD, ease: 'power3.out' }, 0);
+    s.tl.to(phone, { ...away, duration: SCENE.LEAD, ease: 'power2.in' }, outAt);
+
+    resets.push(...s.resets, () => {
+      phone.remove();
+      delete scene.dataset.corner;
+    });
     const stage = $('.scene-stage', scene);
-    const s = sceneTimeline(scene, reduce);
-    resets.push(...s.resets);
     const total = s.tl.duration();
     stage.style.height = `${100 + total * UNIT_SVH}svh`;
     ScrollTrigger.create({ trigger: stage, start: 'top top', end: 'bottom bottom', scrub: true, animation: s.tl });
-    stages.set(scene, { stage, anchor: s.anchor, rests: s.rests, total, shot: $('.inline-shot', scene) });
-  }
+    stages.set(scene, { stage, anchor: s.anchor, rests: s.rests, total });
+  });
 
-  $$('.day-text > .scene:not(.hero) > .inline-shot').forEach((shot) =>
-    gsap.fromTo(
-      shot,
-      { autoAlpha: 0, y: rise },
-      { autoAlpha: 1, y: 0, ease: 'power3.out', scrollTrigger: { trigger: shot, start: 'top 95%', end: 'top 65%', scrub: true } },
-    ),
-  );
+  // 螢幕矮、字又多的時候（有小示範的那幾幕在 375×667 這一級），整段字會長進圖的那一側。量圖的對面還剩
+  // 多高，放不下就把這一幕的字整段等比縮小（CSS 的 --fit），找剛好放得下的最大比例。每一幕字量不同，
+  // 照螢幕高度一刀切的話不是有幾幕還是疊到，就是字少的那幾幕縮得太小。
+  // 要用試的不能用算的：字縮小之後一行塞得下更多字、行數跟著變少，高度不是照比例縮。
+  // 高度用 getBoundingClientRect 量：套了 zoom 的元素，offsetHeight 回報的是縮放前的值，量了等於沒量。
+  // 小示範自己有 GSAP 的上下位移（進場前停在下面），量的時候扣掉
+  const fit = () => {
+    for (const scene of stages.keys()) {
+      const copy = $('.scene-copy', scene);
+      const lines = $$(':scope > .float:not(.demo)', copy);
+      const edge = (el, side) => el.getBoundingClientRect()[side] - gsap.getProperty(el, 'y');
+      const height = () => edge(lines.at(-1), 'bottom') - edge(lines[0], 'top');
+      const cs = getComputedStyle(copy);
+      const room =
+        copy.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - $('.mini-phone', copy).offsetHeight - 22;
+      copy.style.removeProperty('--fit');
+      if (height() <= room) continue;
+      let lo = 0.5;
+      let hi = 1;
+      for (let k = 0; k < 7; k++) {
+        const mid = (lo + hi) / 2;
+        copy.style.setProperty('--fit', mid);
+        if (height() <= room) lo = mid;
+        else hi = mid;
+      }
+      copy.style.setProperty('--fit', lo.toFixed(3));
+    }
+  };
+  fit();
+  ScrollTrigger.addEventListener('refreshInit', fit);
+  resets.push(() => {
+    ScrollTrigger.removeEventListener('refreshInit', fit);
+    for (const scene of stages.keys()) $('.scene-copy', scene).style.removeProperty('--fit');
+  });
 
   // 封面往上捲走時，大標與文字往上飄、淡掉
   const hero = $('.hero');
@@ -573,38 +627,58 @@ function stageMobile(ctx, reduce) {
     scrollTrigger: { trigger: hero, start: 'top top', end: '15% top', scrub: true },
   });
 
+  // 某一幕時間軸上的第幾秒，對應到頁面上的捲動位置
+  const at = (s, time) => pageY(s.stage) + (time / s.total) * (s.stage.offsetHeight - window.innerHeight);
+
   // 時鐘和桌面版一樣：「幾點」那一行完整出現時走到這個時間
   layout.anchorY = (el) => {
     const s = stages.get(el);
     if (!s || s.anchor === null) return null;
-    return pageY(s.stage) + (s.anchor / s.total) * (s.stage.offsetHeight - window.innerHeight) + window.innerHeight / 2;
+    return at(s, s.anchor) + window.innerHeight / 2;
   };
 
-  // 可以停的位置：封面最上面、每一幕的字到齊時，以及接在後面的那張截圖整張露出來、淡入也走完時。
-  // 截圖也要算一站：不然從字直接捲到下一幕，截圖只會一閃而過
+  // 可以停的位置：封面最上面，以及每一幕的字和截圖都到齊的時候（月曆那一幕有兩段）
   layout.rests = () => {
-    const vh = window.innerHeight;
-    const top = $('.masthead').offsetHeight;
     const out = [[0, 0]];
-    for (const s of stages.values()) {
-      const at = (time) => pageY(s.stage) + (time / s.total) * (s.stage.offsetHeight - vh);
-      for (const [a, b] of s.rests) out.push([at(a), at(b)]);
-      if (!s.shot) continue;
-      // 截圖上緣落在報頭下面、且整張在畫面裡（淡入在上緣到 65% 時走完）；太矮的螢幕就貼齊報頭
-      const y = layoutY(s.shot);
-      const b = y - top;
-      out.push([Math.min(b, y - Math.min(0.65 * vh, vh - s.shot.offsetHeight - 16)), b]);
-    }
+    for (const s of stages.values()) for (const [a, b] of s.rests) out.push([at(s, a), at(s, b)]);
     return out;
   };
+
+  // 入夜：和桌面版一樣，上一幕開始飄走時開始、跑步這一幕的圖滑進來時完成。每一幕往前疊了一個畫面高，
+  // 照元素位置算（scrollState 的預設）的話，上一幕還停著的時候就開始變暗
+  const entries = [...stages.entries()];
+  const di = entries.findIndex(([scene]) => 'dusk' in scene.dataset);
+  if (di > 0) {
+    const prev = entries[di - 1][1];
+    const cur = entries[di][1];
+    layout.duskRange = () => [at(prev, prev.rests.at(-1)[1]), at(cur, SCENE.LEAD)];
+  }
 
   return () => {
     layout.anchorY = null;
     layout.rests = null;
+    layout.duskRange = null;
     day.classList.remove('is-staged');
     for (const { stage } of stages.values()) stage.style.height = '';
     resets.forEach((fn) => fn());
   };
+}
+
+// 這一幕用到的畫面，從桌面版那支手機複製一份：第一張是這一幕一開始就在的，其餘照出現的順序疊在上面等著換
+function miniPhone(scene, shots) {
+  const names = new Set([scene.dataset.screen, ...$$('[data-screen]', scene).map((el) => el.dataset.screen)]);
+  const phone = document.createElement('div');
+  phone.className = 'phone mini-phone';
+  const screen = document.createElement('div');
+  screen.className = 'screen';
+  [...names].forEach((name, i) => {
+    const shot = shots.get(name).cloneNode(true);
+    if (i === 0) delete shot.dataset.from;
+    $('img', shot).loading = 'lazy';
+    screen.append(shot);
+  });
+  phone.append(screen);
+  return phone;
 }
 
 // 換版面（跨過 900px、轉平板、切換減少動態）時，ScrollTrigger 會把捲動位置歸零。兩種版面的同一個
