@@ -58,7 +58,6 @@ const SCENE = {
   CHAR_STEP: 0.03, // 字與字錯開多少
   LINE_MAX: 1.0, //   一行最多花多久掃完：長段落只是字與字更緊，不會拖
   LINE_GAP: 0.12, //  上一行掃完之後，下一行多久開始
-  BEAT: 0.8, //       帶著自己畫面的那一行，先讓上一個畫面多停一下
   BLOCK_IN: 0.6, //   小示範整塊淡入
   DEMO: 1.8, //       小示範（底線、540→503、份數、熱量條）
   HOLD: 1.2, //       全部都在、停著讓人讀
@@ -69,12 +68,14 @@ const SCENE = {
 };
 const UNIT_SVH = 24;
 
-// 停手之後把半路的那一幕播完（settleOnRest）。全部 scrub 的話，停在哪裡就看每個人捲動的習慣，
-// 字飛到一半就停住是常態；停手 DELAY 毫秒後往剛剛捲的方向捲到下一個「整幕都在」的位置。
-// DELAY 寧可長一點（使用者定的 0.5 秒）：捲動中途換氣的那一下不該被當成停手，而自動捲動一碰就停，等久一點不吃虧。
-// 速度用時間軸的秒算，跟剛剛捲得多快無關。RATE 1 是照 SCENE 的秒數播，實測一段要 3～8 秒，
-// 使用者選了 1.5 倍（桌面 1.9～3.7 秒、手機 2.1～5.4 秒）。
-const SETTLE = { DELAY: 500, RATE: 1.5 };
+// 鬆手之後把半路的那一幕播完（settleOnRest）。全部 scrub 的話，停在哪裡就看每個人捲動的習慣，
+// 字飛到一半就停住是常態。鬆手的那一刻就接手：把這一下原本會停的位置改成下一個「整幕都在」的位置，
+// 從當下的速度接著走、減速停進去。試過、被換掉的：「先停下來、等 0.5 秒、再從零起步」（看起來像網頁掉幀），
+// 以及「一次手勢播一幕、播放中不收輸入」（每個人看到的最一致，但不能自由前後滑，使用者要能前後滑）。
+// RELEASE：滾輪多久沒有下一格就算鬆手（觸控直接看 touchend）。IDLE：鍵盤、拖捲軸沒有鬆手可看，捲動停了多久才接手。
+// RATE：接手後的平均速度，用時間軸的秒算。1 是照 SCENE 的秒數播，實測一段要 3～8 秒，使用者選了 1.5 倍；
+// 鬆手當下比這個快的話照當下的速度走，不會在交棒那一下突然變慢。
+const SETTLE = { RELEASE: 120, IDLE: 300, RATE: 1.5 };
 
 // 換畫面的方向照 app 的規則：「記一筆」開出來的由上往下蓋，報頭圖示（月曆）與底部面板由下往上。
 // 減少動態時一律改成淡入：移動的那條邊也是位移。
@@ -109,7 +110,8 @@ for (const img of $$('.shot > img')) {
 const mm = gsap.matchMedia();
 
 mm.add(MQ.motion, () => {
-  const lenis = new Lenis({ anchors: true });
+  // syncTouch：觸控也交給 Lenis。原生的慣性滑動沒辦法中途改目的地，鬆手接手（settleOnRest）在手機上就接不起來
+  const lenis = new Lenis({ anchors: true, syncTouch: true });
   const raf = (time) => lenis.raf(time * 1000);
   lenis.on('scroll', ScrollTrigger.update);
   gsap.ticker.add(raf);
@@ -123,44 +125,78 @@ mm.add(MQ.motion, () => {
   };
 });
 
-// 停手（捲動停了、手指也離開了）之後，如果停在兩個可以停的位置中間，就往剛剛捲的方向捲到下一個。
-// 已經在可以停的範圍裡、或在故事以外（第一段之前、最後一段之後）就不動。
-// 自動捲動中一碰滾輪或手指一動，Lenis 就把捲動交還給使用者，不需要另外處理。
+// 鬆手的那一刻，看這一下原本會停在哪（Lenis 的 targetScroll）：停在兩個可以停的位置中間，
+// 就往捲的方向改停到下一個。原本就停得進可以停的範圍、或在故事以外（第一段之前、最後一段之後）就不管。
+// 自動捲動中一碰滾輪或手指，Lenis 就把捲動交還給使用者，不需要另外處理。
 // 減少動態時不會走到這裡：整段只在有 Lenis 的時候掛上，而自動捲動本身就是位移。
 function settleOnRest(lenis) {
-  let timer = 0;
+  let releaseTimer = 0;
+  let idleTimer = 0;
   let dir = 0;
-  const easeInOut = (t) => -(Math.cos(Math.PI * t) - 1) / 2;
+  // 速度自己量（px/ms），用最近 64ms 的位移：lenis.velocity 是每一幀的位移，螢幕更新率不同就差一倍；
+  // 只看最後兩個事件的話，觸控時一幀的雜訊就會讓起步忽快忽慢
+  const samples = [];
+  const speedNow = () => {
+    const t = performance.now();
+    // 最後一次移動已經是 50ms 以前，代表手指停住了：起步就是 0，不然按住不動再放開會拿舊的速度衝出去
+    if (samples.length < 2 || t - samples[samples.length - 1].t > 50) return 0;
+    const a = samples[0];
+    const b = samples[samples.length - 1];
+    return (b.y - a.y) / (b.t - a.t);
+  };
 
   const settle = () => {
-    if (lenis.isScrolling || lenis.isTouching) return;
+    if (lenis.isTouching) return;
     const rests = layout.rests?.();
     if (!rests?.length) return;
-    const y = lenis.scroll;
-    const target = restTarget(rests, y, dir);
+    const y = lenis.animatedScroll;
+    const dest = lenis.targetScroll;
+    const target = restTarget(rests, dest, Math.sign(dest - y) || dir);
     if (target === null) return;
-    const perSecond = (window.innerHeight * UNIT_SVH) / 100;
-    lenis.scrollTo(target, {
-      duration: Math.abs(target - y) / perSecond / SETTLE.RATE,
-      easing: easeInOut,
-    });
-  };
-  const arm = () => {
-    clearTimeout(timer);
-    timer = setTimeout(settle, SETTLE.DELAY);
+    const d = Math.abs(target - y);
+    if (d < 1) return;
+    // 照節奏該走多久；鬆手當下比節奏快就縮短，讓起步的速度剛好接上（handoff 的起點斜率最多 3）
+    const v = Math.max(0, speedNow() * 1000 * Math.sign(target - y));
+    let duration = d / (((window.innerHeight * UNIT_SVH) / 100) * SETTLE.RATE);
+    let s0 = (v * duration) / d;
+    if (s0 > 3) {
+      duration = (3 * d) / v;
+      s0 = 3;
+    }
+    lenis.scrollTo(target, { duration, easing: handoff(s0) });
   };
 
   const offScroll = lenis.on('scroll', () => {
+    const now = performance.now();
+    samples.push({ t: now, y: lenis.animatedScroll });
+    while (now - samples[0].t > 64) samples.shift();
     if (lenis.direction) dir = lenis.direction;
-    arm();
+    // 鍵盤、拖捲軸這類原生捲動沒有鬆手可看，只能等它停
+    if (lenis.isScrolling === 'native') {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(settle, SETTLE.IDLE);
+    }
   });
-  // 手指按著不動時不會有 scroll 事件，放開那一下（touchend）才重新開始等
-  const offVirtual = lenis.on('virtual-scroll', arm);
+  const offVirtual = lenis.on('virtual-scroll', ({ deltaY, event }) => {
+    if (event.ctrlKey) return; // 觸控板縮放
+    clearTimeout(releaseTimer);
+    clearTimeout(idleTimer);
+    if (deltaY) dir = Math.sign(deltaY);
+    // 這個事件是在 Lenis 處理它之前發的；手指離開時慣性要等 Lenis 算完，排到微任務才讀得到它要停在哪
+    if (event.type === 'touchend') queueMicrotask(settle);
+    else if (event.type === 'wheel') releaseTimer = setTimeout(settle, SETTLE.RELEASE);
+  });
   return () => {
-    clearTimeout(timer);
+    clearTimeout(releaseTimer);
+    clearTimeout(idleTimer);
     offScroll();
     offVirtual();
   };
+}
+
+// 起點斜率 s0、終點斜率 0 的三次 Hermite：從鬆手當下的速度接著走、減速停進去。s0 在 0～3 之間才不會衝過頭
+function handoff(s0) {
+  return (t) => s0 * (t * t * t - 2 * t * t + t) + 3 * t * t - 2 * t * t * t;
 }
 
 // 停在 y、剛剛往 dir 捲：要捲到哪裡（null 是不用動）
@@ -359,11 +395,18 @@ function sceneTimeline(scene, reduce, onScreen = () => {}) {
   let anchor = null;
   let demo = null;
 
+  const rests = [];
+
   lines.forEach((line, i) => {
-    // 帶著自己畫面的那一行（月曆的第二句）先讓上一個畫面多停一下，進場時一起換
-    const own = line.dataset.screen && !line.dataset.demo;
-    if (own && i > 0) cursor += SCENE.BEAT;
-    if (own) onScreen(line.dataset.screen, cursor);
+    // 帶著自己畫面的那一行（月曆的第二句）是這一幕的第二段：前面的字到齊先停一站（停手後可以停在這裡），
+    // 再換畫面、接著出來。只是空出一段捲動距離的話，捲過去時會像中間卡了一大段什麼都沒有
+    if (line.dataset.screen && !line.dataset.demo) {
+      if (i > 0) {
+        rests.push([end, end + SCENE.HOLD]);
+        cursor = end + SCENE.HOLD;
+      }
+      onScreen(line.dataset.screen, cursor);
+    }
 
     if (line.dataset.demo) {
       tl.fromTo(line, { autoAlpha: 0, y: rise }, { autoAlpha: 1, y: 0, duration: SCENE.BLOCK_IN, ease: 'power3.out' }, cursor);
@@ -408,8 +451,9 @@ function sceneTimeline(scene, reduce, onScreen = () => {}) {
     else tl.to(el, { autoAlpha: 0, y: -lift, duration: SCENE.CHAR_OUT * 1.5 }, at);
   });
 
-  // rest：字和小示範都到齊、還沒開始飄走的那一段，停手後就停在這裡
-  return { tl, anchor: scene.dataset.time ? anchor : null, rest: [end, outAt], resets };
+  // rests：字和小示範都到齊、還沒開始飄走的那一段（分兩段的那一幕有兩段），停手後就停在這裡
+  rests.push([end, outAt]);
+  return { tl, anchor: scene.dataset.time ? anchor : null, rests, resets };
 }
 
 /* ---------- 4. 桌面版：釘住的一天 ----------
@@ -452,7 +496,7 @@ function stageDay(ctx, reduce) {
     resets.push(...s.resets);
     tl.add(s.tl, start);
     if (s.anchor !== null) anchorTime.set(scene, start + s.anchor);
-    rests.push([start + s.rest[0], start + s.rest[1]]);
+    for (const [a, b] of s.rests) rests.push([start + a, start + b]);
     t = start + s.tl.duration() + SCENE.GAP;
   }
 
@@ -504,7 +548,7 @@ function stageMobile(ctx, reduce) {
     const total = s.tl.duration();
     stage.style.height = `${100 + total * UNIT_SVH}svh`;
     ScrollTrigger.create({ trigger: stage, start: 'top top', end: 'bottom bottom', scrub: true, animation: s.tl });
-    stages.set(scene, { stage, anchor: s.anchor, rest: s.rest, total, shot: $('.inline-shot', scene) });
+    stages.set(scene, { stage, anchor: s.anchor, rests: s.rests, total, shot: $('.inline-shot', scene) });
   }
 
   $$('.day-text > .scene:not(.hero) > .inline-shot').forEach((shot) =>
@@ -544,7 +588,7 @@ function stageMobile(ctx, reduce) {
     const out = [[0, 0]];
     for (const s of stages.values()) {
       const at = (time) => pageY(s.stage) + (time / s.total) * (s.stage.offsetHeight - vh);
-      out.push([at(s.rest[0]), at(s.rest[1])]);
+      for (const [a, b] of s.rests) out.push([at(a), at(b)]);
       if (!s.shot) continue;
       // 截圖上緣落在報頭下面、且整張在畫面裡（淡入在上緣到 65% 時走完）；太矮的螢幕就貼齊報頭
       const y = layoutY(s.shot);
