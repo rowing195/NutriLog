@@ -246,11 +246,15 @@ a.stamp:hover { background: var(--ink2); }
   justify-content: center;
 }
 
+/* 大標的字級要看左欄有多寬，不能只看視窗寬：右邊手機的大小跟著視窗「高度」走，
+   又窄又高的視窗（寬 900、高 900 以上）手機很大、左欄被擠窄，只看 vw 的話「記」會被切掉 */
+.hero-copy { container-type: inline-size; }
+
 .title {
   margin: 0;
-  /* 上限 136px：桌面版的左欄最窄約 599px（寬螢幕時手機框與欄距都到頂），
-     四個字含字距是 4.24em，136px 放得下；原本的 156px 會把「記」切掉 */
-  font-size: clamp(64px, 11vw, 136px);
+  /* 四個字含字距是 4.24em，放進左欄要 ≤ 23.6cqi，取 23cqi 留一點餘裕。手機上它比 64px 大，不影響；
+     上限 136px 是寬螢幕時的樣子（原本的 156px 會把「記」切掉） */
+  font-size: min(clamp(64px, 11vw, 136px), 23cqi);
   line-height: 1.1;
   letter-spacing: 0.06em;
   display: flex;
