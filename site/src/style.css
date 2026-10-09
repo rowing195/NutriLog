@@ -204,21 +204,59 @@ a.stamp:hover { background: var(--ink2); }
   .day.is-staged .scene a { pointer-events: auto; }
 }
 
-/* 手機版：沒有釘住的手機，改成每一幕的字自己釘在畫面中間。.scene-stage 給捲動距離（高度由 main.js
-   依那一幕的時間軸長度設定），.scene-copy 釘住，字逐字彈進來、停著讓人讀、再飄走；截圖接在後面捲上來。
-   一樣只有 main.js 加了 .is-staged 才生效，沒有 JS 時照原本的往下排。 */
+/* 手機版：沒有釘住的那支手機，改成每一幕自己帶一支小手機框（main.js 的 miniPhone），和字一起釘住。
+   .scene-stage 給捲動距離（高度由 main.js 依那一幕的時間軸長度設定），.scene-copy 釘住、佔滿一個畫面。
+   字是一欄，圖放在對角，四個角輪流（main.js 給 data-corner：tl 是字在左上、圖在右下……）。
+   接在後面的那張大截圖只給沒有 JS 的時候用。一樣只有 main.js 加了 .is-staged 才生效，沒有 JS 時照原本的往下排。 */
 @media (max-width: 899.98px) {
+  /* 小手機框從畫面外滑進來，不裁掉的話手機瀏覽器會把整頁撐寬、縮小顯示。
+     要用 clip 不能用 hidden：hidden 會變成捲動容器，裡面的 sticky 就釘不住了 */
+  .day.is-staged { overflow-x: clip; }
   .day.is-staged .day-text > .scene:not(.hero) { display: block; min-height: 0; padding: 0; }
+  /* 每一幕往前疊一個畫面高：上一幕剛解除釘住，下一幕就接著釘住開始播。不疊的話中間有一整個畫面高的
+     捲動是上一幕移出、下一幕移進，兩邊都還沒有東西，整片空白（以前那段是接在字後面的大截圖填著） */
+  .day.is-staged .day-text > .scene:not(.hero) ~ .scene:not(.hero) { margin-top: -100svh; }
   .day.is-staged .scene-copy {
     position: sticky;
     top: 0;
     height: 100svh;
-    padding: calc(var(--mast) + 16px) 0 24px;
+    padding: calc(var(--mast) + 20px) 0 28px;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-start;
   }
-  .day.is-staged .inline-shot { margin: 0 0 22svh; }
+  .day.is-staged .scene-copy > .float { width: 88%; }
+  /* 「幾點 — 章節名」那行不折：可以比字欄寬，但至少一樣寬，靠右的那幾幕左緣才對得齊 */
+  .day.is-staged .scene-copy > .when { width: max-content; min-width: 88%; }
+  .day.is-staged [data-corner^="b"] .scene-copy { justify-content: flex-end; }
+  .day.is-staged [data-corner$="r"] .scene-copy > .float { align-self: flex-end; }
+  .day.is-staged .inline-shot { display: none; }
+
+  /* 字和圖擠在同一個畫面，字也縮一級 */
+  .day.is-staged .chapter h2 { margin-bottom: 12px; font-size: 23px; }
+  .day.is-staged .panel h3 { margin-bottom: 10px; font-size: 20px; }
+  .day.is-staged .chapter p,
+  .day.is-staged .panel p { margin-bottom: 10px; font-size: 14.5px; }
+  /* 螢幕太矮放不下時，main.js 給 --fit 讓整段字等比縮小。小示範手機版不放：字只佔三成高度，
+     放了它字就得縮到看不清楚（main.js 建時間軸時也跳過它） */
+  .day.is-staged .scene-copy > .float { zoom: var(--fit, 1); }
+  .day.is-staged .scene-copy > .demo { display: none; }
+  .day.is-staged .when { margin-bottom: 12px; }
+  .day.is-staged .when .num { font-size: 30px; }
+
+  /* 圖佔七成、字佔三成（使用者定的）：寬最多螢幕的 70%，高最多報頭以下可用高度的 70%，取小的那個，
+     矮螢幕才不會整個被圖吃掉。前面要加 .day.is-staged：.phone 寫在後面，同樣一個 class 的話會被它蓋掉 */
+  .day.is-staged .mini-phone {
+    --sw: min(70vw - 16px, ((100svh - var(--mast) - 48px) * 0.7 - 16px) / 2.057);
+    position: absolute;
+    width: calc(var(--sw) + 16px);
+    padding: 6px;
+  }
+  .day.is-staged .mini-phone .screen { border-radius: calc(var(--sw) * 0.11); }
+  [data-corner="tl"] .mini-phone { right: 0; bottom: 28px; }
+  [data-corner="tr"] .mini-phone { left: 0; bottom: 28px; }
+  [data-corner="bl"] .mini-phone { right: 0; top: calc(var(--mast) + 20px); }
+  [data-corner="br"] .mini-phone { left: 0; top: calc(var(--mast) + 20px); }
 }
 
 /* 逐字進出場拆出來的單位（main.js 的 splitUnits）。inline-block 才吃得到位移與旋轉 */
