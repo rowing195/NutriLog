@@ -7,6 +7,8 @@
 
 <em>離線記錄每日營養，資料只留在你手機裡</em>
 
+<a href="https://nutri-log-lake.vercel.app/"><strong>展示頁面 →</strong></a>
+
 <!-- BADGES -->
 <img src="https://img.shields.io/github/license/rowing195/NutriLog?style=flat&logo=opensourceinitiative&logoColor=white&color=0080ff" alt="license">
 	<img src="https://img.shields.io/github/last-commit/rowing195/NutriLog?style=flat&logo=git&logoColor=white&color=0080ff" alt="last-commit">
