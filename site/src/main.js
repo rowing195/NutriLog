@@ -66,10 +66,12 @@ const UNIT_SVH = 24;
 // 字飛到一半就停住是常態。鬆手的那一刻就接手：把這一下原本會停的位置改成下一個「整幕都在」的位置，
 // 從當下的速度接著走、減速停進去。試過、被換掉的：「先停下來、等 0.5 秒、再從零起步」（看起來像網頁掉幀），
 // 以及「一次手勢播一幕、播放中不收輸入」（每個人看到的最一致，但不能自由前後滑，使用者要能前後滑）。
-// RELEASE：滾輪多久沒有下一格就算鬆手（觸控直接看 touchend）。IDLE：鍵盤、拖捲軸沒有鬆手可看，捲動停了多久才接手。
+// RELEASE：滾輪多久沒有下一格就算鬆手（觸控直接看 touchend）。IDLE：鍵盤沒有鬆手可看，捲動停了多久才接手。
+// KEY：按下捲動鍵之後多久以內的原生捲動算是鍵盤捲的（拉捲軸、回到頂端不接手，見 settleOnRest）。
 // RATE：接手後的平均速度，用時間軸的秒算。1 是照 SCENE 的秒數播，實測一段要 3～8 秒，使用者選了 1.5 倍；
 // 鬆手當下比這個快的話照當下的速度走，不會在交棒那一下突然變慢。
-const SETTLE = { RELEASE: 120, IDLE: 300, RATE: 1.5 };
+const SETTLE = { RELEASE: 120, IDLE: 300, KEY: 1000, RATE: 1.5 };
+const SCROLL_KEYS = new Set([' ', 'PageDown', 'PageUp', 'ArrowDown', 'ArrowUp', 'Home', 'End']);
 
 // 換畫面的方向照 app 的規則：「記一筆」開出來的由上往下蓋，報頭圖示（月曆）與底部面板由下往上。
 // 減少動態時一律改成淡入：移動的那條邊也是位移。
@@ -160,17 +162,32 @@ function settleOnRest(lenis) {
     lenis.scrollTo(target, { duration, easing: handoff(s0) });
   };
 
+  let keyAt = -Infinity;
+  const onKey = (e) => {
+    if (SCROLL_KEYS.has(e.key)) keyAt = performance.now();
+  };
   const offScroll = lenis.on('scroll', () => {
     const now = performance.now();
     samples.push({ t: now, y: lenis.animatedScroll });
     while (now - samples[0].t > 64) samples.shift();
     if (lenis.direction) dir = lenis.direction;
-    // 鍵盤、拖捲軸這類原生捲動沒有鬆手可看，只能等它停
-    if (lenis.isScrolling === 'native') {
+    // 原生捲動只有鍵盤會接著播完，而鍵盤沒有鬆手可看，只能等它停。拉捲軸、回到頂端、頁內搜尋是使用者自己
+    // 挑的位置，不再把他帶走；而且拉捲軸也看不到鬆手，按住不動一下就接手的話，頁面會從手指底下跑掉
+    if (lenis.isScrolling === 'native' && now - keyAt < SETTLE.KEY) {
       clearTimeout(idleTimer);
       idleTimer = setTimeout(settle, SETTLE.IDLE);
     }
   });
+  // Lenis 自己在捲的時候不理原生捲動，每一幀照樣把它的位置寫回去：鬆手後自動捲的那幾秒裡，拉捲軸、
+  // 按瀏覽器的回到頂端都像沒反應。位置不是 Lenis 剛寫的那個，就是瀏覽器在捲，把捲動交給它。
+  // stop／start 是公開 API 裡唯一停得下來、又不會把位置寫回去的（寫回去會打斷瀏覽器的平滑捲動）
+  const onNativeScroll = () => {
+    if (lenis.isScrolling !== 'smooth' || Math.abs(window.scrollY - lenis.animatedScroll) < 2) return;
+    lenis.stop();
+    lenis.start();
+  };
+  window.addEventListener('keydown', onKey);
+  window.addEventListener('scroll', onNativeScroll);
   const offVirtual = lenis.on('virtual-scroll', ({ deltaY, event }) => {
     if (event.ctrlKey) return; // 觸控板縮放
     clearTimeout(releaseTimer);
@@ -185,6 +202,8 @@ function settleOnRest(lenis) {
     clearTimeout(idleTimer);
     offScroll();
     offVirtual();
+    window.removeEventListener('keydown', onKey);
+    window.removeEventListener('scroll', onNativeScroll);
   };
 }
 
