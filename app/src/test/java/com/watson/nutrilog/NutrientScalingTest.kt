@@ -155,6 +155,23 @@ class NutrientScalingTest {
         assertEquals("350", restored.sodium)
     }
 
+    /** 飲料改份數時，水量要跟著熱量一起變，不能停在 1 份的量。 */
+    @Test
+    fun `EntryDraft scaleFromBase scales water with the portion`() {
+        val baseDraft = EntryDraft(
+            name = "珍珠奶茶",
+            servingText = "700ml",
+            calories = "450",
+            water = "600",
+        )
+
+        assertEquals("900", baseDraft.scaleFromBase(baseDraft, 1.5).water)
+        assertEquals("300", baseDraft.scaleFromBase(baseDraft, 0.5).water)
+
+        val scaled = baseDraft.scaleFromBase(baseDraft, 2.0)
+        assertEquals("600", scaled.scaleFromBase(baseDraft, 1.0).water)
+    }
+
     @Test
     fun `Baseline Persistence Bug Fix - Reopening 2x entry derives original base and allows restoring to 1x by subtracting 1`() {
         // 1. Initial 1x Food Entry saved as 2x

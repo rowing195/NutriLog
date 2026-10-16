@@ -296,6 +296,7 @@ data class EntryDraft(
                 sodium = base.sodium,
                 fiber = base.fiber,
                 satFat = base.satFat,
+                water = base.water,
                 portionMultiplier = 1.0,
             )
         }
@@ -314,6 +315,7 @@ data class EntryDraft(
             sodium = scaleVal(base.sodium, isInt = true),
             fiber = scaleVal(base.fiber),
             satFat = scaleVal(base.satFat),
+            water = scaleVal(base.water, isInt = true),
             portionMultiplier = mult,
         )
     }
