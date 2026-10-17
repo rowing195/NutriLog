@@ -97,7 +97,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 - 🔔 **有新版會告訴你** — 每天到 GitHub 查一次，有新版時今日頁右上角的設定亮一個紅點，關於頁一鍵開那一版的下載頁。
 - 📅 **看得出空白** — 月曆式歷史讓「哪幾天忘了記」一眼就有形狀，清單做不到這件事。
 - 📤 **CSV 匯出／匯入** — 完整備份的格式：本地匯出與 Drive 每日備份用的都是同一份 CSV，數字照存的值原樣寫，換手機可以無損接回。
-- 🔑 **不需要相機權限** — 拍照交給系統相機、掃碼交給 Play 服務。Manifest 只有 `INTERNET` 與 Health 連線的讀寫權限，後者要你在系統畫面同意才會生效。
+- 🔑 **不需要相機權限** — 拍照交給系統相機、掃碼交給 Play 服務。Manifest 只有 `INTERNET`、Health 連線的讀寫權限，以及程式內更新用的 `REQUEST_INSTALL_PACKAGES`，後兩者都要你在系統畫面同意才會生效。
 
 ---
 
@@ -112,7 +112,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 | 🧩 | **模組化** | <ul><li>`data/db` Room、`data/net` 外部 API、`ui` 畫面、`ui/theme` 色票與字階</li><li>`PortionMultiplier` 份數縮放與無損還原演算法</li><li>`CsvExport` / `CsvImport` 是純函式、不碰 Android API</li><li>`BmrCalculator`、`ActivityEstimate` 與兩支 `*Aggregator` 同樣是純計算，測試不必開模擬器</li><li>`DriveClient` 手寫 REST，不引官方 Drive client 函式庫</li></ul> |
 | 🧪 | **測試** | <ul><li>JUnit 單元測試 15 支共 107 條（`NutrientScalingTest`、`PortionInputTest`、`CsvRoundTripTest`、`WaterCsvTest`、`DriveBackupPruneTest`、`BackupScheduleTest`、`BackedUpProfileTest`、`FoodLibraryMatchTest`、`ActivityEstimateTest`、`CalorieTargetTest`、`BmrCalculatorTest`、`HydrationRecordTest`、`ImageLimitTest`、`PhotoPromptTest`、`UpdateCheckTest`）驗證份數縮放與兩位小數輸入、新版判斷（比數字不比字串、本機建置不比）、CSV 匯出／匯入來回一致、雲端備份保留規則、食物庫模糊比對、兩種手錶配戴方式各採用哪種活動資料與步數只算超出久坐的部分、運動熱量的回補比例、備份白名單不含金鑰與身型目標的營養素配比、飲水的兩個來源在 CSV 來回之後仍然分得開、寫進 Health 連線的飲水紀錄、照片大小上限與烹調備註</li><li>`tools/ui.ps1` 提供依元件文字定位的手動 UI 自動化驗證</li><li>核心回歸清單：新增→編輯→刪除、換日滑動無跳躍、force-stop 狀態持久化、一次滑動剛好只換一天／一週／一個月</li></ul> |
 | ⚡️ | **效能** | <ul><li>每日／每月合計由 SQL `GROUP BY` 算，不把明細撈進記憶體</li><li>相片長邊壓到 1024 px 才送出，節省流量與辨識延遲</li><li>全 app 共用一個 `OkHttpClient` 連線池</li><li>條碼結果存 Room 本機快取</li></ul> |
-| 🛡️ | **安全** | <ul><li>不宣告相機與儲存權限；除了 `INTERNET` 只有 Health 連線的讀寫權限，要使用者在系統畫面同意才生效</li><li>三家的 API key（Gemini／OpenRouter／Tavily）都存 DataStore，**不編進 APK**</li><li>key 一律走 header（Gemini 是 `x-goog-api-key`，其餘是 `Authorization: Bearer`）而非 query string</li><li>`keystore.properties` 與 `release.jks` 都在 gitignore</li></ul> |
+| 🛡️ | **安全** | <ul><li>不宣告相機與儲存權限；除了 `INTERNET` 只有 Health 連線的讀寫權限與程式內更新的安裝權限，都要使用者在系統畫面同意才生效</li><li>程式內更新會核對 GitHub 給的 SHA-256，簽章不同的 APK 系統也會拒裝</li><li>三家的 API key（Gemini／OpenRouter／Tavily）都存 DataStore，**不編進 APK**</li><li>key 一律走 header（Gemini 是 `x-goog-api-key`，其餘是 `Authorization: Bearer`）而非 query string</li><li>`keystore.properties` 與 `release.jks` 都在 gitignore</li></ul> |
 | 📦 | **相依** | <ul><li>Room、DataStore、OkHttp、kotlinx-serialization、WorkManager、play-services-code-scanner、play-services-auth、androidx.health.connect</li><li>刻意不用 Retrofit —— 五個外部服務各自只用到一兩支端點，手寫 OkHttp 維持最精簡依賴</li></ul> |
 | 🚀 | **擴充性** | <ul><li>Room 關聯式儲存，`date` 建立索引優化查詢</li><li>新增 `NutriSettings` 欄位一律給預設值，舊資料靠預設值相容</li><li>新增 Room 欄位提供清楚 migration 升級路徑</li></ul> |
 
@@ -886,7 +886,7 @@ Windows 平台可使用隨附腳本：
 [`UpdateCheckTest.kt`](app/src/test/java/com/watson/nutrilog/UpdateCheckTest.kt)
 - 版號逐段比數字不比字串：v2.2.10 比 2.2.9 新、v2.10.0 比 2.9.9 新，少一段當成 0
 - 本機建置（「1.0-debug」）與不是版號形狀的 tag 比不了，不能說有新版
-- GitHub 回應只取 tag、release 頁網址、發佈時間三欄；沒有 tag 就當作沒有正式版
+- GitHub 回應只取 tag、release 頁網址、發佈時間與 APK 資產（網址、大小、SHA-256）；沒有 tag 就當作沒有正式版，沒有 digest 就不核對
 
 UI 部分使用 [`tools/ui.ps1`](tools/ui.ps1) 依元件文字進行模擬器自動化操作：
 
@@ -1081,12 +1081,17 @@ OpenRouter 的模型也分兩欄（拍照一欄、文字一欄）。不做成一
 ### 檢查更新
 
 - **設定 → 關於 → 檢查更新**：到 GitHub 查最新的正式版。有新版時寫「有新版 v2.2.8（10/5 發佈）」，
-  底下一顆章「前往下載 v2.2.8」用瀏覽器開那一版的 release 頁（看得到更新內容，再自己點 APK）。
+  底下一顆章「下載並安裝 v2.2.8」**在 app 裡直接下載**，下載完跳出系統的「要更新這個應用程式嗎？」，
+  按「更新」就裝好，飲食紀錄與設定都會保留。想先看更新內容，點底下的「看這一版改了什麼」開 release 頁。
+- **第一次要允許 NutriLog 安裝應用程式**（系統設定的「安裝不明應用程式」）。按下去會先帶你到那一頁，
+  開好回來就接著下載，之後不用再開。
+- 下載完會先核對 GitHub 給的 SHA-256，對不上就不交給系統；簽章跟手機上那一顆不同的 APK 系統也會拒裝。
+- **要從 v2.2.9 以前的版本更新上來，還是得從 GitHub 手動下載一次**，裝好之後才有程式內更新。
 - **每天自動查一次**（關於頁的開關，預設開），和 Drive 備份無關，沒連雲端備份也會查。
   查到新版**不發通知**：今日頁右上角的設定圖示亮一個紅點，設定選單「關於」那列寫「2.2.7 · 有新版 2.2.8」。
   在關於頁看過之後紅點就收掉，下一個新版出來才會再亮。
 - 自己從原始碼建的 debug 版（版號「1.0-debug」）比不了版號，只會講「這是開發版，最新正式版是 vX」，不亮紅點。
-- 不需要任何新權限，也不帶 token（公開 repo 每小時 60 次，一天查一次用不完）。
+- 查詢不帶 token（公開 repo 每小時 60 次，一天查一次用不完）。
 
 ### 匯出／匯入 CSV
 
@@ -1150,8 +1155,8 @@ Key 僅安全儲存於本地 DataStore，**不會打包進 APK 或上傳第三�
 - **掃碼**：使用 Google Play 服務之 Google Code Scanner，掃描視窗獨立於 Google Play 服務行程執行。
 - **相簿**：使用系統 `PickVisualMedia` 照片選擇器。
 
-本 App 本身無需宣告 `CAMERA` 或儲存權限。Manifest 裡只有 `INTERNET`（外部查詢）與 Health 連線的讀寫權限；
-後者要使用者在系統畫面同意才會生效，不開健康連線就用不到。
+本 App 本身無需宣告 `CAMERA` 或儲存權限。Manifest 裡只有 `INTERNET`（外部查詢）、Health 連線的讀寫權限，
+以及程式內更新用的 `REQUEST_INSTALL_PACKAGES`；後兩者都要使用者在系統畫面同意才會生效，不用就不會被打開。
 
 ### 「紙與墨」出版物風格與內嵌字型
 
@@ -1384,7 +1389,8 @@ GET https://api.github.com/repos/rowing195/NutriLog/releases/latest
 ```
 
 - 檢查更新用。公開 repo、**不帶 token**：每小時 60 次，每天一次加上偶爾手動按遠遠用不完；帶 token 反而得把金鑰編進 APK。
-- `releases/latest` 本身就略過 draft 與 prerelease。只取 `tag_name`、`html_url`、`published_at` 三欄。
+- `releases/latest` 本身就略過 draft 與 prerelease。取 `tag_name`、`html_url`、`published_at`，以及 `.apk` 那個資產的
+  `browser_download_url`、`size`、`digest`（`sha256:…`），後三者給程式內更新用。
 - 一個正式版都沒有時回 404，那不是錯誤；403／429 是被限流，背景檢查不重試、等明天。
 
 ### Health Connect（裝置端，非 HTTP）

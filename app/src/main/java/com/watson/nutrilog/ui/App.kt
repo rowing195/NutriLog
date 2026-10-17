@@ -1,7 +1,9 @@
 package com.watson.nutrilog.ui
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
+import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -124,6 +126,29 @@ fun NutriLogApp(viewModel: NutriViewModel) {
         LaunchedEffect(wanted) {
             viewModel.onHealthPermissionRequestLaunched()
             healthPermissions.launch(wanted)
+        }
+    }
+
+    // 程式內更新的兩個系統畫面：「安裝不明應用程式」的設定頁，以及系統要使用者按「更新」
+    // 的確認畫面。和上面兩個一樣，ViewModel 只留請求，發射在這裡。
+    // 設定頁回來不管結果碼（那一頁沒有給），直接請 ViewModel 重查權限，有了就接著下載。
+    val installPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { viewModel.onInstallPermissionResult() }
+    if (viewModel.pendingInstallPermission) {
+        LaunchedEffect(Unit) {
+            viewModel.installPermissionLaunched()
+            installPermission.launch(
+                Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + context.packageName))
+            )
+        }
+    }
+    // 掛在這一層而不是關於頁：下載途中換到別的畫面，確認畫面一樣要跳得出來。
+    // 下載完時 app 在背景的話，這段要等回到前景才會跑（組合在背景是暫停的），剛好。
+    viewModel.pendingInstallConfirm?.let { confirm ->
+        LaunchedEffect(confirm) {
+            viewModel.installConfirmLaunched()
+            context.startActivity(confirm)
         }
     }
 
@@ -482,6 +507,9 @@ fun NutriLogApp(viewModel: NutriViewModel) {
                 onCheckUpdate = viewModel::checkForUpdate,
                 onSetAutoUpdate = viewModel::setAutoUpdateCheck,
                 onUpdateSeen = viewModel::markUpdateSeen,
+                updateDownloaded = viewModel.updateDownloaded,
+                canInstallPackages = viewModel.canInstallPackages,
+                onInstallUpdate = viewModel::installUpdate,
                 onBack = { viewModel.goTo(Screen.Settings) },
             )
         }

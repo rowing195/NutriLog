@@ -22,6 +22,10 @@ data class UpdateStatus(
      * 看過了還一直亮著，紅點就只是噪音；下一個新版出來它才會再亮。
      */
     val seenTag: String = "",
+    /** 那一版附的 APK（見 [com.watson.nutrilog.data.net.ReleaseApk]）。空字串＝那一版沒附，只能開 [url]。 */
+    val apkUrl: String = "",
+    val apkSize: Long = 0,
+    val apkSha256: String = "",
 )
 
 /**
@@ -68,6 +72,9 @@ class UpdateChecker(context: Context) {
                 url = release?.url.orEmpty(),
                 publishedAt = release?.publishedAt.orEmpty(),
                 checkedAt = System.currentTimeMillis(),
+                apkUrl = release?.apk?.url.orEmpty(),
+                apkSize = release?.apk?.size ?: 0,
+                apkSha256 = release?.apk?.sha256.orEmpty(),
             )
         }
     }

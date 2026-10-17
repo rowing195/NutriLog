@@ -330,6 +330,9 @@ fun SettingsDetailScreen(
     onCheckUpdate: () -> Unit,
     onSetAutoUpdate: (Boolean) -> Unit,
     onUpdateSeen: () -> Unit,
+    updateDownloaded: Long?,
+    canInstallPackages: Boolean,
+    onInstallUpdate: () -> Unit,
     onBack: () -> Unit,
 ) {
     Scaffold(
@@ -380,6 +383,7 @@ fun SettingsDetailScreen(
                 SettingsPage.ABOUT -> AboutSection(
                     settings, updateStatus, updateAvailable, updateChecking, updateMessage,
                     onCheckUpdate, onSetAutoUpdate, onUpdateSeen,
+                    updateDownloaded, canInstallPackages, onInstallUpdate,
                 )
             }
             }
@@ -1166,6 +1170,9 @@ private fun AboutSection(
     onCheck: () -> Unit,
     onSetAuto: (Boolean) -> Unit,
     onSeen: () -> Unit,
+    downloaded: Long?,
+    canInstall: Boolean,
+    onInstall: () -> Unit,
 ) {
     val uriHandler = LocalUriHandler.current
     // 「有新版」顯示出來了就算看過：報頭的紅點收掉。綁 latestTag，下一個新版會再觸發一次。
@@ -1186,9 +1193,45 @@ private fun AboutSection(
         updateStatusText(status, updateAvailable)?.let {
             Text(withNumerals(it), style = MaterialTheme.typography.bodyMedium)
         }
-        if (updateAvailable) {
-            // 有新版時這是整頁唯一的主要動作，所以是實心章。
-            // 開的是 release 頁而不是 APK：先看得到這一版改了什麼，再自己點下載。
+        if (updateAvailable && status.apkUrl.isNotBlank()) {
+            // 有新版時這是整頁唯一的主要動作，所以是實心章。下載中退成外框章：
+            // 按了沒有用，而底下那條進度線已經在講它正在做什麼。
+            // 進度線與「看這一版改了什麼」跟章包在一起：進度線是就地展開的，
+            // 收起來時節點還在，交給外層的 spacedBy 會多出一段空白。
+            Column {
+                StampButton(
+                    label = stringResource(R.string.update_install, status.latestTag),
+                    onClick = onInstall,
+                    enabled = downloaded == null,
+                    helper = if (canInstall) null else stringResource(R.string.update_install_permission),
+                )
+                val shownDownloaded = rememberLastNonNull(downloaded)
+                Reveal(downloaded != null) {
+                    ProgressRule(
+                        fraction = (shownDownloaded ?: 0L).toFloat() / status.apkSize.coerceAtLeast(1),
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                    Text(
+                        withNumerals(
+                            stringResource(
+                                R.string.update_downloading,
+                                (shownDownloaded ?: 0L).megabytes(),
+                                status.apkSize.megabytes(),
+                            )
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+                // 想先看更新內容、或程式內下載一直失敗時的退路
+                TextAction(
+                    label = stringResource(R.string.update_release_notes),
+                    onClick = { uriHandler.openUri(status.url) },
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+        } else if (updateAvailable) {
+            // 那一版沒附 APK（或還是舊版 app 查回來的紀錄），只能開 release 頁
             StampButton(
                 label = stringResource(R.string.update_download, status.latestTag),
                 onClick = { uriHandler.openUri(status.url) },
@@ -1247,6 +1290,9 @@ private fun updateStatusText(status: UpdateStatus, updateAvailable: Boolean): St
         else -> stringResource(R.string.update_latest, checkedLabel(status.checkedAt))
     }
 }
+
+/** 「6.1」。和 Android 檔案管理員一樣用 1000 進位。 */
+private fun Long.megabytes(): String = "%.1f".format(this / 1_000_000.0)
 
 /** 「今天 09:12」或「10/3 09:12」。 */
 @Composable

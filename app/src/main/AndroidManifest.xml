@@ -20,6 +20,9 @@
     <uses-permission android:name="android.permission.health.READ_STEPS" />
     <!-- 體能訓練（重訓、跑步、健走等專項運動場次） -->
     <uses-permission android:name="android.permission.health.READ_EXERCISE" />
+    <!-- 程式內更新（設定 → 關於）：把下載的新版交給系統裝，第一次要使用者在系統設定允許一次。
+         這個 app 只在 GitHub 發佈；要上 Play 商店的話這個權限受政策限制，得整段拿掉。 -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <queries>
         <package android:name="com.google.android.apps.healthdata" />
@@ -201,6 +204,11 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- 程式內更新的結果（要使用者確認、取消、失敗），見 UpdateInstaller -->
+        <receiver
+            android:name=".data.InstallResultReceiver"
+            android:exported="false" />
     </application>
 
 </manifest>

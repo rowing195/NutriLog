@@ -16,6 +16,17 @@ data class LatestRelease(
     val url: String,
     /** ISO 8601（"2026-10-04T03:18:14Z"），GitHub 原樣。 */
     val publishedAt: String,
+    /** 那一版附的 APK。CI 每次都會附一顆，沒有的話只能開 [url] 讓使用者自己看。 */
+    val apk: ReleaseApk? = null,
+)
+
+/** release 附的 APK：程式內下載要的三樣東西。 */
+data class ReleaseApk(
+    val url: String,
+    /** bytes。PackageInstaller 開 session 要先知道長度，進度線的分母也是它。 */
+    val size: Long,
+    /** 小寫十六進位。GitHub 有給才有（2025 年中以後上傳的資產都有），沒有就不核對。 */
+    val sha256: String?,
 )
 
 /**
@@ -58,11 +69,23 @@ class GitHubReleaseClient(private val client: OkHttpClient = SharedHttp.client) 
 
 private val json = Json { ignoreUnknownKeys = true }
 
-/** 回應裡只取這三欄；其餘（作者、資產清單、本文）用不到。 */
+/** 回應裡只取 tag、頁面、發佈時間與 APK 那一個資產；其餘（作者、本文）用不到。 */
 internal fun parseLatestRelease(body: String): LatestRelease? {
     val raw = json.decodeFromString(ReleaseResponse.serializer(), body)
     if (raw.tagName.isBlank()) return null
-    return LatestRelease(tag = raw.tagName, url = raw.htmlUrl, publishedAt = raw.publishedAt)
+    val apk = raw.assets.firstOrNull { it.name.endsWith(".apk") && it.url.isNotBlank() && it.size > 0 }
+    return LatestRelease(
+        tag = raw.tagName,
+        url = raw.htmlUrl,
+        publishedAt = raw.publishedAt,
+        apk = apk?.let {
+            ReleaseApk(
+                url = it.url,
+                size = it.size,
+                sha256 = it.digest?.takeIf { d -> d.startsWith("sha256:") }?.removePrefix("sha256:")?.lowercase(),
+            )
+        },
+    )
 }
 
 @Serializable
@@ -70,4 +93,14 @@ private data class ReleaseResponse(
     @SerialName("tag_name") val tagName: String = "",
     @SerialName("html_url") val htmlUrl: String = "",
     @SerialName("published_at") val publishedAt: String = "",
+    val assets: List<ReleaseAsset> = emptyList(),
+)
+
+@Serializable
+private data class ReleaseAsset(
+    val name: String = "",
+    @SerialName("browser_download_url") val url: String = "",
+    val size: Long = 0,
+    /** "sha256:4ecd…"。 */
+    val digest: String? = null,
 )

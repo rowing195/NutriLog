@@ -953,6 +953,25 @@ fun IndeterminateRule(modifier: Modifier = Modifier) {
     }
 }
 
+/** 有長度的進度線（下載）。和 [IndeterminateRule] 同一條線，只是墨色那段從左邊一路填過去。 */
+@Composable
+fun ProgressRule(fraction: Float, modifier: Modifier = Modifier) {
+    val scheme = MaterialTheme.colorScheme
+    Box(
+        modifier
+            .fillMaxWidth()
+            .height(2.dp)
+            .background(scheme.outlineVariant)
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth(fraction.coerceIn(0f, 1f))
+                .height(2.dp)
+                .background(scheme.onSurface)
+        )
+    }
+}
+
 /**
  * 複選用的方框打勾。
  *

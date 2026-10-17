@@ -1643,7 +1643,7 @@ Room 的 migration 是 4→5（`food_entries` 加一欄 ＋ 建 `daily_water`）
 查的是 `api.github.com/repos/rowing195/NutriLog/releases/latest`：repo 公開、**不帶 token**
 （每小時 60 次，遠遠用不完；帶 token 就得把金鑰編進 APK）。查到新版只存起來、**不發通知**，
 今日頁右上角的設定圖示亮一個朱紅點（朱紅＝「看這裡」，和聚焦同一個意思），
-設定選單「關於」那列寫「2.2.7 · 有新版 2.2.8」，關於頁有一顆章開那一版的 release 頁。
+設定選單「關於」那列寫「2.2.7 · 有新版 2.2.8」，關於頁那顆章在 app 裡下載並安裝（見下一小節）。
 
 四件會咬人的事：
 
@@ -1668,6 +1668,33 @@ Room 的 migration 是 4→5（`food_entries` 加一欄 ＋ 建 `daily_water`）
 - 週期性工作**不能提早強制執行**：`cmd jobscheduler run -f` 會被 WorkManager 以「executed before
   schedule」擋掉。要讓它馬上跑，就 force-stop 之後刪掉 `no_backup/androidx.work.workdb*`
   （不在 `databases/`），下次開 app 會重新排、立刻跑一次。
+
+### 程式內更新：PackageInstaller session
+
+`UpdateInstaller` 把 release 附的 APK **邊下載邊寫進 PackageInstaller 的 session**（不落地成檔案，
+所以沒有暫存檔要清、也不經過 FileProvider），核對 GitHub 給的 SHA-256 之後 commit。系統一定會
+跳「要更新這個應用程式嗎？」，那一步一般 app 省不掉。第一次要使用者在系統設定開「安裝不明應用程式」
+（`REQUEST_INSTALL_PACKAGES`）；從設定頁回來時 ViewModel 重查權限，有了就直接接著下載。
+
+四件會咬人的事：
+
+- **確認畫面的 intent 由 App.kt 開，不是關於頁。** 結果從 `InstallResultReceiver` 經
+  `InstallResults` 回到 ViewModel，App.kt 看到 `pendingInstallConfirm` 才 `startActivity`。
+  掛在最外層，是因為下載途中使用者可能已經換到別的畫面；app 在背景時組合是暫停的，
+  回到前景才會開，剛好不會被背景啟動 Activity 的限制擋掉。
+- **使用者在確認畫面按取消（`STATUS_FAILURE_ABORTED`）不是錯誤**，訊息清掉，同 Drive 授權的取消。
+  再按一次會重新下載 —— 那是不落地的代價。
+- **CI 的 release 一定要附 `.apk` 結尾的資產**，`parseLatestRelease` 靠副檔名找它。
+  找不到時關於頁退回舊行為：章改成「前往下載」開 release 頁。
+- **`setAppPackageName` 鎖住只能裝成自己的更新。** debug 版的套件名稱是
+  `com.watson.nutrilog.debug`（`applicationIdSuffix`），所以 debug 版永遠裝不了正式版 ——
+  而它本來也比不了版號、不會出現這顆章。
+
+**在模擬器上驗**：照上一段建假舊版時，`applicationIdSuffix` 也要一起註解掉，套件名稱才會是
+`com.watson.nutrilog`。模擬器上那顆是 debug 金鑰簽的，所以能驗到「下載 → 進度線 → 系統確認框 →
+取消」與「按更新之後系統拒裝、app 顯示簽章不同」（logcat 是 `INSTALL_FAILED_UPDATE_INCOMPATIBLE`）。
+**真的裝成功只有正式簽章的兩版之間驗得到**，本機做不出來（不要為了這個在本機出正式版，見開頭那段）。
+「Allow from this source」是系統的安全性設定，請使用者在模擬器上自己點，不要用 adb 或 appops 代勞。
 
 ## App 圖示：切換 activity-alias，不是換資源
 

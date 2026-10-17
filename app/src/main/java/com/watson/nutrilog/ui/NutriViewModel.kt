@@ -3,6 +3,7 @@ package com.watson.nutrilog.ui
 import android.app.Application
 import android.app.PendingIntent
 import android.content.Intent
+import android.content.pm.PackageInstaller
 import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -24,7 +25,10 @@ import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.CommonStatusCodes
 import com.watson.nutrilog.data.DriveAuth
 import com.watson.nutrilog.data.SettingsStore
+import com.watson.nutrilog.data.InstallResult
+import com.watson.nutrilog.data.InstallResults
 import com.watson.nutrilog.data.UpdateChecker
+import com.watson.nutrilog.data.UpdateInstaller
 import com.watson.nutrilog.data.UpdateStatus
 import com.watson.nutrilog.data.isNewerRelease
 import com.watson.nutrilog.data.net.GitHubReleaseClient
@@ -439,6 +443,22 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     var updateMessage by mutableStateOf<String?>(null)
         private set
 
+    /** 程式內更新已經下載的 bytes。null＝沒在下載；擋住連按，進度線也看它。 */
+    var updateDownloaded by mutableStateOf<Long?>(null)
+        private set
+
+    /** 能不能安裝 APK（系統設定裡的「安裝不明應用程式」）。回到前景時重查：使用者隨時可以去關掉。 */
+    var canInstallPackages by mutableStateOf(false)
+        private set
+
+    /** 要先去系統設定開安裝權限。那是 Activity 層的事，ViewModel 只留請求（同 [pendingConsent]）。 */
+    var pendingInstallPermission by mutableStateOf(false)
+        private set
+
+    /** 系統要使用者按「更新」的那個畫面，等 App.kt 開。 */
+    var pendingInstallConfirm by mutableStateOf<Intent?>(null)
+        private set
+
     /** GitHub 上有比裝著的這一版新的正式版。本機建置（「1.0-debug」）比不了，永遠是 false。 */
     val updateAvailable: Boolean
         get() = isNewerRelease(updateStatus.latestTag, BuildConfig.VERSION_NAME) == true
@@ -501,6 +521,10 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         }
         viewModelScope.launch {
             settingsStore.updateStatusFlow.collect { updateStatus = it }
+        }
+        refreshInstallPermission()
+        viewModelScope.launch {
+            InstallResults.events.collect(::onInstallResult)
         }
         // 換月份就換一條 Flow，和換日期同樣的道理。
         //
@@ -1096,6 +1120,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     /** 回到 app：權限可能在系統設定裡被改過，運動消耗也可能剛同步進來。只重讀今天，不整批重寫飲食。 */
     fun onAppResume() {
         checkHealthPermissions()
+        refreshInstallPermission()
         fetchActiveCalories(selectedDate)
     }
 
@@ -1927,6 +1952,71 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     fun markUpdateSeen() {
         if (!showUpdateDot) return
         viewModelScope.launch { settingsStore.editUpdateStatus { it.copy(seenTag = it.latestTag) } }
+    }
+
+    /**
+     * 關於頁的「下載並安裝」。沒有安裝權限就先去系統設定要，回來時（[onInstallPermissionResult]）
+     * 有了就直接接著下載 —— 不然使用者開完權限回來，還得再找一次那顆章。
+     */
+    fun installUpdate() {
+        if (updateDownloaded != null) return
+        val status = updateStatus
+        if (status.apkUrl.isBlank()) return
+        refreshInstallPermission()
+        if (!canInstallPackages) {
+            pendingInstallPermission = true
+            return
+        }
+        updateMessage = null
+        updateDownloaded = 0
+        viewModelScope.launch {
+            UpdateInstaller(getApplication())
+                .install(status.apkUrl, status.apkSize, status.apkSha256.ifBlank { null }) { updateDownloaded = it }
+                .onFailure { cause ->
+                    android.util.Log.w("UpdateInstaller", "download failed", cause)
+                    updateDownloaded = null
+                    updateMessage = getApplication<Application>().getString(
+                        when (cause) {
+                            is UpdateInstaller.CorruptDownload -> R.string.update_error_corrupt
+                            is IOException -> R.string.update_error_download
+                            else -> R.string.update_error_install
+                        }
+                    )
+                }
+            // 成功時進度線維持滿格，等系統的確認畫面回來（onInstallResult）才收
+        }
+    }
+
+    fun installPermissionLaunched() { pendingInstallPermission = false }
+
+    fun onInstallPermissionResult() {
+        refreshInstallPermission()
+        if (canInstallPackages) installUpdate()
+    }
+
+    fun installConfirmLaunched() { pendingInstallConfirm = null }
+
+    private fun refreshInstallPermission() {
+        canInstallPackages = getApplication<Application>().packageManager.canRequestPackageInstalls()
+    }
+
+    private fun onInstallResult(result: InstallResult) {
+        updateDownloaded = null
+        when (result) {
+            is InstallResult.NeedsConfirmation -> pendingInstallConfirm = result.intent
+            // 同 Drive 授權的取消：使用者自己決定不裝，不是錯誤
+            InstallResult.Cancelled -> updateMessage = null
+            is InstallResult.Failed -> {
+                android.util.Log.w("UpdateInstaller", "install failed: status " + result.status)
+                updateMessage = getApplication<Application>().getString(
+                    when (result.status) {
+                        PackageInstaller.STATUS_FAILURE_STORAGE -> R.string.update_error_storage
+                        PackageInstaller.STATUS_FAILURE_CONFLICT -> R.string.update_error_conflict
+                        else -> R.string.update_error_install
+                    }
+                )
+            }
+        }
     }
 
     fun setAutoUpdateCheck(enabled: Boolean) {

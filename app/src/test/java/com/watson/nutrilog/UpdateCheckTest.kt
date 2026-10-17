@@ -2,6 +2,7 @@ package com.watson.nutrilog
 
 import com.watson.nutrilog.data.isNewerRelease
 import com.watson.nutrilog.data.net.LatestRelease
+import com.watson.nutrilog.data.net.ReleaseApk
 import com.watson.nutrilog.data.net.parseLatestRelease
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -68,6 +69,53 @@ class UpdateCheckTest {
             ),
             parseLatestRelease(body),
         )
+    }
+
+    /** 程式內更新要的三樣：網址、大小（開 session 與進度線的分母）、SHA-256。 */
+    @Test fun parsesTheApkAsset() {
+        val body = """
+            {
+              "html_url": "https://github.com/rowing195/NutriLog/releases/tag/v2.2.9",
+              "tag_name": "v2.2.9",
+              "published_at": "2026-10-16T09:48:00Z",
+              "assets": [
+                { "name": "notes.txt", "size": 12, "browser_download_url": "https://example.invalid/notes.txt" },
+                {
+                  "name": "NutriLog-v2.2.9.apk",
+                  "size": 15324829,
+                  "digest": "sha256:4ECDADE9AA577AFECBF803161D82F1465249CB0B7E2BAA955E461451648EA105",
+                  "browser_download_url": "https://example.invalid/NutriLog-v2.2.9.apk"
+                }
+              ]
+            }
+        """.trimIndent()
+
+        assertEquals(
+            ReleaseApk(
+                url = "https://example.invalid/NutriLog-v2.2.9.apk",
+                size = 15324829,
+                sha256 = "4ecdade9aa577afecbf803161d82f1465249cb0b7e2baa955e461451648ea105",
+            ),
+            parseLatestRelease(body)?.apk,
+        )
+    }
+
+    /** 比較早上傳的資產 GitHub 沒給 digest：照樣能裝，只是不核對（簽章那一關還在）。 */
+    @Test fun apkWithoutDigestHasNoChecksum() {
+        val body = """
+            {
+              "tag_name": "v2.2.9",
+              "assets": [{ "name": "NutriLog-v2.2.9.apk", "size": 100, "browser_download_url": "https://example.invalid/a.apk" }]
+            }
+        """.trimIndent()
+
+        assertNull(parseLatestRelease(body)?.apk?.sha256)
+    }
+
+    @Test fun releaseWithoutAnApkHasNoAsset() {
+        val body = """{ "tag_name": "v2.2.9", "assets": [] }"""
+
+        assertNull(parseLatestRelease(body)?.apk)
     }
 
     @Test fun responseWithoutATagIsNoRelease() {
