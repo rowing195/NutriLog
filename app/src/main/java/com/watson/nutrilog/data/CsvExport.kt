@@ -86,7 +86,7 @@ object CsvExport {
     ): String = buildString {
         // Excel 看到 UTF-8 而沒有 BOM 時會用系統 ANSI 解讀，中文全變亂碼。
         // 這一個字元決定了檔案在 Excel 裡打得開還是一團垃圾。
-        append('﻿')
+        append('\uFEFF')
         appendLine(HEADERS.joinToString(",") { escape(it) })
 
         entries.sortedWith(compareBy({ it.date }, { it.loggedAt })).forEach { entry ->

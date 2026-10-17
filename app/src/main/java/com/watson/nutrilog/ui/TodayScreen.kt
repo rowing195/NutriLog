@@ -1,5 +1,6 @@
 package com.watson.nutrilog.ui
 
+import android.annotation.SuppressLint
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -805,6 +806,9 @@ private fun WeekRow(
     dayPageOf: (LocalDate) -> Int,
     onPickDay: (LocalDate) -> Unit,
 ) {
+    // 誤報：`value = fresh` 寫在 collect 那層 lambda 裡，lint 認不出它寫的是
+    // ProduceStateScope.value。Flow 每吐一次資料都會寫，見 DayPage 同一段。
+    @SuppressLint("ProduceStateDoesNotAssignValue")
     val totals by produceState(
         initialValue = weekTotalsCache[weekStart] ?: emptyList(),
         key1 = weekStart,
@@ -993,6 +997,9 @@ private fun DayPage(
     // 不然畫面上會留著一排半開的列，看起來像壞掉。
     var revealedId by remember(date) { mutableStateOf<Long?>(null) }
 
+    // 誤報：`value = fresh` 寫在 collect 那層 lambda 裡，lint 認不出它寫的是
+    // ProduceStateScope.value。Flow 每吐一次資料都會寫。
+    @SuppressLint("ProduceStateDoesNotAssignValue")
     val entries by produceState(
         initialValue = entriesCache[date] ?: emptyList(),
         key1 = date,
