@@ -29,7 +29,9 @@ object AppIconSwitcher {
     }
 
     private fun setState(pm: PackageManager, context: Context, icon: AppIcon, state: Int) {
-        val component = ComponentName(context.packageName, MainActivity::class.java.packageName + icon.aliasSuffix)
+        // alias 是照 namespace 宣告的、不跟著 applicationIdSuffix 變，所以從 MainActivity 的類別名取。
+        // 不要用 Class.packageName：那是 API 31 才有的，Android 8～11 會 NoSuchMethodError、一開 app 就閃退
+        val component = ComponentName(context.packageName, MainActivity::class.java.name.substringBeforeLast('.') + icon.aliasSuffix)
         // 已經是這個狀態就不要再寫一次：每寫一次桌面都會重整，圖示會閃一下
         if (pm.getComponentEnabledSetting(component) == state) return
         pm.setComponentEnabledSetting(component, state, PackageManager.DONT_KILL_APP)
