@@ -31,6 +31,10 @@
     <string name="switch_provider_title">換一家再試</string>
     <string name="switch_provider_text_help">在這裡改的就是設定裡的那一組，選完按重試。</string>
     <string name="switch_provider_photo_help">拍照要用看得懂圖片的模型。在這裡改的就是設定裡的那一組，選完按重試。</string>
+    <string name="search_settings_title">搜尋設定</string>
+    <string name="search_settings_text_help">在這裡改的就是設定裡的那一組。</string>
+    <string name="search_settings_photo_help">拍照要用看得懂圖片的模型。在這裡改的就是設定裡的那一組。</string>
+    <string name="done">完成</string>
     <string name="settings_photo_provider">拍照辨識</string>
     <string name="settings_openrouter_photo_model">拍照用的模型</string>
     <string name="settings_openrouter_photo_model_help">要挑看得懂圖片的模型，在 openrouter.ai/models 篩 image 找得到。</string>

@@ -362,6 +362,8 @@ fun NutriLogApp(viewModel: NutriViewModel) {
                 onLookup = viewModel::analyzeText,
                 // 沒選搜尋來源的話「AI 查」那顆按不下去，helper 會講去哪裡選
                 searchAvailable = viewModel.settings.searchMode != SearchMode.OFF,
+                settings = viewModel.settings,
+                onSettingsChange = viewModel::updateSettings,
                 onClose = viewModel::backToToday,
             )
         }
@@ -536,6 +538,8 @@ fun NutriLogApp(viewModel: NutriViewModel) {
     PhotoConfirmationDialog(
         visible = photoToConfirm != null,
         uri = rememberLastNonNull(photoToConfirm),
+        settings = viewModel.settings,
+        onSettingsChange = viewModel::updateSettings,
         onDismiss = { photoToConfirm = null },
         onConfirm = { note ->
             photoToConfirm?.let { uri ->

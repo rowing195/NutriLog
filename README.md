@@ -524,7 +524,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/ProviderSwitchSheet.kt'>ProviderSwitchSheet.kt</a></b></td>
-					<td style='padding: 8px;'>辨識失敗時從底下升上來的面板：換一家、換個模型，再按重試。<br>- 改的就是設定裡的那幾個欄位，拍照與文字各改各的。</td>
+					<td style='padding: 8px;'>辨識失敗時從底下升上來的面板：換一家、換個模型，再按重試。<br>- 改的就是設定裡的那幾個欄位，拍照與文字各改各的。<br>- 常吃頁與確認照片頁右上角也打得開（送出之前），那時章是「完成」。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/ReportScreen.kt'>ReportScreen.kt</a></b></td>
@@ -1007,6 +1007,8 @@ OpenRouter 的模型也分兩欄（拍照一欄、文字一欄）。不做成一
 - 供應商左右兩家（和設定頁同一種圈選），切換時底下的模型區跟著滑過去：Gemini 是固定型號的清單，OpenRouter 是自由填的模型路徑。
 - **在這裡改的就是設定裡的那一組**，不是另一份副本。**拍照與文字各改各的** —— 拍照要看得懂圖片的模型，文字那邊常用的是純文字模型，混在一起會救了一邊弄壞另一邊。
 - 選完按「重試」才會真的再送一次：每改一下就自動發一次請求會白白花掉額度。
+- **送出之前也打得開**：常吃／文字輸入頁與確認照片頁右上角的設定圖示，升起同一張面板（標題是「搜尋設定」），
+  一樣分文字與拍照兩組。那時還沒有東西可以重試，底下的章是「完成」，按了只把面板收起來。
 
 ### 飲水：手動加減與飲料自動帶入
 

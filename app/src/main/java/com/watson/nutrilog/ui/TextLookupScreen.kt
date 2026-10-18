@@ -10,6 +10,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Spacer
@@ -31,16 +32,20 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.watson.nutrilog.R
+import com.watson.nutrilog.data.NutriSettings
 import com.watson.nutrilog.data.db.FoodSuggestion
 import com.watson.nutrilog.ui.theme.NutrientColors
 import java.time.LocalDate
@@ -88,9 +93,13 @@ fun TextLookupScreen(
     onReuseSuggestion: (FoodSuggestion) -> Unit,
     onLookup: (String, Boolean) -> Unit,
     searchAvailable: Boolean,
+    settings: NutriSettings,
+    onSettingsChange: (NutriSettings) -> Unit,
     onClose: () -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
+    // 右上角那顆：送出之前就先換供應商或模型，不必等失敗了才看得到那張面板
+    var showSettings by rememberSaveable { mutableStateOf(false) }
     var focused by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
     val submit = { useSearch: Boolean -> if (query.isNotBlank()) onLookup(query, useSearch) }
@@ -114,6 +123,8 @@ fun TextLookupScreen(
     }
     val guideSettled = !focused && keyboardGone
 
+    val settingsDesc = stringResource(R.string.search_settings_title)
+    Box(Modifier.fillMaxSize()) {
     Scaffold(
         modifier = Modifier.dismissKeyboardOnTap().dismissKeyboardOnScroll(),
         topBar = {
@@ -121,6 +132,25 @@ fun TextLookupScreen(
                 title = stringResource(R.string.text_lookup_title),
                 closeLabel = stringResource(R.string.close),
                 onClose = onClose,
+                trailing = {
+                    CircleIconButton(
+                        onClick = {
+                            // 鍵盤開著的話會蓋住面板下半部（模型清單與那顆章）
+                            focusManager.clearFocus()
+                            showSettings = true
+                        },
+                        borderColor = MaterialTheme.colorScheme.outlineVariant,
+                        borderWidth = 1.dp,
+                        // 畫出來的圖示沒有文字節點，讀螢幕的人（與 tools/ui.ps1）靠這個才找得到它
+                        modifier = Modifier.semantics { contentDescription = settingsDesc },
+                    ) {
+                        SlidersMark(
+                            MaterialTheme.colorScheme.onSurfaceVariant,
+                            size = 16.dp,
+                            background = MaterialTheme.colorScheme.background,
+                        )
+                    }
+                },
             )
         },
     ) { inner ->
@@ -267,6 +297,16 @@ fun TextLookupScreen(
         }
     }
 
+        // 一直放在畫面上、只切 visible：關掉時才看得到它滑下去
+        ProviderSwitchSheet(
+            visible = showSettings,
+            settings = settings,
+            isPhoto = false,
+            onChange = onSettingsChange,
+            onRetry = null,
+            onDismiss = { showSettings = false },
+        )
+    }
 }
 
 private const val GUIDE_GROW_MS = 260

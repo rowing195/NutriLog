@@ -195,15 +195,15 @@ fun ReviewScreen(
 
         // 失敗才升上來。狀態一變（重試成功、或換了一次新的辨識）rememberSaveable 的
         // key 就跟著變，面板自己會回到「該不該開」的初始值，不必另外手動收。
-        if (showSwitch && looksFailed) {
-            ProviderSwitchSheet(
-                settings = settings,
-                isPhoto = isPhoto,
-                onChange = onSettingsChange,
-                onRetry = onRetry,
-                onDismiss = { showSwitch = false },
-            )
-        }
+        // 一直放在畫面上、只切 visible：關掉時才看得到它滑下去。
+        ProviderSwitchSheet(
+            visible = showSwitch && looksFailed,
+            settings = settings,
+            isPhoto = isPhoto,
+            onChange = onSettingsChange,
+            onRetry = onRetry,
+            onDismiss = { showSwitch = false },
+        )
     }
 }
 

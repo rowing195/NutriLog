@@ -36,9 +36,13 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.watson.nutrilog.R
+import com.watson.nutrilog.data.NutriSettings
 import com.watson.nutrilog.data.net.ImageCompressor
 import com.watson.nutrilog.ui.theme.NutrientColors
 import kotlinx.coroutines.Dispatchers
@@ -57,7 +61,14 @@ import kotlin.math.ceil
  * 呼叫端要把它放在畫面最上層（App.kt 根部那個 Box 的最後），它才蓋得住整個畫面。
  */
 @Composable
-fun PhotoConfirmationDialog(visible: Boolean, uri: Uri?, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+fun PhotoConfirmationDialog(
+    visible: Boolean,
+    uri: Uri?,
+    settings: NutriSettings,
+    onSettingsChange: (NutriSettings) -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
     var sent by remember { mutableStateOf(false) }
     LaunchedEffect(visible) { if (visible) sent = false }
     AnimatedVisibility(
@@ -74,6 +85,8 @@ fun PhotoConfirmationDialog(visible: Boolean, uri: Uri?, onDismiss: () -> Unit, 
         uri?.let {
             PhotoConfirmationPage(
                 uri = it,
+                settings = settings,
+                onSettingsChange = onSettingsChange,
                 onDismiss = onDismiss,
                 onConfirm = { note ->
                     sent = true
@@ -85,15 +98,44 @@ fun PhotoConfirmationDialog(visible: Boolean, uri: Uri?, onDismiss: () -> Unit, 
 }
 
 @Composable
-private fun PhotoConfirmationPage(uri: Uri, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+private fun PhotoConfirmationPage(
+    uri: Uri,
+    settings: NutriSettings,
+    onSettingsChange: (NutriSettings) -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
     var note by rememberSaveable(uri.toString()) { mutableStateOf("") }
+    // 右上角那顆：送出之前就先換供應商或模型，同常吃頁。改的是拍照那一組。
+    var showSettings by rememberSaveable(uri.toString()) { mutableStateOf(false) }
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    val settingsDesc = stringResource(R.string.search_settings_title)
+    Box(Modifier.fillMaxSize()) {
     Scaffold(
         topBar = {
             ScreenTopBar(
                 title = stringResource(R.string.photo_confirm_title),
                 closeLabel = stringResource(R.string.cancel),
                 onClose = onDismiss,
+                trailing = {
+                    CircleIconButton(
+                        onClick = {
+                            // 打備註時鍵盤會蓋住面板下半部（模型清單與那顆章）
+                            focusManager.clearFocus()
+                            showSettings = true
+                        },
+                        borderColor = MaterialTheme.colorScheme.outlineVariant,
+                        borderWidth = 1.dp,
+                        modifier = Modifier.semantics { contentDescription = settingsDesc },
+                    ) {
+                        SlidersMark(
+                            MaterialTheme.colorScheme.onSurfaceVariant,
+                            size = 16.dp,
+                            background = MaterialTheme.colorScheme.background,
+                        )
+                    }
+                },
             )
         },
     ) { inner ->
@@ -206,6 +248,17 @@ private fun PhotoConfirmationPage(uri: Uri, onDismiss: () -> Unit, onConfirm: (S
                 }
             }
         }
+    }
+
+        // 一直放在畫面上、只切 visible：關掉時才看得到它滑下去
+        ProviderSwitchSheet(
+            visible = showSettings,
+            settings = settings,
+            isPhoto = true,
+            onChange = onSettingsChange,
+            onRetry = null,
+            onDismiss = { showSettings = false },
+        )
     }
 }
 
