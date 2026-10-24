@@ -66,6 +66,8 @@ fun ReviewScreen(
     /** 這次失敗的是拍照還是文字，失敗面板要改對應的那一組設定。 */
     isPhoto: Boolean,
     onSettingsChange: (NutriSettings) -> Unit,
+    openRouterModels: ModelListState,
+    onLoadOpenRouterModels: () -> Unit,
     meal: Meal,
     onMealChange: (Meal) -> Unit,
     onToggle: (Int) -> Unit,
@@ -201,6 +203,8 @@ fun ReviewScreen(
             settings = settings,
             isPhoto = isPhoto,
             onChange = onSettingsChange,
+            openRouterModels = openRouterModels,
+            onLoadOpenRouterModels = onLoadOpenRouterModels,
             onRetry = onRetry,
             onDismiss = { showSwitch = false },
         )

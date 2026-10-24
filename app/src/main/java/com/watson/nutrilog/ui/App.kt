@@ -364,6 +364,8 @@ fun NutriLogApp(viewModel: NutriViewModel) {
                 searchAvailable = viewModel.settings.searchMode != SearchMode.OFF,
                 settings = viewModel.settings,
                 onSettingsChange = viewModel::updateSettings,
+                openRouterModels = viewModel.openRouterModels,
+                onLoadOpenRouterModels = viewModel::loadOpenRouterModels,
                 onClose = viewModel::backToToday,
             )
         }
@@ -375,6 +377,8 @@ fun NutriLogApp(viewModel: NutriViewModel) {
                 settings = viewModel.settings,
                 isPhoto = viewModel.lastAnalysisIsPhoto,
                 onSettingsChange = viewModel::updateSettings,
+                openRouterModels = viewModel.openRouterModels,
+                onLoadOpenRouterModels = viewModel::loadOpenRouterModels,
                 meal = viewModel.analysisMeal,
                 onMealChange = viewModel::updateAnalysisMeal,
                 onToggle = viewModel::toggleAnalysisItem,
@@ -524,6 +528,8 @@ fun NutriLogApp(viewModel: NutriViewModel) {
                 service = screen.service,
                 settings = viewModel.settings,
                 onChange = viewModel::updateSettings,
+                openRouterModels = viewModel.openRouterModels,
+                onLoadOpenRouterModels = viewModel::loadOpenRouterModels,
                 onBack = { viewModel.openSettingsPage(SettingsPage.AI) },
             )
         }
@@ -540,6 +546,8 @@ fun NutriLogApp(viewModel: NutriViewModel) {
         uri = rememberLastNonNull(photoToConfirm),
         settings = viewModel.settings,
         onSettingsChange = viewModel::updateSettings,
+        openRouterModels = viewModel.openRouterModels,
+        onLoadOpenRouterModels = viewModel::loadOpenRouterModels,
         onDismiss = { photoToConfirm = null },
         onConfirm = { note ->
             photoToConfirm?.let { uri ->

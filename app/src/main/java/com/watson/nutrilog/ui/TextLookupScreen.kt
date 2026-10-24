@@ -95,6 +95,8 @@ fun TextLookupScreen(
     searchAvailable: Boolean,
     settings: NutriSettings,
     onSettingsChange: (NutriSettings) -> Unit,
+    openRouterModels: ModelListState,
+    onLoadOpenRouterModels: () -> Unit,
     onClose: () -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
@@ -303,6 +305,8 @@ fun TextLookupScreen(
             settings = settings,
             isPhoto = false,
             onChange = onSettingsChange,
+            openRouterModels = openRouterModels,
+            onLoadOpenRouterModels = onLoadOpenRouterModels,
             onRetry = null,
             onDismiss = { showSettings = false },
         )

@@ -147,6 +147,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
     │       │   │   │   ├── MonthlyReportStore.kt
     │       │   │   │   ├── SettingsStore.kt
     │       │   │   │   ├── UpdateChecker.kt
+    │       │   │   │   ├── UpdateInstaller.kt
     │       │   │   │   ├── WeeklyAggregator.kt
     │       │   │   │   ├── WeeklyReportStore.kt
     │       │   │   │   ├── db/
@@ -166,6 +167,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
     │       │   │   │       ├── ImageCompressor.kt
     │       │   │   │       ├── OpenFoodFactsClient.kt
     │       │   │   │       ├── OpenRouterClient.kt
+    │       │   │   │       ├── OpenRouterModels.kt
     │       │   │   │       ├── SharedHttp.kt
     │       │   │   │       └── TavilyClient.kt
     │       │   │   ├── work/
@@ -371,6 +373,10 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 					<td style='padding: 8px;'>到 GitHub 查一次新版並存起來，關於頁的按鈕與每天的背景檢查共用。<br>- 版號逐段比數字（2.2.10 比 2.2.9 新）；本機建置「1.0-debug」比不了，不說有新版。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/UpdateInstaller.kt'>UpdateInstaller.kt</a></b></td>
+					<td style='padding: 8px;'>在 app 裡下載並安裝新版：APK 邊下載邊寫進 PackageInstaller 的 session，核對 SHA-256 後交給系統。<br>- 系統一定會跳確認畫面；結果經 `InstallResultReceiver` 回到 ViewModel。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/WeeklyAggregator.kt'>WeeklyAggregator.kt</a></b></td>
 					<td style='padding: 8px;'>整週統計與週報 prompt 組裝，並解析回應結尾的 <code>json:targets</code> 區塊。<br>- 那個區塊就是「建議下週每日目標」，改 prompt 時名稱不能動。</td>
 				</tr>
@@ -468,7 +474,11 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/net/OpenRouterClient.kt'>OpenRouterClient.kt</a></b></td>
-					<td style='padding: 8px;'>另一家供應商，拍照、文字辨識與報告都能選它。<br>- 拍照用 OpenAI 格式的 `image_url`（data URI）把圖片帶進去；拍照的模型另外一欄，沒填就直接擋下來，不拿文字那個純文字模型去送圖片。<br>- 以**強制函式呼叫**（`tool_choice`）鎖住 JSON，而不是 `response_format` —— 想用的免費模型不支援後者。<br>- 錯誤碼比 Gemini 多一種：**402 是餘額不足**（免費模型也需要帳號裡有額度）。</td>
+					<td style='padding: 8px;'>另一家供應商，拍照、文字辨識與報告都能選它，三者共用同一個模型。<br>- 拍照用 OpenAI 格式的 `image_url`（data URI）把圖片帶進去；還沒選模型就直接擋下來。<br>- 以**強制函式呼叫**（`tool_choice`）鎖住 JSON，而不是 `response_format` —— 想用的免費模型不支援後者。<br>- 錯誤碼比 Gemini 多一種：**402 是餘額不足**（免費模型也需要帳號裡有額度）。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/net/OpenRouterModels.kt'>OpenRouterModels.kt</a></b></td>
+					<td style='padding: 8px;'>OpenRouter 的模型清單，給模型選單用。<br>- 只留看得懂圖片又支援 tools 的，依智力指數由高到低排；價格浮動的路由器與 :batch 版本不列。<br>- 公開 API，不用金鑰。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/net/TavilyClient.kt'>TavilyClient.kt</a></b></td>
@@ -967,12 +977,13 @@ UI 部分使用 [`tools/ui.ps1`](tools/ui.ps1) 依元件文字進行模擬器自
 
 ### 兩家 AI 供應商：拍照與文字各選各的
 
-設定 → API 管理裡，**拍照辨識**與**文字辨識**各自選要送去 Gemini 還是 OpenRouter，
-OpenRouter 的模型也分兩欄（拍照一欄、文字一欄）。不做成一個總開關，是因為拍照要吃得下圖片的模型，
-而文字那條路上常用的 OpenRouter 免費模型是純文字的 —— 共用一個選擇的話，救了拍照就會弄壞文字。
+設定 → API 管理裡，**拍照辨識**與**文字辨識**各自選要送去 Gemini 還是 OpenRouter。
 
-- 拍照選了 OpenRouter 卻沒填拍照用的模型時，會直接擋下來並講原因，不會拿文字那個模型去送圖片。
-  Gemini 的模型本來就看得懂圖片，不用另外挑。
+- **OpenRouter 的模型從清單選**，文字與拍照共用一個：點欄位在原地展開清單，只列看得懂圖片、
+  又支援 tools 的模型，依智力指數（Artificial Analysis）由高到低排，每一列標「分數 · output 每 1M token 價格」，
+  可以只看免費的。清單每次進到那一頁
+  就向 OpenRouter 重查一次，所以下架的會自己消失、新出的會自己出現；選過的模型下架了會標「查無此模型」。
+- 還沒選 OpenRouter 的模型就用它時，會先擋下來並講原因。Gemini 的模型本來就看得懂圖片，不用另外挑。
 - 缺 key 時訊息會指名是哪一家，兩把 key 不會填錯把。
 - 週報／月報交給哪一家是第三個獨立的選擇，沿用那一家的金鑰與模型。
 
@@ -1004,7 +1015,7 @@ OpenRouter 的模型也分兩欄（拍照一欄、文字一欄）。不做成一
 ### 辨識失敗：換一家再試
 
 - 失敗時從底下升上來一張佔六成高的面板，上面留著失敗的原因 —— 那才是判斷「該換什麼」的依據。
-- 供應商左右兩家（和設定頁同一種圈選），切換時底下的模型區跟著滑過去：Gemini 是固定型號的清單，OpenRouter 是自由填的模型路徑。
+- 供應商左右兩家（和設定頁同一種圈選），切換時底下的模型區跟著滑過去：Gemini 是固定型號的清單，OpenRouter 是和設定頁同一個模型選單。
 - **在這裡改的就是設定裡的那一組**，不是另一份副本。**拍照與文字各改各的** —— 拍照要看得懂圖片的模型，文字那邊常用的是純文字模型，混在一起會救了一邊弄壞另一邊。
 - 選完按「重試」才會真的再送一次：每改一下就自動發一次請求會白白花掉額度。
 - **送出之前也打得開**：常吃／文字輸入頁與確認照片頁右上角的設定圖示，升起同一張面板（標題是「搜尋設定」），
@@ -1360,16 +1371,15 @@ POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateCon
 POST https://openrouter.ai/api/v1/chat/completions
 ```
 
-- 另一家供應商，拍照、文字辨識與報告都能選它。文字的預設模型是 `inclusionai/ling-3.0-flash-sante:free`（純文字）；
-  拍照的模型另外一欄、沒有預設值，要自己填一個看得懂圖片的模型。
+- 另一家供應商，拍照、文字辨識與報告都能選它，三者共用同一個模型，**沒有預設值**，要從清單挑一個。
 - 圖片用 OpenAI 格式的多模態訊息帶進去（`image_url` 配 data URI）。
 - **用強制函式呼叫鎖 JSON**（定義一個函式、參數就是那份 schema，再用 `tool_choice` 強制呼叫），
   因為那個模型的 `supported_parameters` 裡**沒有** `response_format`。
   回傳在 `choices[0].message.tool_calls[0].function.arguments`，而那是**字串包著的 JSON**。
 - **402 是餘額不足**（免費模型也需要帳號裡有額度才跑得動），401 才是 key 的問題 ——
   Gemini 那邊沒有前者這種狀態。
-- 換模型之前先查 `openrouter.ai/api/v1/models`，確認新模型的 `supported_parameters` 有 `tools`；
-  拍照用的還要看 `input_modalities` 有沒有 `image`。
+- 模型清單來自 `GET https://openrouter.ai/api/v1/models?supported_parameters=tools`（公開、不用金鑰），
+  再自己篩出 `input_modalities` 有 `image` 的；價格是 `pricing.completion`（每 token 的美元，字串）乘一百萬。
 
 ### Tavily
 

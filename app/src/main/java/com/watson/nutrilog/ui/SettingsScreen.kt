@@ -31,6 +31,20 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.ExperimentalFoundationApi
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -62,6 +76,7 @@ import com.watson.nutrilog.R
 import com.watson.nutrilog.data.AiProvider
 import com.watson.nutrilog.data.AppIcon
 import com.watson.nutrilog.data.ApiService
+import com.watson.nutrilog.data.net.OpenRouterModel
 import com.watson.nutrilog.data.SearchMode
 import com.watson.nutrilog.data.DarkModePreference
 import kotlin.math.roundToInt
@@ -991,6 +1006,8 @@ fun ApiKeyScreen(
     service: ApiService,
     settings: NutriSettings,
     onChange: (NutriSettings) -> Unit,
+    openRouterModels: ModelListState,
+    onLoadOpenRouterModels: () -> Unit,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -1053,19 +1070,13 @@ fun ApiKeyScreen(
                         onChange = { onChange(settings.copy(geminiModel = it)) },
                     )
                 }
-                // OpenRouter 有幾百個模型，列不完也不該替使用者挑，所以是自由文字
+                // OpenRouter 有幾百個模型：查一次清單、只列看得懂圖片的，文字與拍照共用一個
                 ApiService.OPENROUTER -> {
-                    OpenRouterModelField(
+                    OpenRouterModelPicker(
                         value = settings.openRouterModel,
                         onChange = { onChange(settings.copy(openRouterModel = it)) },
-                        forPhoto = false,
-                    )
-                    // 拍照與文字各一個欄位：拍照要看得懂圖片的模型，文字那邊常用的是
-                    // 純文字模型，共用一個欄位的話改一邊就會弄壞另一邊。
-                    OpenRouterModelField(
-                        value = settings.openRouterPhotoModel,
-                        onChange = { onChange(settings.copy(openRouterPhotoModel = it)) },
-                        forPhoto = true,
+                        models = openRouterModels,
+                        onLoad = onLoadOpenRouterModels,
                     )
                 }
                 // Tavily 只是搜尋，沒有模型可以挑
@@ -1437,26 +1448,240 @@ private fun TargetField(label: String, value: Int, max: Int, onChange: (Int) -> 
  * [forPhoto] 只換標題與說明：拍照那一個要提醒「模型得看得懂圖片」，
  * 而那正是這條路唯一會安靜失敗的地方。
  */
+/**
+ * OpenRouter 的模型選單：點欄位就在它底下展開一份清單，選了就收回去。
+ *
+ * 不做成浮起來的下拉（理由同 [ModelField]）：展開的清單是版面的一部分，把底下的東西
+ * 往下推。幾百個模型攤不完，所以清單自己捲，高度是 [visibleRows] 列。
+ * 每一列右邊是智力指數與 output 價格，清單就是照前者排的（見
+ * [com.watson.nutrilog.data.net.parseVisionToolModels]）。
+ *
+ * 清單每次進到這一頁就重查一次（[onLoad]），只列看得懂圖片又支援 tools 的
+ * （見 [com.watson.nutrilog.data.net.OpenRouterModelCatalog]）。**沒有手動輸入**：
+ * 查不到清單時只能重試，目前選的那個不受影響。
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun OpenRouterModelField(value: String, onChange: (String) -> Unit, forPhoto: Boolean) {
-    NutriTextField(
-        value = value,
-        onValueChange = { onChange(it.trim()) },
-        label = stringResource(
-            if (forPhoto) R.string.settings_openrouter_photo_model
-            else R.string.settings_openrouter_model
-        ),
-        modifier = Modifier.fillMaxWidth(),
-    )
-    Text(
-        stringResource(
-            if (forPhoto) R.string.settings_openrouter_photo_model_help
-            else R.string.settings_openrouter_model_help
-        ),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
+internal fun OpenRouterModelPicker(
+    value: String,
+    onChange: (String) -> Unit,
+    models: ModelListState,
+    onLoad: () -> Unit,
+    /**
+     * 清單露出幾列。設定頁空間夠，七列；換一家面板只有六成高，四列半 ——
+     * 那半列是故意的，露一截才看得出底下還有、可以捲。
+     */
+    visibleRows: Float = 7f,
+) {
+    val scheme = MaterialTheme.colorScheme
+    LaunchedEffect(Unit) { onLoad() }
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    var freeOnly by rememberSaveable { mutableStateOf(false) }
+    val list = (models as? ModelListState.Loaded)?.models
+    val current = list?.firstOrNull { it.id == value }
+    val free = stringResource(R.string.openrouter_free)
+    val revealRequester = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
+
+    Column {
+        SectionLabel(stringResource(R.string.settings_openrouter_model), Modifier.padding(bottom = 6.dp))
+        // 和 NutriTextField 同一個外框、同一條底規線。展開時外框轉墨色、底線轉朱紅，
+        // 和輸入框聚焦時是同一個意思：現在在操作的是這一格。
+        val border = feedbackColor(if (expanded) scheme.onSurface else NutrientColors.FieldBorder, "pickerBorder")
+        val rule = feedbackColor(if (expanded) NutrientColors.Accent else scheme.onSurface, "pickerRule")
+        val ruleHeight = feedbackDp(if (expanded) 3.dp else 2.dp, "pickerRuleHeight")
+        val chevron = feedbackFloat(if (expanded) -90f else 90f, "pickerChevron")
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .clip(NutriFieldShape)
+                .background(if (expanded) scheme.surfaceContainerLowest else scheme.surfaceContainerLow)
+                .border(1.dp, border, NutriFieldShape)
+                .clickable { expanded = !expanded }
+        ) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = 48.dp)
+                    .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 9.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                if (value.isBlank()) {
+                    Text(
+                        stringResource(R.string.openrouter_model_pending),
+                        style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp),
+                        color = scheme.outline,
+                        modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    ModelNameAndStats(
+                        name = value,
+                        stats = current,
+                        free = free,
+                        color = scheme.onSurface,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                Box(Modifier.graphicsLayer { rotationZ = chevron }) {
+                    ChevronMark(scheme.onSurfaceVariant, pointsLeft = false)
+                }
+            }
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(ruleHeight)
+                    .background(rule)
+            )
+        }
+
+        when {
+            models is ModelListState.Failed -> Row(
+                Modifier.fillMaxWidth().padding(top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    stringResource(R.string.openrouter_models_failed),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                PillButton(label = stringResource(R.string.retry), onClick = onLoad)
+            }
+            // 第一次查的時候才有這條；重查期間手上那份照樣能選，不必再告訴使用者在等
+            models is ModelListState.Loading -> IndeterminateRule(Modifier.padding(top = 10.dp))
+            // 選過的模型下架了：用到時一定失敗，所以用「看這裡」的朱紅講
+            list != null && value.isNotBlank() && current == null -> Text(
+                stringResource(R.string.openrouter_model_missing),
+                style = MaterialTheme.typography.bodySmall,
+                color = NutrientColors.Over,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+        }
+
+        // 展開時把篩選與整份清單捲進畫面：換一家面板只有六成高，不捲的話清單下緣會被
+        // 底下那顆章擋住一截。展開動畫每長高一幀就要一次，最後捲到的才是完整的高度。
+        Column(
+            Modifier
+                .bringIntoViewRequester(revealRequester)
+                .onSizeChanged { if (expanded) scope.launch { revealRequester.bringIntoView() } }
+        ) {
+        Reveal(expanded && list != null) {
+            BallotRow(
+                labels = listOf(stringResource(R.string.openrouter_filter_all), free),
+                selectedIndex = if (freeOnly) 1 else 0,
+                onSelect = { freeOnly = it == 1 },
+            )
+            val shown = list.orEmpty().let { all -> if (freeOnly) all.filter { it.outputPerMillion == 0.0 } else all }
+            if (shown.isEmpty()) {
+                Text(
+                    stringResource(R.string.openrouter_no_free_models),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.onSurfaceVariant,
+                )
+            } else {
+                // 每次展開都從選中的那一列開始，不用自己往下捲去找
+                val listState = rememberLazyListState(
+                    initialFirstVisibleItemIndex = shown.indexOfFirst { it.id == value }.coerceAtLeast(0)
+                )
+                LazyColumn(state = listState, modifier = Modifier.fillMaxWidth().height(MODEL_ROW_HEIGHT * visibleRows)) {
+                    items(shown, key = { it.id }) { model ->
+                        val active = model.id == value
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    onChange(model.id)
+                                    expanded = false
+                                }
+                                // 固定列高，清單高度才算得出「剛好幾列半」
+                                .height(MODEL_ROW_HEIGHT),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(9.dp),
+                        ) {
+                            BallotDot(active)
+                            ModelNameAndStats(
+                                name = model.id,
+                                stats = model,
+                                free = free,
+                                color = if (active) scheme.onSurface else scheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        }
+    }
 }
+
+/**
+ * 模型路徑＋「智力指數 · 價格」。**名字太長就直接被右邊兩欄切掉，不加「…」**：
+ * 那兩個數字是這一列拿來比的東西，得永遠完整；名字看前半段就認得出是誰家的哪一款。
+ * 兩欄各自固定寬，整份清單的「·」才會上下對齊。
+ *
+ * [stats] 是 null 時（清單還沒查到，或這個模型已經下架）只畫名字。
+ */
+@Composable
+private fun ModelNameAndStats(
+    name: String,
+    stats: OpenRouterModel?,
+    free: String,
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
+    // 模型路徑是純英數，套數字字型不會碰到中文（同 Gemini 那份清單）
+    val style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp).numeric()
+    val faint = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            name,
+            style = style,
+            color = color,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Clip,
+            modifier = Modifier.weight(1f),
+        )
+        if (stats != null) {
+            Text(
+                // 沒測過的模型沒有分數，畫一槓，不要畫 0 讓人以為它很笨
+                stats.intelligence?.let { String.format(java.util.Locale.ROOT, "%.1f", it) } ?: "—",
+                style = style,
+                color = faint,
+                textAlign = TextAlign.End,
+                maxLines = 1,
+                modifier = Modifier.width(SCORE_COLUMN_WIDTH),
+            )
+            Text(" · ", style = style, color = faint)
+            val price = outputPriceLabel(stats.outputPerMillion, free)
+            Text(
+                price,
+                // 「免費」是中文，只有金額才換數字字型
+                style = if (price.first().isLetter()) MaterialTheme.typography.bodyMedium else style,
+                color = faint,
+                // 緊接在「·」後面：分數靠右、價格靠左，整份清單的「·」上下對成一條
+                textAlign = TextAlign.Start,
+                maxLines = 1,
+                modifier = Modifier.width(PRICE_COLUMN_WIDTH),
+            )
+        }
+    }
+}
+
+/** 每一百萬個 output token 的價格。不到一分錢的照實講「不到」，不要四捨五入成 $0.00 讀成免費。 */
+internal fun outputPriceLabel(perMillion: Double, free: String): String = when {
+    perMillion == 0.0 -> free
+    perMillion < 0.005 -> "<" + "$" + "0.01"
+    else -> "$" + String.format(java.util.Locale.ROOT, "%.2f", perMillion)
+}
+
+private val SCORE_COLUMN_WIDTH = 36.dp
+private val PRICE_COLUMN_WIDTH = 60.dp
+private val MODEL_ROW_HEIGHT = 42.dp
 
 internal val GEMINI_MODELS = listOf(
     "gemini-3.8-flash",
@@ -1465,6 +1690,33 @@ internal val GEMINI_MODELS = listOf(
     "gemini-3.5-flash",
     "gemini-3.5-flash-lite",
 )
+
+/** 直排圈選的那顆圓點。Gemini 的型號清單與 OpenRouter 的模型選單共用。 */
+@Composable
+private fun BallotDot(active: Boolean) {
+    val scheme = MaterialTheme.colorScheme
+    Box(
+        Modifier
+            .size(16.dp)
+            .clip(CircleShape)
+            .background(if (active) scheme.onSurface else Color.Transparent)
+            .border(
+                1.5.dp,
+                if (active) scheme.onSurface else NutrientColors.FieldBorder,
+                CircleShape,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (active) {
+            Box(
+                Modifier
+                    .size(5.dp)
+                    .clip(CircleShape)
+                    .background(scheme.inverseOnSurface)
+            )
+        }
+    }
+}
 
 /**
  * 模型選擇：選項直接攤開，不用下拉選單。
@@ -1491,27 +1743,7 @@ internal fun ModelField(value: String, onChange: (String) -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(9.dp),
             ) {
-                Box(
-                    Modifier
-                        .size(16.dp)
-                        .clip(CircleShape)
-                        .background(if (active) scheme.onSurface else Color.Transparent)
-                        .border(
-                            1.5.dp,
-                            if (active) scheme.onSurface else NutrientColors.FieldBorder,
-                            CircleShape,
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (active) {
-                        Box(
-                            Modifier
-                                .size(5.dp)
-                                .clip(CircleShape)
-                                .background(scheme.inverseOnSurface)
-                        )
-                    }
-                }
+                BallotDot(active)
                 // 型號是純英數，套襯線不會碰到中文
                 Text(
                     model,

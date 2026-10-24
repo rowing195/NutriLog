@@ -49,6 +49,8 @@ import com.watson.nutrilog.data.net.OpenRouterClient
 import com.watson.nutrilog.data.net.TavilyClient
 import com.watson.nutrilog.data.net.ImageCompressor
 import com.watson.nutrilog.data.net.OpenFoodFactsClient
+import com.watson.nutrilog.data.net.OpenRouterModel
+import com.watson.nutrilog.data.net.OpenRouterModelCatalog
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
@@ -167,6 +169,13 @@ sealed interface AnalysisSource {
      * `lastSource` —— 分開存的話「重試」會靜悄悄地換一種模式。
      */
     data class Text(val query: String, val useSearch: Boolean) : AnalysisSource
+}
+
+/** OpenRouter 模型清單查到哪了。 */
+sealed interface ModelListState {
+    data object Loading : ModelListState
+    data class Loaded(val models: List<OpenRouterModel>) : ModelListState
+    data object Failed : ModelListState
 }
 
 /** 條碼查詢的四種結局。分開來 UI 才講得出「查無此商品」和「連線失敗」的差別。 */
@@ -430,6 +439,15 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     /** 正在跟 Drive 講話。按鍵要能擋住重複點擊，不然會同時跑兩次備份。 */
     var driveBusy by mutableStateOf(false)
         private set
+
+    /**
+     * OpenRouter 的模型清單（看得懂圖片、支援 tools），模型選單用。
+     * 每次進到選單的那一頁就重查一次（[loadOpenRouterModels]）；查過一次之後重查期間
+     * 照舊顯示手上那份，重查失敗也留著它 —— 幾分鐘前的清單比一行錯誤有用。
+     */
+    var openRouterModels by mutableStateOf<ModelListState>(ModelListState.Loading)
+        private set
+    private var openRouterModelsJob: Job? = null
 
     /** 上一次到 GitHub 查新版的結果，背景檢查與關於頁那顆按鈕都會更新它。 */
     var updateStatus by mutableStateOf(UpdateStatus())
@@ -822,11 +840,11 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
             reportMissingApiKey(provider)
             return
         }
-        // 拍照走 OpenRouter 但還沒指定模型：擋在這裡並講清楚，不要拿文字那個模型
-        // 去送圖片 —— 純文字模型收到圖片回的錯誤各家寫法都不一樣，看不出真正的原因。
-        if (source is AnalysisSource.Photo && useOpenRouter && settings.openRouterPhotoModel.isBlank()) {
+        // 走 OpenRouter 但還沒選模型：擋在這裡並講清楚。失敗頁會自動升起換一家的面板，
+        // 選單就在那裡面，選完直接按重試。
+        if (useOpenRouter && settings.openRouterModel.isBlank()) {
             analysisState = AnalysisState.Failed(
-                getApplication<Application>().getString(R.string.photo_no_vision_model)
+                getApplication<Application>().getString(R.string.openrouter_no_model)
             )
             screen = Screen.Review
             return
@@ -834,11 +852,7 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         analysisState = AnalysisState.Analyzing
         screen = Screen.Review
         viewModelScope.launch {
-            val model = when {
-                !useOpenRouter -> settings.geminiModel
-                source is AnalysisSource.Photo -> settings.openRouterPhotoModel
-                else -> settings.openRouterModel
-            }
+            val model = if (useOpenRouter) settings.openRouterModel else settings.geminiModel
             // **要不要查是使用者按哪一顆章決定的**，設定只決定「按下去用誰查」。
             //
             // 試過讓模型自己決定（tool-calling-search 分支），兩版都輸：不強制
@@ -1630,6 +1644,12 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
             weeklyReportState = ReportUiState.MissingKey(provider)
             return
         }
+        if (provider == AiProvider.OPENROUTER && settings.openRouterModel.isBlank()) {
+            weeklyReportState = ReportUiState.Failed(
+                getApplication<Application>().getString(R.string.report_openrouter_no_model)
+            )
+            return
+        }
         val snapshot = settings
         generatingWeek = start
         weeklyReportState = ReportUiState.Generating
@@ -1669,6 +1689,12 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
         val key = reportKeyFor(provider)
         if (key.isBlank()) {
             monthlyReportState = ReportUiState.MissingKey(provider)
+            return
+        }
+        if (provider == AiProvider.OPENROUTER && settings.openRouterModel.isBlank()) {
+            monthlyReportState = ReportUiState.Failed(
+                getApplication<Application>().getString(R.string.report_openrouter_no_model)
+            )
             return
         }
         val snapshot = settings
@@ -1923,6 +1949,19 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // --- 檢查更新 ---
+
+    fun loadOpenRouterModels() {
+        if (openRouterModelsJob?.isActive == true) return
+        openRouterModelsJob = viewModelScope.launch {
+            if (openRouterModels !is ModelListState.Loaded) openRouterModels = ModelListState.Loading
+            OpenRouterModelCatalog().fetch()
+                .onSuccess { openRouterModels = ModelListState.Loaded(it) }
+                .onFailure {
+                    android.util.Log.w("NutriViewModel", "openrouter models failed", it)
+                    if (openRouterModels !is ModelListState.Loaded) openRouterModels = ModelListState.Failed
+                }
+        }
+    }
 
     /** 關於頁那顆按鈕。 */
     fun checkForUpdate() {

@@ -69,6 +69,9 @@ fun ProviderSwitchSheet(
     /** 這次失敗的是拍照還是文字描述。決定改哪一組設定，也決定標題怎麼寫。 */
     isPhoto: Boolean,
     onChange: (NutriSettings) -> Unit,
+    /** OpenRouter 那一頁的模型選單用，見 [OpenRouterModelPicker]。 */
+    openRouterModels: ModelListState,
+    onLoadOpenRouterModels: () -> Unit,
     /** 失敗後打開的才有；送出之前打開的傳 null。 */
     onRetry: (() -> Unit)?,
     onDismiss: () -> Unit,
@@ -175,15 +178,14 @@ fun ProviderSwitchSheet(
                             value = settings.geminiModel,
                             onChange = { onChange(settings.copy(geminiModel = it)) },
                         )
-                        AiProvider.OPENROUTER -> OpenRouterModelField(
-                            value = if (isPhoto) settings.openRouterPhotoModel else settings.openRouterModel,
-                            onChange = { model ->
-                                onChange(
-                                    if (isPhoto) settings.copy(openRouterPhotoModel = model)
-                                    else settings.copy(openRouterModel = model)
-                                )
-                            },
-                            forPhoto = isPhoto,
+                        // 文字與拍照共用同一個 OpenRouter 模型，這裡不分 isPhoto
+                        AiProvider.OPENROUTER -> OpenRouterModelPicker(
+                            value = settings.openRouterModel,
+                            onChange = { onChange(settings.copy(openRouterModel = it)) },
+                            models = openRouterModels,
+                            onLoad = onLoadOpenRouterModels,
+                            // 面板只有六成高，七列的清單會把自己推出畫面
+                            visibleRows = 4.5f,
                         )
                     }
                 }

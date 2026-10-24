@@ -36,9 +36,7 @@
     <string name="search_settings_photo_help">拍照要用看得懂圖片的模型。在這裡改的就是設定裡的那一組。</string>
     <string name="done">完成</string>
     <string name="settings_photo_provider">拍照辨識</string>
-    <string name="settings_openrouter_photo_model">拍照用的模型</string>
-    <string name="settings_openrouter_photo_model_help">要挑看得懂圖片的模型，在 openrouter.ai/models 篩 image 找得到。</string>
-    <string name="photo_no_vision_model">還沒指定拍照要用的 OpenRouter 模型。換一家或填一個看得懂圖片的模型再試。</string>
+    <string name="openrouter_no_model">還沒選 OpenRouter 的模型。在下面挑一個再重試，或換一家。</string>
     <string name="water_label">飲水</string>
     <string name="water_detail_title">飲水明細</string>
     <string name="water_manual">手動加減</string>
@@ -137,8 +135,13 @@
     <string name="settings_data_summary">匯出／匯入 CSV</string>
     <string name="settings_text_provider">文字辨識</string>
     <string name="settings_photo_note">拍照要用看得懂圖片的模型，Gemini 的不用自己挑。</string>
-    <string name="settings_openrouter_model_help">OpenRouter 需填 openrouter.ai 上的完整模型路徑。使用前須確認它支援 tools calling。</string>
-    <string name="settings_openrouter_model">模型路徑</string>
+    <string name="settings_openrouter_model">模型（文字與拍照共用）</string>
+    <string name="openrouter_model_pending">待選擇</string>
+    <string name="openrouter_filter_all">全部</string>
+    <string name="openrouter_free">免費</string>
+    <string name="openrouter_models_failed">查不到模型清單。</string>
+    <string name="openrouter_no_free_models">現在沒有免費的模型。</string>
+    <string name="openrouter_model_missing">查無此模型</string>
     <string name="settings_web_search">AI 查詢</string>
     <string name="settings_search_off">關閉</string>
     <string name="settings_search_openrouter_note">只在文字辨識也選 OpenRouter 時有作用，每次約 $0.02。</string>
@@ -395,6 +398,7 @@
     <string name="report_generate_month">產生月報</string>
     <string name="report_generating">產生中…</string>
     <string name="report_missing_key">還沒設定 %1$s 的 API key</string>
+    <string name="report_openrouter_no_model">還沒選 OpenRouter 的模型，到設定 → API 管理挑一個。</string>
     <string name="report_go_api">前往 API 管理</string>
     <string name="report_failed">產生失敗：%1$s</string>
     <string name="report_recommend_title">建議下週每日目標</string>

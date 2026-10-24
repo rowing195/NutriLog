@@ -26,7 +26,13 @@ data class NutriSettings(
     val geminiModel: String = DEFAULT_MODEL,
     /** 同上，只是換一家。空字串代表沒設定。 */
     val openRouterApiKey: String = "",
-    val openRouterModel: String = DEFAULT_OPENROUTER_MODEL,
+    /**
+     * OpenRouter 用哪個模型，**文字與拍照共用**：設定頁的清單只列看得懂圖片的模型，
+     * 兩條路用同一個不會出事。空字串＝還沒選，用到時擋下來叫使用者去挑 ——
+     * 不給預設值，因為預設的免費模型會下架（`ling-3.0-flash-sante:free` 就是），
+     * 而下架之後是安靜地壞掉。
+     */
+    val openRouterModel: String = "",
     /** 同上。Tavily 是搜尋服務不是模型，見 [SearchMode]。 */
     val tavilyApiKey: String = "",
     /** 文字辨識前要不要先查網路、用誰查。 */
@@ -63,8 +69,9 @@ data class NutriSettings(
      */
     val photoProvider: AiProvider = AiProvider.GEMINI,
     /**
-     * 拍照走 OpenRouter 時用哪個模型。**空的就擋下來並講清楚**，不要拿文字那個
-     * 模型去送圖片：純文字模型收到圖片只會回一個看不懂的錯誤。
+     * **只為了讀舊資料。** 以前拍照另有一個 OpenRouter 模型欄位，現在併進
+     * [openRouterModel]（見 [withMergedOpenRouterModel]），讀進來之後永遠是空的。
+     * 欄位不能拿掉：拿掉的話舊 JSON 裡那個值在合併之前就被丟掉了。
      */
     val openRouterPhotoModel: String = "",
     // --- 身型（算 BMR／TDEE 用）---
@@ -111,10 +118,10 @@ data class NutriSettings(
         const val DEFAULT_MODEL = "gemini-3.7-flash"
 
         /**
-         * OpenRouter 的預設。挑健康領域的模型而不是通用大模型，因為這條路只做
-         * 一件事：把「吃了什麼」換算成營養素。`:free` 是它自己的免費層級標記。
+         * 以前的 OpenRouter 預設模型，已經下架。encodeDefaults 讓它被寫進了每個人的設定裡，
+         * 讀到它就當成「還沒選」（見 [withMergedOpenRouterModel]）。
          */
-        const val DEFAULT_OPENROUTER_MODEL = "inclusionai/ling-3.0-flash-sante:free"
+        const val RETIRED_OPENROUTER_MODEL = "inclusionai/ling-3.0-flash-sante:free"
         const val MIN_TARGET = 0
         const val MAX_CALORIE_TARGET = 6000
         const val MAX_MACRO_TARGET = 800
@@ -122,10 +129,24 @@ data class NutriSettings(
 }
 
 /**
+ * 文字與拍照原本各有一個 OpenRouter 模型，合併成一個。**每次讀設定都會跑**，
+ * 所以必須是冪等的：合併過一次之後拍照那欄是空的，再跑也不會變。
+ *
+ * 拍照那個優先，因為它一定看得懂圖片；文字那個可能是純文字模型。
+ * 已經下架的舊預設當成沒選 —— 留著只會在第一次用的時候失敗。
+ */
+internal fun NutriSettings.withMergedOpenRouterModel(): NutriSettings {
+    val merged = openRouterPhotoModel.ifBlank {
+        openRouterModel.takeIf { it != NutriSettings.RETIRED_OPENROUTER_MODEL }.orEmpty()
+    }
+    return copy(openRouterModel = merged, openRouterPhotoModel = "")
+}
+
+/**
  * 文字辨識要走哪一家。
  *
  * **這個選擇只管文字，不管拍照。** 拍照需要吃得下圖片的模型，而這條路上想用的
- * OpenRouter 免費模型（見 [NutriSettings.DEFAULT_OPENROUTER_MODEL]）是純文字的 ——
+ * OpenRouter 免費模型（當時預設的 ling-3.0-flash-sante:free）是純文字的 ——
  * 做成一個總開關的話，使用者選了 OpenRouter 之後拍照會神祕地失敗或偷偷跑去別家，
  * 兩種都比在設定頁講清楚差。所以設定頁那一欄叫「文字辨識用哪一家」。
  *
@@ -148,7 +169,7 @@ enum class ApiService(val label: String) {
  * 文字辨識要走哪一家**模型**。
  *
  * **這個選擇只管文字，不管拍照。** 拍照需要吃得下圖片的模型，而這條路上想用的
- * OpenRouter 免費模型（見 [NutriSettings.DEFAULT_OPENROUTER_MODEL]）是純文字的 ——
+ * OpenRouter 免費模型（當時預設的 ling-3.0-flash-sante:free）是純文字的 ——
  * 做成一個總開關的話，使用者選了 OpenRouter 之後拍照會神祕地失敗或偷偷跑去別家，
  * 兩種都比在設定頁講清楚差。所以設定頁那一欄叫「文字辨識用哪一家」。
  *
@@ -277,7 +298,7 @@ class SettingsStore(context: Context) {
      */
     private fun decode(raw: String?): NutriSettings =
         if (raw.isNullOrBlank()) NutriSettings()
-        else runCatching { json.decodeFromString(NutriSettings.serializer(), raw) }
+        else runCatching { json.decodeFromString(NutriSettings.serializer(), raw).withMergedOpenRouterModel() }
             .onFailure { Log.w(TAG, "設定解析失敗，改用預設值", it) }
             .getOrDefault(NutriSettings())
 

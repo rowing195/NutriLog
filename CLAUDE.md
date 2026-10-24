@@ -1025,18 +1025,48 @@ AI 估得準，打的往往比庫裡存的更細，或者根本是另一種寫�
 ## 兩家 AI 供應商：拍照與文字各選各的
 
 `textProvider` 與 `photoProvider`（`SettingsStore.kt`）是**兩個獨立的選擇**，設定頁
-那兩排也是分開的（「文字辨識」「拍照辨識」）。OpenRouter 的模型也跟著分兩個欄位：
-`openRouterModel` 給文字、`openRouterPhotoModel` 給拍照。
-
-**為什麼不是一個總開關**：拍照要吃得下圖片的模型，而文字那條路上常用的
-`inclusionai/ling-3.0-flash-sante:free` 是純文字的。共用一個選擇或一個模型欄位的話，
-在失敗面板裡把模型換成視覺模型救回拍照，同一下就把文字那條換成了不該用的模型。
+那兩排也是分開的（「文字辨識」「拍照辨識」）。**但 OpenRouter 的模型只有一個**
+（`openRouterModel`），文字與拍照共用 —— 見下一小節。
 
 **以前這裡寫的是「拍照永遠走 Gemini」**，那是在 OpenRouter 還不能送圖片的時候定的。
 現在 `OpenRouterClient.analyzeFood` 會用 OpenAI 格式的多模態訊息把圖片帶進去
 （`image_url` 配 data URI），所以兩家都走得通 —— 但**模型看不看得懂圖片我們驗不了**，
-純文字模型收到圖片回的錯誤各家寫法都不一樣。拍照選了 OpenRouter 卻沒填模型時
-直接擋下來（`photo_no_vision_model`），不要拿文字那個模型去送圖片。
+純文字模型收到圖片回的錯誤各家寫法都不一樣。所以選單只列看得懂圖片的模型（見下一小節）。
+
+### OpenRouter 的模型：從清單選、只列看得懂圖片的、文字與拍照共用
+
+設定 → API 管理的 OpenRouter 頁、以及換一家面板的 OpenRouter 頁，都是同一個
+`OpenRouterModelPicker`：點欄位在原地往下展開清單（不浮起來，理由同 `ModelField`），
+清單自己捲，上面一排「全部／免費」圈選。**沒有手動輸入**。
+
+- **清單每次進到那一頁就重查一次**（`OpenRouterModelCatalog`，打公開的
+  `api/v1/models?supported_parameters=tools`，不用金鑰）。只留 `input_modalities` 有 `image`
+  **而且** `supported_parameters` 有 `tools` 的 —— tools 是這條路鎖 JSON 的唯一手段（見下）。
+  價格 -1 的路由器（`openrouter/auto` 那類）不列，沒有數字可以標；`:batch` 版本也不列
+  （同一個模型的批次版，留著的話幾乎每個模型都出現兩次）。查過一次之後重查失敗會
+  留著手上那份，第一次就查不到才顯示「查不到模型清單。」與重試。
+- **依智力指數由高到低**（API 的 `benchmarks.artificial_analysis.intelligence_index`），
+  沒有分數的約三成排最後、彼此依名稱。**一開始是照價格由低到高排，使用者實際用過說沒用**：
+  便宜的排前面等於把最弱的排前面，免費的又夾雜一堆預覽版，看起來很亂。
+  每一列右邊是「分數 · 價格」：分數靠右、價格靠左緊接在「·」後面，整份清單的「·」對成一條。
+  沒分數畫「—」，不要畫 0 讓人以為它很笨。價格只標 output 每 1M token，不到一分錢寫
+  `<$0.01`，不能四捨五入成 `$0.00` 讀成免費（`outputPriceLabel`，有測試）。
+  模型路徑太長就被右邊兩欄切掉、不加「…」：那兩個數字是拿來比的，要永遠完整。
+- **文字與拍照共用一個模型**，因為清單只列看得懂圖片的，兩條路用同一個不會出事，
+  設定頁也少一個欄位。舊資料有兩個欄位，`withMergedOpenRouterModel` 在**每次讀設定時**
+  合併：拍照那個優先（它一定看得懂圖），沒填過才用文字那個。所以它必須冪等。
+  `openRouterPhotoModel` 欄位不能從 `NutriSettings` 拿掉，拿掉的話舊值在合併前就被丟了。
+- **沒有預設模型**，空的就在辨識與報告開始前擋下來（`openrouter_no_model`、
+  `report_openrouter_no_model`）。以前的預設 `ling-3.0-flash-sante:free` 下架之後是
+  安靜地壞掉，而且因為 `encodeDefaults = true`，它被寫進了每個人的設定 —— 改預設值
+  救不了既有使用者，所以合併時讀到它（`RETIRED_OPENROUTER_MODEL`）就當成沒選。
+- **選過的模型不在清單上**（下架了）時，欄位底下用朱紅寫「查無此模型」：用到時一定失敗，
+  是「看這裡」的那種紅。
+- **清單高度是列數**（`visibleRows`，每列固定 42dp）：設定頁七列，換一家面板四列半 ——
+  半列是故意的，露一截才看得出底下還有。面板只有六成高，內容區約 287dp，裝不下
+  「標題＋欄位＋篩選＋四列半」（約 344dp），所以展開時會 `bringIntoView` 把篩選與清單捲進
+  畫面，**欄位被推上去切掉一截是使用者看過截圖之後選的**（另外兩個選項是「展開時面板長高」
+  與「只露三列」）。不要為了「欄位被切到看起來像 bug」去改回去。
 
 **擋 key 的時候要擋「這條路要用的那一把」**，而且訊息要指名是哪一家
 （`reportMissingApiKey(provider)`）。兩家各有一把 key，只寫「還沒設定 API key」的話，
@@ -1067,7 +1097,7 @@ AI 估得準，打的往往比庫裡存的更細，或者根本是另一種寫�
 - **只留六成高**：上面那四成要看得到失敗的原因，那句話才是使用者判斷「該換什麼」的
   依據。蓋掉它等於要他憑記憶選。
 - **換供應商時底下整塊滑過去**，不要淡入淡出：兩家的模型是兩種不同的東西（Gemini 是
-  幾個固定型號的圈選，OpenRouter 是自由文字），淡入淡出會讀成同一份清單在換內容。
+  幾個固定型號的圈選，OpenRouter 是幾百個模型的展開清單），淡入淡出會讀成同一份清單在換內容。
 - **關閉要原路退回去**（往下滑出、遮罩淡掉）。所以呼叫端**一直把它放在畫面上、只傳
   `visible`**，同 `NutriOverlay`；用 `if (show) ProviderSwitchSheet(...)` 包起來的話，
   一關就整個從組合裡拿掉，只剩進場有動畫。返回鍵在內容裡、顯示時才登記，理由同
@@ -1094,9 +1124,8 @@ AI 估得準，打的往往比庫裡存的更細，或者根本是另一種寫�
 `tool_choice` 強制它呼叫」。回傳在 `choices[0].message.tool_calls[0].function.arguments`，
 而且**那是字串包著的 JSON**，不是巢狀物件（OpenAI 格式的慣例）。
 
-**換模型之前先查 `openrouter.ai/api/v1/models` 那支 API**，確認新模型的
-`supported_parameters` 有 `tools`、`input_modalities` 有沒有 `image`。沒有 `tools`
-就得回去剝 markdown code fence，那正是 Gemini 那邊當初想避開的事。
+**選單只列有 `tools` 的模型就是為了這件事**：沒有 `tools` 就得回去剝 markdown
+code fence，那正是 Gemini 那邊當初想避開的事。要放寬選單的篩選條件之前先想清楚這一條。
 
 兩份 schema **不是同一種寫法**：Gemini 是 OpenAPI 子集（`"OBJECT"` 大寫、
 `nullable: true`），OpenRouter 是標準 JSON Schema（小寫、`["number", "null"]`）。

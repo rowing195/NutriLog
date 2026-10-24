@@ -66,6 +66,8 @@ fun PhotoConfirmationDialog(
     uri: Uri?,
     settings: NutriSettings,
     onSettingsChange: (NutriSettings) -> Unit,
+    openRouterModels: ModelListState,
+    onLoadOpenRouterModels: () -> Unit,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
 ) {
@@ -87,6 +89,8 @@ fun PhotoConfirmationDialog(
                 uri = it,
                 settings = settings,
                 onSettingsChange = onSettingsChange,
+                openRouterModels = openRouterModels,
+                onLoadOpenRouterModels = onLoadOpenRouterModels,
                 onDismiss = onDismiss,
                 onConfirm = { note ->
                     sent = true
@@ -102,6 +106,8 @@ private fun PhotoConfirmationPage(
     uri: Uri,
     settings: NutriSettings,
     onSettingsChange: (NutriSettings) -> Unit,
+    openRouterModels: ModelListState,
+    onLoadOpenRouterModels: () -> Unit,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
 ) {
@@ -256,6 +262,8 @@ private fun PhotoConfirmationPage(
             settings = settings,
             isPhoto = true,
             onChange = onSettingsChange,
+            openRouterModels = openRouterModels,
+            onLoadOpenRouterModels = onLoadOpenRouterModels,
             onRetry = null,
             onDismiss = { showSettings = false },
         )
