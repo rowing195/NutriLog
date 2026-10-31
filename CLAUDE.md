@@ -1792,6 +1792,8 @@ adb shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c 
   （深色）。改 `Theme.kt` 的色票時，`values*/colors.xml` 和這兩處要一起改。
 - **`site/public/fonts/neucha.woff2` 是從改過側邊留白的 `res/font/neucha.ttf` 轉出來的。**
   改了 ttf 就要重轉一份；不要換成 Google Fonts 的 Neucha。
+- **app 的設定 → 關於有一列「展示頁面」連到這個網站**（`SettingsScreen.kt` 的 `SHOWCASE_URL`）。
+  換網域或拿掉 Vercel 專案時要一起改 —— 那個網址編進了每一版 APK，已經裝出去的舊版改不到。
 - **截圖是模擬器上灌示範資料拍的**，雲端 session 拍不了。重拍或補拍之前先讀
   [`site/SHOTS.md`](site/SHOTS.md)。
 

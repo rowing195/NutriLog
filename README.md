@@ -570,7 +570,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/SettingsScreen.kt'>SettingsScreen.kt</a></b></td>
-					<td style='padding: 8px;'>設定的選單與七個子頁：外觀（深淺模式、App 圖示）、每日目標（含依身型計算、進階營養素開關、運動熱量回補）、Health 連線、API 管理（三把 key、各條路走哪一家、模型攤開圈選而不用下拉選單）、雲端備份、本地資料管理（CSV 匯出／匯入）、關於（版本、檢查更新、每天自動檢查的開關）。</td>
+					<td style='padding: 8px;'>設定的選單與七個子頁：外觀（深淺模式、App 圖示）、每日目標（含依身型計算、進階營養素開關、運動熱量回補）、Health 連線、API 管理（三把 key、各條路走哪一家、模型攤開圈選而不用下拉選單）、雲端備份、本地資料管理（CSV 匯出／匯入）、關於（版本、展示頁面連結、檢查更新、每天自動檢查的開關）。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/BmrCalculatorDialog.kt'>BmrCalculatorDialog.kt</a></b></td>

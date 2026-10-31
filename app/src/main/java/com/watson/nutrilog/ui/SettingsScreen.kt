@@ -1196,6 +1196,13 @@ private fun AboutSection(
     // 名字一模一樣 —— 這個數字不會，回報問題時靠它分得出是哪一次建置。
     AboutRow(stringResource(R.string.about_build), BuildConfig.VERSION_CODE.toString())
     Hairline()
+    // 右邊寫網域而不是「開啟」：點下去會離開 app 開瀏覽器，先讓人看到要去哪裡
+    AboutRow(
+        stringResource(R.string.about_showcase),
+        SHOWCASE_URL.removePrefix("https://").removeSuffix("/"),
+        onClick = { uriHandler.openUri(SHOWCASE_URL) },
+    )
+    Hairline()
 
     // 檢查更新那一段包成一個子項、間距自己給（同 DriveSection）：進度線與錯誤訊息是
     // 就地展開的，收起來時節點還在，交給外層的 spacedBy 會多出空白。
@@ -1315,18 +1322,27 @@ private fun checkedLabel(millis: Long): String {
 }
 
 @Composable
-private fun AboutRow(label: String, value: String) {
+private fun AboutRow(label: String, value: String, onClick: (() -> Unit)? = null) {
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 14.dp),
+        Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Text(label, modifier = Modifier.weight(1f))
         Text(
             withNumerals(value),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        // 能點的那一列多一個 ›，和只是顯示資訊的版本、建置分得開
+        if (onClick != null) ChevronMark(MaterialTheme.colorScheme.onSurfaceVariant, pointsLeft = false, size = 14.dp)
     }
 }
+
+/** 介紹這個 app 的單頁網站（repo 裡的 site/，部署在 Vercel）。換網域要改這裡。 */
+private const val SHOWCASE_URL = "https://nutri-log-lake.vercel.app/"
 
 @Composable
 private fun DataSection(

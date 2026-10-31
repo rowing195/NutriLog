@@ -168,6 +168,7 @@
     <string name="settings_about">關於</string>
     <string name="about_version">版本</string>
     <string name="about_build">建置</string>
+    <string name="about_showcase">展示頁面</string>
     <string name="about_summary_update">%1$s · 有新版 %2$s</string>
     <string name="update_check">檢查更新</string>
     <string name="update_recheck">重新檢查</string>
