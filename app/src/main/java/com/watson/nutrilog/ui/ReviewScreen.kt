@@ -374,11 +374,16 @@ private fun ItemRow(
                 )
                 Text(
                     withNumerals(
-                        detailLine(food.servingText, food.proteinG, food.fatG, food.carbsG, food.waterMl)
+                        detailLine(
+                            food.servingText, food.proteinG, food.fatG, food.carbsG, food.waterMl,
+                            sodiumMg = food.sodiumMg,
+                        )
                     ),
                     style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
                     color = scheme.outline,
-                    maxLines = 1,
+                    // 兩行：份量文字常常很長，一行的話排在後面的鈉與水量最先被「…」吃掉，
+                    // 而它們正是模型估的、最需要被看到的那兩個數字
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
                 // 把握度是模型自己講的，用襯線數字排在旁邊當註記，不做成進度條 ——

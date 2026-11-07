@@ -7,6 +7,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Upsert
 import androidx.room.Transaction
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 /** 歷史清單用：一天一列的合計，不必把整年的明細撈進記憶體再自己加。 */
@@ -101,6 +102,52 @@ interface NutriDao {
         """
     )
     fun observeAllFoods(): Flow<List<FoodSuggestion>>
+
+    /**
+     * 資料健檢：缺鈉的品項，缺最多筆的排前面。分組和 [observeAllFoods] 一樣是「名稱 + 份量」。
+     * `known` 是同一個品項別筆記過的鈉，有的話畫面先帶進去。
+     */
+    @Query(
+        """
+        SELECT name, servingText,
+               COUNT(*)      AS missing,
+               (SELECT k.sodiumMg FROM food_entries k
+                 WHERE k.name = f.name AND k.servingText = f.servingText AND k.sodiumMg IS NOT NULL
+                 ORDER BY k.loggedAt DESC LIMIT 1) AS known,
+               MAX(loggedAt) AS lastLoggedAt
+        FROM food_entries f
+        WHERE sodiumMg IS NULL
+        GROUP BY name, servingText
+        ORDER BY missing DESC, lastLoggedAt DESC
+        """
+    )
+    fun observeMissingSodium(): Flow<List<MissingField>>
+
+    /** 同上，缺水量的。哪些算飲料由呼叫端判斷（見 [drinkVolumeMl]）。 */
+    @Query(
+        """
+        SELECT name, servingText,
+               COUNT(*)      AS missing,
+               (SELECT k.waterMl FROM food_entries k
+                 WHERE k.name = f.name AND k.servingText = f.servingText AND k.waterMl IS NOT NULL
+                 ORDER BY k.loggedAt DESC LIMIT 1) AS known,
+               MAX(loggedAt) AS lastLoggedAt
+        FROM food_entries f
+        WHERE waterMl IS NULL
+        GROUP BY name, servingText
+        ORDER BY missing DESC, lastLoggedAt DESC
+        """
+    )
+    fun observeMissingWater(): Flow<List<MissingField>>
+
+    @Query("SELECT * FROM food_entries WHERE name = :name AND servingText = :servingText AND sodiumMg IS NULL")
+    suspend fun entriesMissingSodium(name: String, servingText: String): List<FoodEntry>
+
+    @Query("SELECT * FROM food_entries WHERE name = :name AND servingText = :servingText AND waterMl IS NULL")
+    suspend fun entriesMissingWater(name: String, servingText: String): List<FoodEntry>
+
+    @Update
+    suspend fun updateEntries(entries: List<FoodEntry>)
 
     /**
      * 某段日期區間的每日合計，月曆用。

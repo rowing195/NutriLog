@@ -42,6 +42,7 @@
     <string name="water_manual">手動加減</string>
     <string name="water_total">合計</string>
     <string name="unit_ml">ml</string>
+    <string name="unit_mg">mg</string>
     <string name="unit_kcal">kcal</string>
     <string name="calories_eaten">已經吃</string>
     <string name="calories_budget_left">目標 %1$d · 還有 %2$s 的空間</string>
@@ -206,6 +207,18 @@
     <string name="import_nothing_new">檔案裡的 %1$d 筆紀錄都已經有了，沒有新增任何東西</string>
     <string name="import_bad_format">這個檔案不是 NutriLog 匯出的 CSV：找不到「日期」與「食物名稱」欄位</string>
     <string name="import_failed">匯入失敗：%1$s</string>
+    <string name="data_check_title">資料健檢</string>
+    <string name="data_check_summary">缺鈉 %1$d · 缺水量 %2$d</string>
+    <string name="data_check_summary_clean">沒有缺漏</string>
+    <string name="data_check_tab_sodium">缺鈉 %1$d</string>
+    <string name="data_check_tab_water">缺水量 %1$d</string>
+    <string name="data_check_entries">%1$d 筆</string>
+    <string name="data_check_fill">補上</string>
+    <string name="data_check_prefill_known">同一品項有一筆記過 %1$s，已先帶入</string>
+    <string name="data_check_prefill_serving">已先帶入份量的 %1$s</string>
+    <string name="data_check_filled">已補上 %1$d 筆</string>
+    <string name="data_check_empty_sodium">沒有缺鈉的紀錄。</string>
+    <string name="data_check_empty_water">沒有缺水量的飲料。</string>
     <string name="drive_section">雲端備份</string>
     <string name="drive_help">每天自動備份到 Google Drive 的 NutriLog 資料夾，只留最近 30 天。</string>
     <string name="drive_connect">連結 Google Drive</string>

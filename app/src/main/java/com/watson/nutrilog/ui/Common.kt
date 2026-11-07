@@ -258,12 +258,15 @@ fun detailLine(
      * 那次就是這樣，藏起來的欄位沒有人看得到）。
      */
     waterMl: Double? = null,
+    /** 確認畫面才傳：模型查不到鈉時會照同類食物估，估的數字一樣要在入庫前看得到。 */
+    sodiumMg: Double? = null,
 ): String =
     listOf(
         servingText.takeIf { it.isNotBlank() },
         "蛋白 " + proteinG.fmt(),
         "脂肪 " + fatG.fmt(),
         "碳水 " + carbsG.fmt(),
+        sodiumMg?.let { "鈉 " + it.fmt() + " mg" },
         waterMl?.takeIf { it > 0 }?.let { "水 " + it.fmt() + " ml" },
     ).filterNotNull().joinToString(" · ")
 
@@ -1427,7 +1430,8 @@ fun NutriTabs(
                     .clickable { onSelect(index) },
             ) {
                 Text(
-                    label,
+                    // 標籤可能帶筆數（資料健檢的「缺鈉 5」）
+                    withNumerals(label),
                     style = MaterialTheme.typography.titleSmall.copy(letterSpacing = 3.sp),
                     color = feedbackColor(if (active) scheme.onSurface else scheme.onSurfaceVariant, "tabLabel"),
                     modifier = Modifier.padding(top = 12.dp, bottom = 7.dp),

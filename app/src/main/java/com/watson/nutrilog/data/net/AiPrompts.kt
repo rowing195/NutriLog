@@ -8,6 +8,11 @@ package com.watson.nutrilog.data.net
  * 「換一家之後回來的東西長得不一樣」，很難聯想到是 prompt 不同步。
  *
  * 改這裡等於同時改兩條路，回歸時兩家都要測。
+ *
+ * **鈉是唯一「查不到也要估」的營養素。** 原本四個進階營養素同一條「沒把握就填 null」，
+ * 結果鈉幾乎每次都空著 —— 搜尋到的營養標示常常沒列鈉，模型就照規則留空，記下來的
+ * 一整天鈉攝取量嚴重偏低。估出來的鈉會列在確認畫面上（[com.watson.nutrilog.ui.detailLine]），
+ * 使用者入庫前看得到。糖、膳食纖維、飽和脂肪維持「沒把握就 null」。
  */
 internal object AiPrompts {
 
@@ -25,7 +30,11 @@ internal object AiPrompts {
             append("\n\n以下是剛剛查到的網路資料，供你參考。")
             append("**官方或品牌自己公布的營養標示優先**，")
             append("部落格或新聞整理的表格可能過期或算法不同；")
-            append("和使用者問的不是同一個品項的就直接忽略。\n\n")
+            append("和使用者問的不是同一個品項的就直接忽略。")
+            // 鈉最常被留空：官方頁與部落格表格常常只列熱量與三大營養素。模型看到「資料裡沒有」
+            // 就照「沒把握填 null」那條留空，結果「AI 查」反而比「AI 估」更常沒有鈉。
+            append("查到的資料常常只列熱量與三大營養素、沒有鈉。")
+            append("那是資料沒寫，不是這個食物沒有鈉 —— 有寫的照抄，沒寫的依同類食物估。\n\n")
             append(searchContext)
         }
         append("\n\n使用者輸入：")
@@ -50,7 +59,9 @@ internal object AiPrompts {
         - servingText 要寫成人看得懂的份量，例如「1 碗（約 250 公克）」。
         - name 用繁體中文。
         - calories 單位 kcal；proteinG / fatG / carbsG / sugarG / fiberG / satFatG 單位公克；sodiumMg 單位毫克。
-        - 沒把握的營養素就填 null，不要猜 0。
+        - **鈉查不到官方數字時，依同類食物的常見值估一個數字**，不要因為資料裡沒寫就填 null；
+          只有完全想不出是什麼食物時才填 null。
+        - 其他營養素沒把握就填 null。永遠不要用 0 代替不知道。
         - **waterMl 是這一項帶進來的水，單位毫升，只有喝的才填**：飲料填整杯的容量
           （700 ml 的珍奶就是 700，全糖半糖都一樣），湯品填湯的部分。吃的東西一律
           null —— 水果、粥裡的水分不算，那條線一旦鬆掉，每天的飲水量就會被灌水。
@@ -58,6 +69,7 @@ internal object AiPrompts {
           1092.5 —— 不要因為它有逗號、格式不合就改填 null。
         - confidence 是 0 到 1 之間的數字，代表你對這一項的把握程度。
         - 照片裡沒有食物就回傳空的 items 陣列。
+        - 填完之後逐項再看一次：鈉是不是 null？有調味的食物幾乎一定有鈉，回去估一個數字。
     """.trimIndent()
 
     val TEXT_PROMPT = """
@@ -71,7 +83,9 @@ internal object AiPrompts {
         - servingText 要寫清楚是哪一種規格，例如「大杯 700ml 全糖」。
         - name 用繁體中文。
         - calories 單位 kcal；proteinG / fatG / carbsG / sugarG / fiberG / satFatG 單位公克；sodiumMg 單位毫克。
-        - 沒把握的營養素就填 null，不要猜 0。
+        - **鈉查不到官方數字時，依同類食物的常見值估一個數字**，不要因為資料裡沒寫就填 null；
+          只有完全想不出是什麼食物時才填 null。
+        - 其他營養素沒把握就填 null。永遠不要用 0 代替不知道。
         - **waterMl 是這一項帶進來的水，單位毫升，只有喝的才填**：飲料填整杯的容量
           （700 ml 的珍奶就是 700，全糖半糖都一樣），湯品填湯的部分。吃的東西一律
           null —— 水果、粥裡的水分不算，那條線一旦鬆掉，每天的飲水量就會被灌水。
@@ -79,5 +93,6 @@ internal object AiPrompts {
           1092.5 —— 不要因為它有逗號、格式不合就改填 null。
         - confidence 是 0 到 1 之間的數字。連鎖店有公開營養標示的給高一點，純估算的給低一點。
         - 完全看不懂在講什麼食物就回傳空的 items 陣列。
+        - 填完之後逐項再看一次：鈉是不是 null？有調味的食物幾乎一定有鈉，回去估一個數字。
     """.trimIndent()
 }

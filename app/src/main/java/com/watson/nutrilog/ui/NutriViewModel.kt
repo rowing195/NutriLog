@@ -41,6 +41,8 @@ import com.watson.nutrilog.data.db.DayTotal
 import com.watson.nutrilog.data.db.EntrySource
 import com.watson.nutrilog.data.db.FoodEntry
 import com.watson.nutrilog.data.db.FoodSuggestion
+import com.watson.nutrilog.data.db.MissingField
+import com.watson.nutrilog.data.db.drinkVolumeMl
 import com.watson.nutrilog.data.db.Meal
 import com.watson.nutrilog.data.db.NutriDatabase
 import com.watson.nutrilog.data.net.DetectedFood
@@ -60,10 +62,13 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -109,6 +114,9 @@ import com.watson.nutrilog.data.WatchWearMode
  */
 enum class SettingsPage { APPEARANCE, TARGETS, HEALTH, AI, DRIVE, DATA, ABOUT }
 
+/** 資料健檢補的是哪一欄。 */
+enum class DataCheckField { SODIUM, WATER }
+
 sealed interface Screen {
     data object Today : Screen
     data object History : Screen
@@ -123,10 +131,13 @@ sealed interface Screen {
     data class SettingsDetail(val page: SettingsPage) : Screen
 
     /**
-     * 某一個服務的 key。設定裡唯一的第三層 —— 每家的欄位不一樣，
+     * 某一個服務的 key。設定裡的第三層 —— 每家的欄位不一樣，
      * 全部攤在同一頁的話「AI 影像辨識」又會變回一條長捲軸。
      */
     data class ApiKeyDetail(val service: ApiService) : Screen
+
+    /** 資料健檢：補缺鈉、缺水量的紀錄。從「本地資料管理」開進來，和 [ApiKeyDetail] 同樣是第三層。 */
+    data object DataCheck : Screen
     data object EditEntry : Screen
     data object Barcode : Screen
     data object TextLookup : Screen
@@ -503,6 +514,55 @@ class NutriViewModel(application: Application) : AndroidViewModel(application) {
 
     fun weekTotalsFlow(weekStart: LocalDate) =
         dao.observeRange(weekStart.toString(), weekStart.plusDays(6).toString())
+
+    // --- 資料健檢 ---
+
+    /**
+     * 缺鈉的品項。只有設定的「本地資料管理」與資料健檢那頁會訂閱。
+     *
+     * `stateIn` 是為了在兩頁之間換來換去時留住上一次的結果：各自從空清單開始收的話，
+     * 返回本地資料管理那一瞬間會先畫「沒有缺漏」、等查詢回來才跳成正確筆數。
+     * null 是「還沒查到」，畫面不要拿它說「沒有」。
+     */
+    val missingSodium: StateFlow<List<MissingField>?> = dao.observeMissingSodium()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /**
+     * 缺水量的品項，只留看得出是飲料的：份量寫了容量，或同一個品項別筆記過水量。
+     * 其他的（「1 碗」）可能是湯也可能是飯，列進來只會讓使用者一筆一筆去想要不要填。
+     */
+    val missingWater: StateFlow<List<MissingField>?> = dao.observeMissingWater()
+        .map { rows -> rows.filter { drinkVolumeMl(it.servingText) != null || it.known != null } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    var dataCheckMessage by mutableStateOf<String?>(null)
+        private set
+
+    fun openDataCheck() {
+        dataCheckMessage = null
+        screen = Screen.DataCheck
+    }
+
+    /**
+     * 把這個品項**所有缺這一欄的紀錄**補成 [value]，已經有數字的不動。
+     *
+     * 不依份數倍率縮放：同一個品項的份量文字相同，份數改過的紀錄份量文字也跟著改了
+     * （見 [EntryDraft.scaleFromBase]），所以同一組裡的每一筆本來就是同樣的量。
+     */
+    fun fillMissing(field: DataCheckField, item: MissingField, value: Double) {
+        viewModelScope.launch {
+            val filled = when (field) {
+                DataCheckField.SODIUM -> dao.entriesMissingSodium(item.name, item.servingText)
+                    .map { it.copy(sodiumMg = value) }
+                DataCheckField.WATER -> dao.entriesMissingWater(item.name, item.servingText)
+                    .map { it.copy(waterMl = value) }
+            }
+            if (filled.isEmpty()) return@launch
+            dao.updateEntries(filled)
+            pushToHealthConnect(filled)
+            dataCheckMessage = getApplication<Application>().getString(R.string.data_check_filled, filled.size)
+        }
+    }
 
     init {
         viewModelScope.launch {

@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableFloatStateOf
@@ -516,7 +517,30 @@ fun NutriLogApp(viewModel: NutriViewModel) {
                 updateDownloaded = viewModel.updateDownloaded,
                 canInstallPackages = viewModel.canInstallPackages,
                 onInstallUpdate = viewModel::installUpdate,
+                // 只有本地資料管理那頁才訂閱：每一頁都訂的話，改個深淺模式也要把整張表分組一次
+                missingCounts = if (screen.page == SettingsPage.DATA) {
+                    val sodium by viewModel.missingSodium.collectAsState()
+                    val water by viewModel.missingWater.collectAsState()
+                    sodium?.size?.let { s -> water?.size?.let { w -> s to w } }
+                } else {
+                    null
+                },
+                onOpenDataCheck = viewModel::openDataCheck,
                 onBack = { viewModel.goTo(Screen.Settings) },
+            )
+        }
+
+        // 第三層：資料健檢。返回回到「本地資料管理」，理由同 ApiKeyDetail。
+        Screen.DataCheck -> {
+            BackHandler { viewModel.openSettingsPage(SettingsPage.DATA) }
+            val sodium by viewModel.missingSodium.collectAsState()
+            val water by viewModel.missingWater.collectAsState()
+            DataCheckScreen(
+                missingSodium = sodium,
+                missingWater = water,
+                message = viewModel.dataCheckMessage,
+                onFill = viewModel::fillMissing,
+                onBack = { viewModel.openSettingsPage(SettingsPage.DATA) },
             )
         }
 
@@ -604,6 +628,7 @@ private val Screen.depth: Int
         Screen.Today -> 0
         is Screen.SettingsDetail -> 2
         is Screen.ApiKeyDetail -> 3
+        Screen.DataCheck -> 3
         Screen.Reports -> 2
         else -> 1
     }

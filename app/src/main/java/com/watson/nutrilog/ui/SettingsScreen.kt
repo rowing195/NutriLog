@@ -348,6 +348,9 @@ fun SettingsDetailScreen(
     updateDownloaded: Long?,
     canInstallPackages: Boolean,
     onInstallUpdate: () -> Unit,
+    /** 資料健檢那一列右邊的「缺鈉／缺水量」品項數，只有本地資料管理那頁用得到。null 是還沒查到。 */
+    missingCounts: Pair<Int, Int>?,
+    onOpenDataCheck: () -> Unit,
     onBack: () -> Unit,
 ) {
     Scaffold(
@@ -394,7 +397,7 @@ fun SettingsDetailScreen(
                 SettingsPage.DRIVE -> DriveSection(
                     settings, driveMessage, driveBusy, onConnectDrive, onBackupNow, onDisconnectDrive,
                 )
-                SettingsPage.DATA -> DataSection(dataMessage, onExportCsv, onImportCsv)
+                SettingsPage.DATA -> DataSection(dataMessage, onExportCsv, onImportCsv, missingCounts, onOpenDataCheck)
                 SettingsPage.ABOUT -> AboutSection(
                     settings, updateStatus, updateAvailable, updateChecking, updateMessage,
                     onCheckUpdate, onSetAutoUpdate, onUpdateSeen,
@@ -995,7 +998,7 @@ private fun ApiService.keyOf(settings: NutriSettings): String = when (this) {
 }
 
 /**
- * 一個服務的 key（外加它自己的設定）。設定裡唯一的第三層。
+ * 一個服務的 key（外加它自己的設定）。設定裡的第三層（另一個是資料健檢）。
  *
  * 三個服務共用這個外框而不是各寫一頁：差別只有「help 文案、key 存到哪個欄位、
  * 底下要不要接模型選單」，各寫一份的話收鍵盤與內距的規則就要維護三次。
@@ -1349,6 +1352,8 @@ private fun DataSection(
     dataMessage: String?,
     onExportCsv: () -> Unit,
     onImportCsv: () -> Unit,
+    missingCounts: Pair<Int, Int>?,
+    onOpenDataCheck: () -> Unit,
 ) {
     // 匯出與匯入是同一件事的兩個方向，所以共用一段敘述、擺在一起，
     // 結果訊息也只有一行 —— 兩行訊息並排會分不清哪一行是誰的。
@@ -1382,6 +1387,20 @@ private fun DataSection(
         )
     }
     }
+
+    Hairline(Modifier.padding(vertical = 10.dp))
+
+    // 右邊直接講缺幾筆：只寫「資料健檢」的話，要點進去才知道有沒有東西要補
+    MenuRow(
+        title = stringResource(R.string.data_check_title),
+        summary = when {
+            missingCounts == null -> ""
+            missingCounts.first == 0 && missingCounts.second == 0 -> stringResource(R.string.data_check_summary_clean)
+            else -> stringResource(R.string.data_check_summary, missingCounts.first, missingCounts.second)
+        },
+        onClick = onOpenDataCheck,
+    )
+    Hairline()
 }
 
 /**

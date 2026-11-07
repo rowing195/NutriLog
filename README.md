@@ -60,6 +60,7 @@
     - [App 圖示](#app-圖示)
     - [檢查更新](#檢查更新)
     - [匯出／匯入 CSV](#匯出匯入-csv)
+    - [資料健檢：補缺鈉、缺水量](#資料健檢補缺鈉缺水量)
     - [Google Drive 雲端備份](#google-drive-雲端備份)
 - [設定：選單加子頁，三把 key](#設定選單加子頁三把-key)
 - [設計決策](#設計決策)
@@ -157,6 +158,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
     │       │   │   │   │   ├── DailyWater.kt
     │       │   │   │   │   ├── FoodEntry.kt
     │       │   │   │   │   ├── FoodSuggestion.kt
+    │       │   │   │   │   ├── MissingField.kt
     │       │   │   │   │   ├── NutriDao.kt
     │       │   │   │   │   └── NutriDatabase.kt
     │       │   │   │   └── net/
@@ -178,6 +180,7 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
     │       │   │       ├── BarcodeScreen.kt
     │       │   │       ├── BmrCalculatorDialog.kt
     │       │   │       ├── Common.kt
+    │       │   │       ├── DataCheckScreen.kt
     │       │   │       ├── EditEntryScreen.kt
     │       │   │       ├── ExerciseDetailSheet.kt
     │       │   │       ├── HistoryScreen.kt
@@ -425,6 +428,10 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 					<td style='padding: 8px;'>個人食物庫品項 —— 從既有紀錄聚合出來的品項模型，不額外建立實體表，提供快速一鍵帶入。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/db/MissingField.kt'>MissingField.kt</a></b></td>
+					<td style='padding: 8px;'>資料健檢的一列：某個品項有幾筆缺鈉或缺水量，以及同一品項別筆記過的值。另含從份量文字讀容量（ml／毫升／cc）的 `drinkVolumeMl`。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/data/db/CachedProduct.kt'>CachedProduct.kt</a></b></td>
 					<td style='padding: 8px;'>查過的條碼商品快取表（每 100g 營養素），節省 OFF 頻率限制並支援離線再次掃碼。</td>
 				</tr>
@@ -569,8 +576,12 @@ Android 每日飲食營養素紀錄器（Kotlin + Compose）。app 顯示名稱�
 					<td style='padding: 8px;'>條碼掃描與手動輸入條碼，支援自訂實際食用克數自動等比換算。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
+					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/DataCheckScreen.kt'>DataCheckScreen.kt</a></b></td>
+					<td style='padding: 8px;'>資料健檢：缺鈉／缺水量兩頁，一列一個品項，點開就地補上，數字先從同品項的其他紀錄或份量容量帶好。</td>
+				</tr>
+				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/SettingsScreen.kt'>SettingsScreen.kt</a></b></td>
-					<td style='padding: 8px;'>設定的選單與七個子頁：外觀（深淺模式、App 圖示）、每日目標（含依身型計算、進階營養素開關、運動熱量回補）、Health 連線、API 管理（三把 key、各條路走哪一家、模型攤開圈選而不用下拉選單）、雲端備份、本地資料管理（CSV 匯出／匯入）、關於（版本、展示頁面連結、檢查更新、每天自動檢查的開關）。</td>
+					<td style='padding: 8px;'>設定的選單與七個子頁：外觀（深淺模式、App 圖示）、每日目標（含依身型計算、進階營養素開關、運動熱量回補）、Health 連線、API 管理（三把 key、各條路走哪一家、模型攤開圈選而不用下拉選單）、雲端備份、本地資料管理（CSV 匯出／匯入、資料健檢入口）、關於（版本、展示頁面連結、檢查更新、每天自動檢查的開關）。</td>
 				</tr>
 				<tr style='border-bottom: 1px solid #eee;'>
 					<td style='padding: 8px;'><b><a href='https://github.com/rowing195/NutriLog/blob/main/app/src/main/java/com/watson/nutrilog/ui/BmrCalculatorDialog.kt'>BmrCalculatorDialog.kt</a></b></td>
@@ -893,6 +904,14 @@ Windows 平台可使用隨附腳本：
 [`PhotoPromptTest.kt`](app/src/test/java/com/watson/nutrilog/PhotoPromptTest.kt)
 - 照片確認頁的烹調備註不填也能直接辨識，填了就完整接在照片指示後面
 
+[`SodiumPromptTest.kt`](app/src/test/java/com/watson/nutrilog/SodiumPromptTest.kt)
+- 兩份 prompt 都要求鈉查不到時依同類食物估，最後再自我檢查一次；舊的「沒把握就 null」不能回來
+- 帶搜尋結果時才多那句「資料沒寫不代表沒有鈉」；確認畫面那一行把估出來的鈉列在水量前面
+
+[`DrinkVolumeTest.kt`](app/src/test/java/com/watson/nutrilog/DrinkVolumeTest.kt)
+- 資料健檢從份量讀容量：700ml、600 mL、350cc、250 毫升都讀得到，「1 碗」「200 g」讀不到
+- 飲料店的「L 杯」不會被讀成一公升
+
 [`UpdateCheckTest.kt`](app/src/test/java/com/watson/nutrilog/UpdateCheckTest.kt)
 - 版號逐段比數字不比字串：v2.2.10 比 2.2.9 新、v2.10.0 比 2.9.9 新，少一段當成 0
 - 本機建置（「1.0-debug」）與不是版號形狀的 tag 比不了，不能說有新版
@@ -1115,6 +1134,16 @@ UI 部分使用 [`tools/ui.ps1`](tools/ui.ps1) 依元件文字進行模擬器自
 - **重複自動略過**：以「日期＋名稱＋份量＋記錄時間」辨識同一筆，同一份檔案匯入兩次不會變成兩份，也能把兩支手機的紀錄合併起來。
 - 匯出→匯入→再匯出實測為完全相同的檔案，換手機可以無損接回。
 
+### 資料健檢：補缺鈉、缺水量
+
+設定 → 本地資料管理 → 資料健檢，列出缺鈉與缺水量的品項，在原地補上數字。
+
+- **一列是一個品項（名稱＋份量）**，不是一筆紀錄。同一杯珍奶記過三十次，補一次就填進那三十筆裡缺的那幾筆；已經有數字的不會被改。
+- 不依份數倍率縮放：份數改過的紀錄，份量文字也跟著改了，所以同一個品項的每一筆本來就是同樣的量。
+- **數字先帶好**：同一個品項別筆記過的值優先；缺水量的再退一步用份量寫的容量（「大杯 700ml」帶入 700）。
+- 缺水量只列看得出是飲料的：份量寫了 ml／毫升／cc，或同一個品項別筆記過水量。「1 碗」可能是湯也可能是飯，列進來只會讓使用者一筆一筆去想要不要填。
+- 補上的紀錄若有開「寫入飲食」，會一併重寫到 Health 連線。
+
 ### Google Drive 雲端備份
 
 - 於設定頁連結 Google 帳號後，**每天自動**將紀錄備份至雲端硬碟主頁 `NutriLog/` 資料夾，一天一個日期檔、僅保留最近 30 天。
@@ -1228,6 +1257,13 @@ Tavily 免費層回的就是清洗過的頁面正文。
 **錯的數字比空白更糟**：確認畫面只列出熱量與三大營養素，進階那四欄沒人看得到，
 進去就是默默落地。詳細的追查過程見
 [issue #11](https://github.com/rowing195/NutriLog/issues/11)。
+
+### 鈉查不到也要估
+
+鈉是唯一「查不到也要估」的營養素：搜尋到的營養標示常常只列熱量與三大營養素，
+原本「沒把握就留空」的規則讓「AI 查」最常缺的反而是鈉。現在 prompt 要求模型查不到時
+依同類食物估一個數字，最後再自我檢查一次鈉是不是空的；糖、膳食纖維、飽和脂肪
+維持沒把握就留空。估出來的鈉會列在確認畫面上，入庫前看得到。
 
 ### 蛋白質只看體態目標，活動量只管熱量
 
