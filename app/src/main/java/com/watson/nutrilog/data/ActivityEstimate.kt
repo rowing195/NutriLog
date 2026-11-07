@@ -11,7 +11,7 @@ import java.time.LocalTime
  * 把來源分開記下來，才有辦法在同步時講清楚那個 0 是什麼意思。
  */
 enum class ActivitySource {
-    /** 三星／手錶直接記的活動大卡。整天配戴時這就是一整天的活動量 */
+    /** 三星／手錶直接記的活動大卡。整天配戴、而且比「場次＋步數」大時，它就是一整天的活動量 */
     ACTIVE_CALORIES,
 
     /** 體能訓練專項運動（重訓、跑步、健走等場次紀錄） */
@@ -163,15 +163,22 @@ fun dailyMovementAllowance(bmrPerDay: Double, calorieTarget: Int): Double =
 /**
  * 依配戴方式挑出這一天要加進目標的活動消耗。
  *
- * **只認「活動消耗」與「運動場次」這兩種資料，因為它們本身就已經是活動量了。**
- * 曾經還有兩條退路：總消耗扣掉基礎代謝、步數換算。兩條都拿掉了：
+ * 一天的走動有兩種估法，**永遠二選一、不相加**（兩者估的是同一件事，相加就是重複）：
  *
- * - **總消耗扣基礎代謝**是拿兩個一千五百多的大數字相減去換一個一百多的小數字，
- *   兩邊的基礎代謝只要差幾個百分點，誤差就和答案同一個量級。實測手錶記了 153，
- *   這條路算出來是 39。而且它得引進「今天過了幾成」才扣得對，時間一進來，
- *   同一天在不同時刻讀會得到不同的歷史值。
- * - **步數換算**是固定係數乘出來的猜測值，和手錶實測混在同一個數字裡，
- *   使用者分不出哪天是量的、哪天是猜的。
+ * - **全日活動大卡**：手錶自己量的。只有整天配戴才算數 —— 只有運動時戴的話它只涵蓋
+ *   戴著的那幾小時，拿來當一整天會低估。
+ * - **運動場次＋場次以外的步數**：場次熱量，加上步數超出久坐額度的那一段
+ *   （見 [dailyMovementAllowance]；場次裡的步數先扣掉）。兩種配戴方式都算得出來。
+ *
+ * 整天配戴時**取大的那個**。不要改回「有活動大卡就不算步數」：三星寫進健康連線的
+ * 活動大卡只涵蓋運動場次那幾段，而走超過十分鐘它看起來會自動記一筆健走場次，所以
+ * 幾乎每天都「有」活動大卡。實測一天活動大卡 319、場次以外還有 13,239 步，步數那一段
+ * 卻整段被擋成 +0。真的整天記活動大卡的手錶，那個數字涵蓋走路、通常比較大，結果不變。
+ *
+ * **總消耗扣基礎代謝那條退路拿掉了，不要加回來**：那是拿兩個一千五百多的大數字相減
+ * 去換一個一百多的小數字，兩邊的基礎代謝只要差幾個百分點，誤差就和答案同一個量級。
+ * 實測手錶記了 153，這條路算出來是 39。而且它得引進「今天過了幾成」才扣得對，
+ * 時間一進來，同一天在不同時刻讀會得到不同的歷史值。
  *
  * 讀不到就老實說讀不到（[ActivitySource.NONE]），不要給一個猜的數字。
  *
@@ -194,31 +201,23 @@ fun chooseActivity(
     val workout = (workoutKcal ?: 0.0).coerceAtLeast(0.0)
     val active = (activeKcal ?: 0.0).coerceAtLeast(0.0)
 
-    // **步數只在活動大卡沒被採用時才算。** 兩者估的是同一件事（一整天的走動），
-    // 永遠是二選一、不能相加：整天配戴時活動大卡本身已經含日常走動，再加就重複。
-    //
-    // 只有運動時戴的話活動大卡本來就不採用（見下面的 measured），它也就不能擋掉步數。
-    // 曾經只看「有沒有活動大卡」：健康連線裡有一點活動大卡、當天又沒運動時，
-    // 步數被丟掉、場次是 0，兩邊都不算，走了 12,000 步還是 +0。
-    //
     // 運動場次裡的步數要扣掉：跑步那三十分鐘的步已經算在場次熱量裡了。
     val workoutSteps = workoutSessions.sumOf { it.steps }.coerceAtLeast(0L)
     val dailySteps = (steps - workoutSteps).coerceAtLeast(0L)
-    val activeUsed = wearMode == WatchWearMode.ALL_DAY && active > 0.0
-    val stepKcal = if (activeUsed) 0.0 else stepsToCalories(dailySteps, weightKg)
     // 只算超出久坐基準的那一段，理由見 [dailyMovementAllowance]。
-    val stepSurplus = (stepKcal - movementAllowance).coerceAtLeast(0.0)
+    // 兩種配戴方式都算：步數不靠手錶整天戴著也量得到。
+    val stepSurplus =
+        (stepsToCalories(dailySteps, weightKg) - movementAllowance).coerceAtLeast(0.0)
+    val sessionsAndSteps = workout + stepSurplus
 
-    // 整天配戴：活動消耗已經含日常走動與運動，直接用。運動場次比它還多的話以場次為準
-    // —— 有些手錶只在運動時段寫活動大卡，全日那筆反而偏小。
+    // 全日活動大卡和「場次＋步數」二選一、取大的，理由見上面的說明。
     //
-    // 步數那一段兩種配戴方式都加：它是手機計步器量的，和手錶戴不戴無關。
-    val measured = when (wearMode) {
-        WatchWearMode.ALL_DAY -> maxOf(active, workout)
-        // 只有運動時戴：全日活動消耗只涵蓋戴著的那幾小時，拿來當一整天會低估。
-        WatchWearMode.WORKOUT_ONLY -> workout
-    }
-    val calories = measured + stepSurplus
+    // 只有運動時戴：全日活動大卡只涵蓋戴著的那幾小時，不參與比較 —— 它也就擋不掉步數。
+    // 曾經只看「有沒有活動大卡」，沒運動、走了 12,000 步的那天目標只加 +0。
+    //
+    // 平手時用「場次＋步數」：明細面板才講得出每一筆是從哪裡來的。
+    val activeWins = wearMode == WatchWearMode.ALL_DAY && active > sessionsAndSteps
+    val calories = if (activeWins) active else sessionsAndSteps
 
     if (calories <= 0.0) {
         return DailyActivity(
@@ -238,19 +237,19 @@ fun chooseActivity(
     return DailyActivity(
         calories = calories,
         steps = steps,
-        // 標的是「主要來源」：測到的那一段比步數重要，因為它是量的不是算的。
+        // 標的是「主要來源」：場次是量的、步數是算的，兩段都有時標場次。
         // 兩段都有時，明細面板會把場次與走路各列一行，不靠這個標籤講完。
         source = when {
-            measured <= 0.0 -> ActivitySource.STEPS
-            wearMode == WatchWearMode.WORKOUT_ONLY -> ActivitySource.WORKOUT_SESSIONS
-            measured > active -> ActivitySource.WORKOUT_SESSIONS
-            else -> ActivitySource.ACTIVE_CALORIES
+            activeWins -> ActivitySource.ACTIVE_CALORIES
+            workout > 0.0 -> ActivitySource.WORKOUT_SESSIONS
+            else -> ActivitySource.STEPS
         },
         workoutCalories = workout,
         workoutCount = workoutCount,
         workoutSummary = workoutSummary,
         workoutSessions = workoutSessions,
         dailySteps = dailySteps,
-        stepCalories = stepSurplus,
+        // 活動大卡勝出時步數沒有加進去，明細面板的「走路」那列要照實畫 +0。
+        stepCalories = if (activeWins) 0.0 else stepSurplus,
     )
 }

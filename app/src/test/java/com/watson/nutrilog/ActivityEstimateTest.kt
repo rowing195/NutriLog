@@ -14,9 +14,11 @@ import org.junit.Test
 /**
  * 活動消耗要拿哪一種資料的守門測試。
  *
- * 三件事：**只有運動時戴的人不能把全日活動大卡當一整天用**（那個數字
+ * 四件事：**只有運動時戴的人不能把全日活動大卡當一整天用**（那個數字
  * 只涵蓋戴著的那幾小時）；**總消耗扣基礎代謝那條退路不准回來**；
- * 以及**步數只能算超出久坐額度的那一段**。
+ * **步數只能算超出久坐額度的那一段**；以及**整天配戴時活動大卡和「場次＋步數」
+ * 二選一取大的** —— 不是「有活動大卡就不算步數」，那會讓只記一部分活動大卡的
+ * 手錶（三星）把場次以外的走路整段吃掉。
  *
  * 最後那件是最容易被「簡化」掉的：把整天步數直接換成大卡加進目標看起來很合理，
  * 但熱量目標的底是基礎代謝 × 久坐 1.2，而「久坐」本來就含日常走動 ——
@@ -212,13 +214,30 @@ class ActivityEstimateTest {
         assertEquals(ActivitySource.WORKOUT_SESSIONS, result.source)
     }
 
+    // --- 整天配戴：活動大卡和「場次＋步數」二選一，取大的 ---
+
     /**
-     * **有活動大卡時步數完全不參與。** 兩者估的是同一件事（一整天的走動），
-     * 相加就是重複。三星不寫活動大卡，所以這條在那些手機上不會進去 ——
-     * 但別的手機寫了的話它就是擋在中間的那道門。
+     * 真的整天記活動大卡的手錶，那個數字涵蓋走路、通常比較大 —— 那時步數不加上去。
+     * 兩者估的是同一件事（一整天的走動），相加就是重複。
      */
     @Test
-    fun `有活動大卡時步數不參與`() {
+    fun `整天配戴時活動大卡比較大就用它，步數不加上去`() {
+        val result = chooseActivity(
+            activeKcal = 420.0,
+            steps = 10_000L,
+            wearMode = WatchWearMode.ALL_DAY,
+            weightKg = 64.0,
+            movementAllowance = 129.6,
+        )
+        // 步數那條是 190.4，比 420 小
+        assertEquals(ActivitySource.ACTIVE_CALORIES, result.source)
+        assertEquals(420.0, result.calories, 0.001)
+        assertEquals(0.0, result.stepCalories, 0.001)
+        assertEquals(10_000L, result.dailySteps)
+    }
+
+    @Test
+    fun `整天配戴時步數那條比較大就用步數，不和活動大卡相加`() {
         val result = chooseActivity(
             activeKcal = 420.0,
             steps = 20_000L,
@@ -226,8 +245,43 @@ class ActivityEstimateTest {
             weightKg = 64.0,
             movementAllowance = 129.6,
         )
-        assertEquals(ActivitySource.ACTIVE_CALORIES, result.source)
-        assertEquals(420.0, result.calories, 0.001)
-        assertEquals(0.0, result.stepCalories, 0.001)
+        // 20,000 × 64 × 0.0005 = 640，扣掉額度剩 510.4，比 420 大；相加的話會是 930.4
+        assertEquals(ActivitySource.STEPS, result.source)
+        assertEquals(510.4, result.calories, 0.001)
+        assertEquals(510.4, result.stepCalories, 0.001)
+    }
+
+    /**
+     * 實際遇到的情境（三星）：健康連線裡的活動大卡只涵蓋運動場次那幾段，而走超過十分鐘
+     * 三星看起來會自動記一筆健走場次，所以幾乎每天都「有」活動大卡。舊版有活動大卡就把步數
+     * 整段擋掉：這一天活動大卡 319、四段健走 122，場次以外的 13,239 步是 +0。
+     */
+    @Test
+    fun `活動大卡只記了一部分時，場次以外的步數不能被擋掉`() {
+        val walks = listOf(40.0, 18.0, 28.0, 36.0).map { kcal ->
+            WorkoutSessionItem(
+                title = "健走",
+                exerciseType = 79,
+                durationMinutes = 12,
+                calories = kcal,
+                steps = 1_000L,
+            )
+        }
+        val result = chooseActivity(
+            activeKcal = 319.0,
+            steps = 17_239L,
+            wearMode = WatchWearMode.ALL_DAY,
+            workoutKcal = 122.0,
+            workoutCount = 4,
+            workoutSessions = walks,
+            weightKg = 60.0,
+            movementAllowance = 123.0,
+        )
+        // 17,239 − 4,000 = 13,239 步 -> 397.17，扣掉額度剩 274.17，加上場次 122 = 396.17 > 319
+        assertEquals(13_239L, result.dailySteps)
+        assertEquals(274.17, result.stepCalories, 0.001)
+        assertEquals(396.17, result.calories, 0.001)
+        assertEquals(122.0, result.workoutCalories, 0.001)
+        assertEquals(ActivitySource.WORKOUT_SESSIONS, result.source)
     }
 }
